@@ -1,1146 +1,1814 @@
 /**
- * GEO-MN // Enterprise Manganese Geological & Production Intelligence
- * Client-Side Controller & Telemetry Engine
+ * GEO-MN // Manganese Supply Command — frontend controller.
+ *
+ * Rules this file follows:
+ *  - Every number, decision, target and metric shown comes from the backend.
+ *    Missing values render as "N/A" / "unavailable"; nothing is substituted.
+ *  - Decisions and portfolio selection are never computed here.
+ *  - Provenance (real / synthetic / simulated / cached) is always displayed.
  */
 
 (function () {
     'use strict';
 
-    // ── Configuration & State ────────────────────────────────
-    // Automatically detects whether running locally or deployed on the cloud
     const API_BASE = window.location.origin;
+    const MINE_ID = 'DEMO_MINE';
 
+    // ── Single application state ────────────────────────────
     const state = {
-        currentSection: 'dashboard',
-        apiOnline: false,
-        reserveGridData: null,
-        reserveMap: null,
-        heatLayer: null,
-        selectedCircle: null,
-        selectedMarker: null,
-        baseLayers: {},
-        currentBaseLayer: null,
-        simHistory: [],
+        currentSection: 'supply-command',
+        apiOnline: null,
+        health: null,
+        supply: null,
+        exploration: {
+            targets: [],
+            targetsMeta: null,
+            selectedId: null,
+            detail: {},          // id -> detail response
+            surface: null,
+            surfaceSource: null,
+            query: null,
+        },
+        production: { forecast: null, history: null },
+        recovery: null,
+        contingency: null,
+        decision: { current: null, previous: null, flipRuns: 0 },
+        decisionHistory: [],
+        trust: { exploration: null, production: null, provenance: null, reconciliation: null },
+        loaded: {},              // section -> true once fetched
+        maps: { exploration: null, baseLayers: {}, currentBase: null, surfaceLayer: null, markers: {}, highlight: null, queryMarker: null },
     };
 
-    const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => document.querySelectorAll(sel);
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-    // ── Toast System ─────────────────────────────────────────
+    // ── Small utilities ─────────────────────────────────────
+    function esc(v) {
+        return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function num(v) {
+        if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+        if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v);
+        return null;
+    }
+
+    // First present (non-null) value among the given keys.
+    function pick(obj, ...keys) {
+        if (!obj || typeof obj !== 'object') return undefined;
+        for (const k of keys) {
+            if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+        }
+        return undefined;
+    }
+
+    // Like pick, but also looks one or two levels down (metrics are often grouped).
+    // Nested baseline/naive blocks are skipped unless a baseline metric is being
+    // looked up, so a baseline MAE is never displayed as the model's MAE.
+    function deepPick(obj, keys, depth = 2) {
+        const direct = pick(obj, ...keys);
+        if (direct !== undefined || depth === 0 || !obj || typeof obj !== 'object') return direct;
+        const wantBaseline = keys.some(k => /baseline|naive/i.test(k));
+        for (const [k, v] of Object.entries(obj)) {
+            if (!wantBaseline && /baseline|naive/i.test(k)) continue;
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+                const found = deepPick(v, keys, depth - 1);
+                if (found !== undefined) return found;
+            }
+        }
+        return undefined;
+    }
+
+    const human = s => String(s ?? '').replace(/[_-]+/g, ' ').trim();
+    const upperHuman = s => human(s).toUpperCase();
+    const norm = s => String(s ?? '').trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+    function fmtT(v) {
+        v = num(v);
+        if (v === null) return 'N/A';
+        const a = Math.abs(v);
+        if (a >= 1e6) return `${(v / 1e6).toFixed(2)} Mt`;
+        if (a >= 1000) return `${(v / 1000).toFixed(1)} kt`;
+        return `${Math.round(v).toLocaleString()} t`;
+    }
+
+    function fmtNum(v, dp = 3) {
+        const n = num(v);
+        if (n === null) return null;
+        if (Number.isInteger(n)) return n.toLocaleString();
+        return String(Number(n.toFixed(dp)));
+    }
+
+    function asArray(v) {
+        if (Array.isArray(v)) return v;
+        if (v === undefined || v === null || v === '') return [];
+        return [v];
+    }
+
+    // ── Toasts & loading ────────────────────────────────────
     function showToast(message, type = 'info') {
         const container = $('#toastContainer');
         if (!container) return;
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = `<span>${message}</span>`;
+        toast.textContent = message;
         container.appendChild(toast);
         setTimeout(() => {
             toast.style.opacity = '0';
             toast.style.transform = 'translateX(30px)';
             setTimeout(() => toast.remove(), 250);
-        }, 4000);
+        }, 4500);
     }
 
     function setLoading(btn, loading) {
         if (!btn) return;
-        if (loading) {
-            btn.classList.add('loading');
-            btn.disabled = true;
-        } else {
-            btn.classList.remove('loading');
-            btn.disabled = false;
+        btn.classList.toggle('loading', loading);
+        btn.disabled = loading;
+        btn.setAttribute('aria-busy', loading ? 'true' : 'false');
+    }
+
+    function loadingHTML(label = 'Loading…') {
+        return `<div class="loading-state" role="status"><span class="spinner spinner-inline" aria-hidden="true"></span>${esc(label)}</div>`;
+    }
+
+    function errorHTML(title, err, retryId) {
+        const detail = err && err.userMessage ? err.userMessage : '';
+        return `<div class="error-state" role="alert">
+            <div class="error-title">${esc(title)}</div>
+            ${detail ? `<div class="error-detail">${esc(detail)}</div>` : ''}
+            <div class="error-detail">Try again or check the backend status.</div>
+            ${retryId ? `<button type="button" class="cmd-btn cmd-btn-outline" data-retry="${esc(retryId)}">Retry</button>` : ''}
+        </div>`;
+    }
+
+    // ── Resilient API client ────────────────────────────────
+    class ApiError extends Error {
+        constructor(kind, status, userMessage) {
+            super(userMessage);
+            this.kind = kind;            // 'timeout' | 'network' | 'http' | 'parse'
+            this.status = status;
+            this.userMessage = userMessage;
         }
     }
 
-    // ── HTTP API Client ──────────────────────────────────────
-    async function apiGet(endpoint) {
-        const t0 = performance.now();
-        const res = await fetch(`${API_BASE}${endpoint}`);
-        recordLatency(performance.now() - t0, endpoint);
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: res.statusText }));
-            throw new Error(err.detail || `HTTP ${res.status}`);
-        }
-        return res.json();
-    }
-
-    // FastAPI validation errors (422) arrive as detail: [{loc, msg, type}, ...].
-    // Flatten them into something readable instead of "[object Object]".
-    function describeApiError(err, status) {
-        const d = err && err.detail;
+    // FastAPI 422s arrive as detail: [{loc, msg}]; flatten without leaking internals.
+    function describeDetail(body, status) {
+        const d = body && body.detail;
         if (Array.isArray(d)) {
-            return d.map(e => {
-                const field = Array.isArray(e.loc) ? e.loc.filter(x => x !== 'body').join('.') : '?';
-                return `${field}: ${e.msg}`;
+            return d.slice(0, 3).map(e => {
+                const field = Array.isArray(e.loc) ? e.loc.filter(x => x !== 'body').join('.') : '';
+                return `${field ? field + ': ' : ''}${e.msg || 'invalid'}`;
             }).join('; ');
         }
-        if (typeof d === 'string') return d;
-        return `HTTP ${status}`;
+        if (status === 404) return 'Endpoint not available on this backend (HTTP 404).';
+        if (typeof d === 'string' && d.length < 240 && !/Traceback|File "/.test(d)) return d;
+        if (status >= 500) return `Backend error (HTTP ${status}).`;
+        return `Request failed (HTTP ${status}).`;
     }
 
-    // Real measured round-trip, not a decorative constant. Live Earth Engine
-    // queries take seconds, not milliseconds — the pill must tell the truth.
     function recordLatency(ms, endpoint) {
         const pill = $('#latencyPill');
         if (!pill) return;
         const shown = ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
         pill.textContent = `Latency: ${shown}`;
-        pill.title = `Last call: ${endpoint || 'API'} — ${Math.round(ms)}ms round trip`;
-        // Live Earth Engine extraction genuinely takes seconds. Show that
-        // honestly rather than letting a slow call pass as routine.
-        pill.style.color = ms >= 3000 ? 'var(--risk-medium)' : '';
+        pill.title = `Last call: ${endpoint} — ${Math.round(ms)}ms round trip`;
+        pill.parentElement?.classList.toggle('pill-slow', ms >= 3000);
     }
 
-    async function apiPost(endpoint, body) {
-        const t0 = performance.now();
-        const res = await fetch(`${API_BASE}${endpoint}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-        recordLatency(performance.now() - t0, endpoint);
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: res.statusText }));
-            const msg = describeApiError(err, res.status);
-            console.error(`POST ${endpoint} -> ${res.status}`, { sent: body, response: err });
-            throw new Error(msg);
+    async function request(method, endpoint, { body, timeout = 15000, retries = 0 } = {}) {
+        let attempt = 0;
+        for (;;) {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), timeout);
+            const t0 = performance.now();
+            try {
+                const res = await fetch(`${API_BASE}${endpoint}`, {
+                    method,
+                    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+                    body: body !== undefined ? JSON.stringify(body) : undefined,
+                    signal: ctrl.signal,
+                });
+                clearTimeout(timer);
+                recordLatency(performance.now() - t0, endpoint);
+                if (!res.ok) {
+                    const errBody = await res.json().catch(() => null);
+                    const err = new ApiError('http', res.status, describeDetail(errBody, res.status));
+                    // Retry only transient server errors, never 4xx.
+                    if (res.status >= 500 && attempt < retries) { attempt++; await wait(600 * attempt); continue; }
+                    console.warn(`${method} ${endpoint} -> ${res.status}`);
+                    throw err;
+                }
+                try {
+                    return await res.json();
+                } catch (_) {
+                    throw new ApiError('parse', res.status, 'Backend returned an unreadable response.');
+                }
+            } catch (e) {
+                clearTimeout(timer);
+                if (e instanceof ApiError) throw e;
+                const kind = e && e.name === 'AbortError' ? 'timeout' : 'network';
+                if (attempt < retries) { attempt++; await wait(600 * attempt); continue; }
+                console.warn(`${method} ${endpoint} failed: ${kind}`);
+                throw new ApiError(kind, 0, kind === 'timeout'
+                    ? `No response within ${Math.round(timeout / 1000)}s.`
+                    : 'Backend unreachable.');
+            }
         }
-        return res.json();
     }
 
-    // ── Navigation Controller ────────────────────────────────
-    const sectionTitles = {
-        dashboard: 'Executive Overview',
-        reserve: 'Satellite Prospecting & Geological Mapping',
-        shortfall: 'Production Shortfall Risk Engine',
-        simulator: 'What-If Scenario Simulation Ledger',
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const api = {
+        get: (ep, opts = {}) => request('GET', ep, { retries: 1, ...opts }),
+        post: (ep, body, opts = {}) => request('POST', ep, { body, ...opts }),
     };
 
-    function initNavigation() {
-        $$('.nav-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const sec = link.dataset.section;
-                showSection(sec);
-                $('#sidebar')?.classList.remove('open');
-            });
-        });
+    // ── Provenance badges ───────────────────────────────────
+    const MODE_BADGES = {
+        REAL_PUBLIC: ['REAL / PUBLIC', 'real'],
+        REAL: ['REAL / PUBLIC', 'real'],
+        PUBLIC: ['REAL / PUBLIC', 'real'],
+        SYNTHETIC: ['SYNTHETIC DEMONSTRATION DATA', 'synthetic'],
+        SYNTHETIC_DEMO: ['SYNTHETIC DEMONSTRATION DATA', 'synthetic'],
+        SYNTHETIC_DEMONSTRATION: ['SYNTHETIC DEMONSTRATION DATA', 'synthetic'],
+        SIMULATED: ['SIMULATED SCENARIO', 'simulated'],
+        SIMULATION: ['SIMULATED SCENARIO', 'simulated'],
+        CACHED: ['CACHED / REPLAY', 'cached'],
+        CACHE: ['CACHED / REPLAY', 'cached'],
+        REPLAY: ['CACHED / REPLAY', 'cached'],
+        CACHED_REPLAY: ['CACHED / REPLAY', 'cached'],
+        CACHED_GRID: ['CACHED / REPLAY', 'cached'],
+        LIVE: ['LIVE COORDINATE QUERY', 'live'],
+        LIVE_SATELLITE: ['LIVE COORDINATE QUERY', 'live'],
+        LIVE_COORDINATE_QUERY: ['LIVE COORDINATE QUERY', 'live'],
+        LIVE_QUERY: ['LIVE COORDINATE QUERY', 'live'],
+        UNAVAILABLE: ['UNAVAILABLE', 'unavailable'],
+        NONE: ['UNAVAILABLE', 'unavailable'],
+    };
 
-        $$('.action-btn[data-navigate]').forEach(btn => {
-            btn.addEventListener('click', () => showSection(btn.dataset.navigate));
-        });
+    function modeInfo(value) {
+        const key = norm(value);
+        return MODE_BADGES[key] ? { label: MODE_BADGES[key][0], cls: MODE_BADGES[key][1], known: true }
+            : { label: upperHuman(value), cls: 'neutral', known: false };
+    }
 
-        $('#mobileToggle')?.addEventListener('click', () => {
-            $('#sidebar')?.classList.toggle('open');
+    function badgeHTML(value, prefix) {
+        if (value === undefined || value === null || value === '') return '';
+        const m = modeInfo(value);
+        return `<span class="badge badge-${m.cls}">${prefix ? `<span class="badge-k">${esc(prefix)}:</span> ` : ''}${esc(m.label)}</span>`;
+    }
+
+    function fmtWindow(w) {
+        if (!w) return null;
+        if (typeof w === 'string') return w;
+        const s = pick(w, 'start', 'from', 'start_date');
+        const e = pick(w, 'end', 'to', 'end_date');
+        if (s || e) return `${s || '?'} → ${e || '?'}`;
+        return null;
+    }
+
+    // Renders a provenance object/string as a row of badges. Only values the
+    // backend returned are shown; keys are used as badge prefixes.
+    function provenanceHTML(prov) {
+        if (!prov) return badgeHTML('UNAVAILABLE', 'PROVENANCE');
+        if (typeof prov === 'string') return badgeHTML(prov, 'DATA');
+        const out = [];
+        const win = fmtWindow(pick(prov, 'observation_window'));
+        Object.entries(prov).forEach(([k, v]) => {
+            if (k === 'observation_window') return;
+            if (typeof v === 'string' && modeInfo(v).known) {
+                out.push(badgeHTML(v, upperHuman(k.replace(/_?(mode|source)$/i, '') || k)));
+            } else if (v && typeof v === 'object' && !Array.isArray(v)) {
+                const mode = pick(v, 'mode', 'data_mode', 'type', 'status', 'source');
+                if (typeof mode === 'string') out.push(badgeHTML(mode, upperHuman(k)));
+            }
+        });
+        if (win) out.push(`<span class="badge badge-window"><span class="badge-k">OBSERVATION WINDOW:</span> ${esc(win)}</span>`);
+        return out.length ? out.join('') : badgeHTML('UNAVAILABLE', 'PROVENANCE');
+    }
+
+    function dedupeBadges(html) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const seen = new Set();
+        Array.from(tmp.children).forEach(el => { if (seen.has(el.outerHTML)) el.remove(); else seen.add(el.outerHTML); });
+        return tmp.innerHTML;
+    }
+
+    // ── Normalizers (tolerant of minor schema variation) ────
+    function normDrivers(raw) {
+        if (!raw) return [];
+        let list = raw;
+        if (!Array.isArray(raw) && typeof raw === 'object') {
+            list = Object.entries(raw).map(([name, value]) => ({ name, value }));
+        }
+        return asArray(list).map(d => {
+            if (typeof d === 'string') return { name: d, value: null, key: null };
+            const valueKeys = ['contribution_tonnes', 'impact_tonnes', 'contribution_pct', 'share_pct', 'contribution', 'impact', 'share', 'value', 'weight'];
+            const key = valueKeys.find(k => num(d[k]) !== null) || null;
+            return {
+                name: pick(d, 'label', 'name', 'feature', 'driver', 'factor') ?? '—',
+                value: key ? num(d[key]) : null,
+                key,
+                unit: pick(d, 'unit'),
+                direction: pick(d, 'direction', 'effect'),
+            };
         });
     }
 
-    const VALID_SECTIONS = ['dashboard', 'reserve', 'shortfall', 'simulator'];
-
-    function showSection(sectionId, updateHash = true) {
-        if (!VALID_SECTIONS.includes(sectionId)) sectionId = 'dashboard';
-        state.currentSection = sectionId;
-
-        // Reflect the section in the URL so a reload (or a shared link) lands
-        // back here instead of resetting to the dashboard. replaceState avoids
-        // stacking a history entry for every sidebar click.
-        if (updateHash && window.location.hash !== `#${sectionId}`) {
-            history.replaceState(null, '', `#${sectionId}`);
-        }
-
-        $$('.nav-link').forEach(l => l.classList.remove('active'));
-        $(`.nav-link[data-section="${sectionId}"]`)?.classList.add('active');
-
-        $$('.section').forEach(s => s.classList.remove('active'));
-        const targetSec = $(`#section-${sectionId}`);
-        if (targetSec) {
-            targetSec.classList.add('active');
-        }
-
-        const title = sectionTitles[sectionId];
-        if (title && $('#pageTitle')) {
-            $('#pageTitle').textContent = title;
-        }
-
-        if (sectionId === 'reserve' && state.reserveMap) {
-            setTimeout(() => {
-                state.reserveMap.invalidateSize();
-            }, 120);
-        }
+    function driverValueText(d) {
+        if (d.value === null) return '';
+        if (d.unit) return `${fmtNum(d.value, 2)} ${d.unit}`;
+        if (d.key && /tonnes/.test(d.key)) return fmtT(d.value);
+        if (d.key && /pct|percent/.test(d.key)) return `${fmtNum(d.value, 1)}%`;
+        return fmtNum(d.value, 3);
     }
 
-    // ── Module 1: Dashboard Telemetry ────────────────────────
-    async function initDashboard() {
-        try {
-            const data = await apiGet('/');
-            state.apiOnline = data.status === 'ok';
-
-            if ($('#statApiStatus')) {
-                $('#statApiStatus').textContent = data.status === 'ok' ? 'HEALTHY' : 'DEGRADED';
-            }
-            if ($('#statReserveGrid')) {
-                $('#statReserveGrid').textContent = data.reserve_cache_loaded ? '768 CELLS' : 'OFFLINE';
-            }
-            if ($('#statProdModel')) {
-                $('#statProdModel').textContent = data.production_model_loaded ? 'ONLINE' : 'UNLOADED';
-            }
-            if ($('#statShap')) {
-                $('#statShap').textContent = data.shap_available ? 'SHAP ACTIVE' : 'HEURISTIC';
-            }
-
-            $('#statusDot')?.classList.toggle('online', data.status === 'ok');
-            if ($('#statusText')) {
-                $('#statusText').textContent = data.status === 'ok' ? 'TELEMETRY ONLINE' : 'SYSTEM OFFLINE';
-            }
-        } catch (e) {
-            if ($('#statApiStatus')) $('#statApiStatus').textContent = 'UNREACHABLE';
-            if ($('#statusText')) $('#statusText').textContent = 'SERVER DISCONNECTED';
-            showToast('Telemetry gateway unreachable at ' + API_BASE, 'error');
-        }
+    function normLevel(v) {
+        // Accepts "HIGH", {level: "HIGH", score: 92}, 92 → {level, score}
+        if (v === undefined || v === null) return { level: null, score: null };
+        if (typeof v === 'number') return { level: null, score: v };
+        if (typeof v === 'string') return { level: v.toUpperCase(), score: null };
+        return {
+            level: pick(v, 'level', 'class', 'category', 'label') ? String(pick(v, 'level', 'class', 'category', 'label')).toUpperCase() : null,
+            score: num(pick(v, 'score', 'value', 'rank', 'percentile')),
+            note: pick(v, 'note', 'warning', 'message', 'reason'),
+        };
     }
 
-    // ── Module 2: Satellite Prospecting GIS ──────────────────
-    async function initReserveMap() {
-        if (!window.L) {
-            console.error('Leaflet GIS library not loaded');
+    function normTarget(t) {
+        if (!t || typeof t !== 'object') return null;
+        const id = pick(t, 'target_id', 'id', 'name');
+        const pros = normLevel(pick(t, 'prospectivity', 'relative_prospectivity'));
+        if (pros.level === null && pick(t, 'prospectivity_level')) pros.level = String(t.prospectivity_level).toUpperCase();
+        if (pros.score === null) pros.score = num(pick(t, 'prospectivity_score', 'prospectivity_rank', 'rank'));
+        const appl = normLevel(pick(t, 'applicability', 'applicability_level', 'model_applicability'));
+        const unc = normLevel(pick(t, 'uncertainty', 'uncertainty_level'));
+        const centroid = pick(t, 'centroid', 'center');
+        let lat = num(pick(t, 'lat', 'latitude', 'centroid_lat'));
+        let lon = num(pick(t, 'lon', 'lng', 'longitude', 'centroid_lon'));
+        if ((lat === null || lon === null) && centroid) {
+            if (Array.isArray(centroid)) { lat = num(centroid[0]); lon = num(centroid[1]); }
+            else { lat = num(pick(centroid, 'lat', 'latitude')); lon = num(pick(centroid, 'lon', 'lng', 'longitude')); }
+        }
+        return {
+            raw: t,
+            id: id !== undefined ? String(id) : null,
+            name: pick(t, 'display_name', 'label', 'region_name'),
+            lat, lon,
+            geometry: pick(t, 'geometry', 'polygon', 'boundary'),
+            radiusKm: num(pick(t, 'radius_km')),
+            pros, appl, unc,
+            status: pick(t, 'status', 'target_status'),
+            priority: num(pick(t, 'exploration_priority', 'priority_score', 'priority')),
+            strategic: pick(t, 'strategic_relevance'),
+            maturity: pick(t, 'evidence_maturity', 'evidence_level', 'maturity_level', 'maturity'),
+            evidence: pick(t, 'evidence', 'evidence_layers'),
+            whyTarget: pick(t, 'why_target', 'why_this_target', 'rationale'),
+            whyNow: pick(t, 'why_target_now', 'why_now'),
+            reasonCodes: pick(t, 'reason_codes'),
+            nextEvidence: pick(t, 'next_evidence', 'next_evidence_steps'),
+            warnings: asArray(pick(t, 'warnings', 'coverage_warning', 'applicability_warning', 'domain_warning')),
+            inDomain: pick(t, 'in_domain', 'within_applicability', 'in_applicability_domain'),
+            source: pick(t, 'source', 'data_source', 'satellite_source'),
+            window: fmtWindow(pick(t, 'observation_window')) || fmtWindow({ start: t.observation_start, end: t.observation_end }),
+            provenance: pick(t, 'provenance'),
+        };
+    }
+
+    const isLow = lvl => lvl && /LOW|OUT|OOD|UNSUPPORTED|NONE/.test(lvl);
+    const isHigh = lvl => lvl && /HIGH|VERY/.test(lvl);
+
+    // Marker class follows backend state: prospectivity × applicability × uncertainty.
+    function targetStyle(t) {
+        const lowAppl = isLow(t.appl.level) || t.inDomain === false;
+        if (lowAppl) return 'caution';
+        if (isHigh(t.pros.level) && (t.appl.level === null || !isLow(t.appl.level))) return 'priority';
+        return 'standard';
+    }
+
+    function statusText(t) {
+        if (t.status) {
+            const s = norm(t.status);
+            // Wording rules: never "reserve", never "drill target" unless evidence supports it.
+            if (/RESERVE|DEPOSIT/.test(s)) return 'EXPLORATION TARGET';
+            if (/DRILL/.test(s)) {
+                const lvl = maturityLevel(t.maturity);
+                return lvl !== null && lvl >= 4 ? upperHuman(t.status) : 'PRIORITY EXPLORATION TARGET';
+            }
+            return upperHuman(t.status);
+        }
+        return 'EXPLORATION TARGET';
+    }
+
+    function maturityLevel(m) {
+        if (m === undefined || m === null) return null;
+        if (typeof m === 'number') return m;
+        if (typeof m === 'object') return num(pick(m, 'level', 'value'));
+        const match = String(m).match(/\d+/);
+        return match ? Number(match[0]) : null;
+    }
+
+    // ── Reusable component: decision state ──────────────────
+    const DECISIONS = {
+        OPERATIONAL_RESPONSE: { cls: 'op', title: 'OPERATIONAL RESPONSE' },
+        OPERATIONAL_AND_EXPLORATION_CONTINGENCY: { cls: 'contingency', title: 'OPERATIONAL + EXPLORATION CONTINGENCY' },
+        REVIEW_REQUIRED: { cls: 'review', title: 'REVIEW REQUIRED' },
+    };
+
+    function decisionTitle(ds) {
+        if (!ds) return 'UNAVAILABLE';
+        return (DECISIONS[norm(ds)] || {}).title || upperHuman(ds);
+    }
+
+    function normDecision(src) {
+        if (!src) return null;
+        const ds = pick(src, 'decision_state', 'decision', 'state');
+        if (!ds || typeof ds !== 'string') return null;
+        return {
+            state: ds,
+            horizon: pick(src, 'decision_horizon', 'horizon', 'horizon_class'),
+            nextTarget: pick(src, 'next_target', 'next_target_id', 'recommended_target'),
+            reasons: asArray(pick(src, 'review_reasons', 'reasons', 'decision_reasons')),
+            summary: pick(src, 'decision_summary', 'summary', 'explanation'),
+            residual: num(pick(src, 'expected_residual_gap_tonnes', 'residual_gap_tonnes')),
+        };
+    }
+
+    function reasonText(r) {
+        if (typeof r === 'string') return r;
+        if (r && typeof r === 'object') {
+            const code = pick(r, 'code', 'reason_code');
+            const text = pick(r, 'text', 'message', 'explanation', 'detail', 'description');
+            return [code ? `[${code}]` : '', text || ''].join(' ').trim() || JSON.stringify(r);
+        }
+        return String(r);
+    }
+
+    function renderDecision(el, dec, { compact = false } = {}) {
+        if (!el) return;
+        if (!dec) {
+            el.className = 'decision-block decision-none';
+            el.innerHTML = `<div class="decision-label">CURRENT DECISION</div>
+                <div class="decision-title">UNAVAILABLE</div>
+                <div class="decision-text">No decision has been returned by the backend.</div>`;
             return;
         }
+        const key = norm(dec.state);
+        const def = DECISIONS[key];
+        el.className = `decision-block decision-${def ? def.cls : 'unknown'} decision-enter`;
+        const horizonLine = dec.horizon ? `<span class="meta-chip">DECISION HORIZON: ${esc(upperHuman(dec.horizon))}</span>` : '';
+        let body = '';
+        if (key === 'OPERATIONAL_RESPONSE') {
+            body = `<div class="decision-text">Operational recovery actions are the recommended response for this horizon.</div>`;
+        } else if (key === 'OPERATIONAL_AND_EXPLORATION_CONTINGENCY') {
+            body = `<ol class="transition-steps">
+                    <li><span class="step-mark">1</span>OPERATIONAL RECOVERY INSUFFICIENT</li>
+                    <li><span class="step-mark">2</span>RESIDUAL STRATEGIC GAP REMAINS${dec.residual !== null ? ` <b class="mono-val">${esc(fmtT(dec.residual))}</b>` : ''}</li>
+                    <li><span class="step-mark">3</span>EXPLORATION CONTINGENCY ACTIVATED</li>
+                    <li class="step-target"><span class="step-mark">&rarr;</span>NEXT TARGET: <b class="mono-val">${dec.nextTarget ? esc(dec.nextTarget) : 'not returned'}</b></li>
+                </ol>`;
+        } else if (key === 'REVIEW_REQUIRED') {
+            body = `<div class="decision-text">GEO-MN does not have sufficient evidence/applicability to make a responsible automated recommendation.</div>
+                <div class="decision-reasons-title">Reasons:</div>
+                ${dec.reasons.length
+                    ? `<ul class="decision-reasons">${dec.reasons.map(r => `<li>${esc(reasonText(r))}</li>`).join('')}</ul>`
+                    : '<div class="decision-text muted">No reasons were returned by the backend.</div>'}`;
+        } else {
+            body = `<div class="decision-text">Backend returned decision state <span class="mono-val">${esc(dec.state)}</span>.</div>`;
+        }
+        if (dec.summary && key !== 'REVIEW_REQUIRED') body += `<div class="decision-text muted">${esc(reasonText(dec.summary))}</div>`;
+        if (key !== 'REVIEW_REQUIRED' && dec.reasons.length) {
+            body += `<ul class="decision-reasons">${dec.reasons.map(r => `<li>${esc(reasonText(r))}</li>`).join('')}</ul>`;
+        }
+        el.innerHTML = `<div class="decision-head">
+                <div>
+                    <div class="decision-label">CURRENT DECISION</div>
+                    <div class="decision-title"><span class="decision-icon" aria-hidden="true"></span>${esc(decisionTitle(dec.state))}</div>
+                </div>
+                ${horizonLine}
+            </div>
+            ${compact ? '' : body}`;
+        // Replay the entry animation on every state change.
+        el.classList.remove('decision-enter'); void el.offsetWidth; el.classList.add('decision-enter');
+    }
 
-        const map = L.map('reserveMap', {
-            center: [21.81, 80.23],
-            zoom: 8,
-            minZoom: 5,
-            maxZoom: 16,
-            zoomControl: true,
+    // ── Reusable component: why this target now ─────────────
+    function renderWhyNow(el, { targetId, whyTarget, whyNow, reasonCodes, nextEvidence, showWhyTarget = true }) {
+        if (!el) return;
+        const items = src => asArray(src).flatMap(x => {
+            if (x && typeof x === 'object' && !Array.isArray(x) && !pick(x, 'text', 'message', 'explanation', 'detail', 'description', 'code', 'reason_code')) {
+                // {reason_codes:[], explanation:"", next_evidence:[]} shaped object
+                return [];
+            }
+            return [x];
         });
-        state.reserveMap = map;
+        // Object-shaped why_target_now may carry its own codes/explanation/next evidence.
+        if (whyNow && !Array.isArray(whyNow) && typeof whyNow === 'object') {
+            reasonCodes = reasonCodes || pick(whyNow, 'reason_codes', 'codes');
+            nextEvidence = nextEvidence || pick(whyNow, 'next_evidence');
+            whyNow = pick(whyNow, 'explanation', 'reasons', 'text', 'items');
+        }
+        const codes = asArray(reasonCodes).concat(
+            asArray(whyNow).filter(x => x && typeof x === 'object').map(x => pick(x, 'code', 'reason_code')).filter(Boolean)
+        );
+        const uniqCodes = [...new Set(codes.map(String))];
+        const list = arr => `<ul class="why-list">${arr.map(x => `<li>${esc(typeof x === 'object' ? (pick(x, 'text', 'message', 'explanation', 'detail', 'description') || pick(x, 'code', 'reason_code') || '') : x)}</li>`).join('')}</ul>`;
+        const whyNowItems = items(whyNow);
+        const whyTargetItems = items(whyTarget);
+        const nextItems = items(nextEvidence);
+        el.innerHTML = `
+            ${showWhyTarget ? `<div class="why-block">
+                <h3 class="why-title">WHY THIS TARGET?</h3>
+                ${whyTargetItems.length ? list(whyTargetItems) : '<div class="muted">Not returned by the backend.</div>'}
+            </div>` : ''}
+            <div class="why-block why-now">
+                <h3 class="why-title">WHY THIS TARGET NOW?${targetId ? ` <span class="mono-val why-target-id">${esc(targetId)}</span>` : ''}</h3>
+                ${uniqCodes.length ? `<div class="reason-codes">${uniqCodes.map(c => `<span class="reason-code">${esc(c)}</span>`).join('')}</div>` : ''}
+                ${whyNowItems.length ? list(whyNowItems) : '<div class="muted">Not returned by the backend.</div>'}
+            </div>
+            <div class="why-block">
+                <h3 class="why-title">NEXT EVIDENCE</h3>
+                ${nextItems.length ? list(nextItems) : '<div class="muted">Not returned by the backend.</div>'}
+            </div>`;
+    }
 
-        // Base Tile Layers
-        const satTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri, USGS, AeroGRID, IGN',
-            maxZoom: 18,
-        });
+    // ── Driver bars ─────────────────────────────────────────
+    function renderDriverBars(el, raw) {
+        if (!el) return;
+        const drivers = normDrivers(raw);
+        if (!drivers.length) {
+            el.innerHTML = '<div class="empty-state">No model contributions returned by the backend.</div>';
+            return;
+        }
+        const max = Math.max(...drivers.map(d => Math.abs(d.value ?? 0)), 0);
+        el.innerHTML = `<div class="shap-chart">${drivers.map((d, i) => {
+            const width = d.value !== null && max > 0 ? Math.max(3, Math.abs(d.value) / max * 100) : 0;
+            const valText = driverValueText(d);
+            return `<div class="shap-row">
+                <div class="shap-label" title="${esc(human(d.name))}">${esc(human(d.name))}</div>
+                <div class="shap-track" role="img" aria-label="${esc(human(d.name))}${valText ? ': ' + esc(valText) : ''}">
+                    ${d.value !== null ? `<div class="shap-bar ${i === 0 ? 'shap-bar-top' : ''}" style="width:${width}%"></div>` : '<div class="shap-nobar">rank only</div>'}
+                </div>
+                <div class="shap-value mono-val">${esc(valText)}</div>
+            </div>`;
+        }).join('')}</div>`;
+    }
 
-        const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
-            attribution: 'CARTO',
-            maxZoom: 18,
-            subdomains: 'abcd',
-        });
+    function riskHTML(risk) {
+        if (!risk) return '<span class="muted">N/A</span>';
+        const r = norm(risk);
+        const cls = ({ LOW: 'low', MEDIUM: 'medium', MODERATE: 'medium', HIGH: 'high', CRITICAL: 'critical' })[r] || 'neutral';
+        return `<span class="risk-pill-badge risk-${cls}">${esc(r)}</span>`;
+    }
 
-        const nasaLSTTile = L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Land_Surface_Temp_Day/default/2024-05-01/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', {
-            attribution: 'NASA GIBS &mdash; MODIS Land Surface Temp',
-            maxNativeZoom: 7,
-            maxZoom: 18,
-            opacity: 0.9,
-        });
+    function riskPolicyText(src) {
+        const p = pick(src, 'risk_policy', 'risk_policy_source');
+        if (!p) return 'Risk policy: configured policy';
+        if (typeof p === 'string') return `Risk policy: ${p}`;
+        return `Risk policy: ${pick(p, 'name', 'source', 'label') || 'configured policy'}`;
+    }
 
-        const streetTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: 'OpenStreetMap',
-            maxZoom: 18,
-        });
+    // ═══════════════════════════════════════════════════════
+    // HEALTH / GLOBAL STATUS
+    // ═══════════════════════════════════════════════════════
+    function setPill(id, st, text) {
+        const pill = $(id);
+        if (!pill) return;
+        pill.dataset.state = st;
+        const t = $('.pill-text', pill);
+        if (t) t.textContent = text;
+    }
 
-        // Layer Groups
-        const satGroup = L.layerGroup([satTile, satLabels]).addTo(map);
-        const nasaThermalGroup = L.layerGroup([satTile, nasaLSTTile, satLabels]);
+    function dataModeFrom(...sources) {
+        for (const s of sources) {
+            if (!s) continue;
+            const v = pick(s, 'data_mode', 'production_data', 'operational_data', 'mode');
+            if (typeof v === 'string') return v;
+        }
+        return null;
+    }
 
-        state.baseLayers = {
-            satellite: satGroup,
-            thermal: nasaThermalGroup,
+    function updateDataModePill() {
+        const mode = dataModeFrom(state.health, state.supply && state.supply.provenance, state.trust.provenance);
+        if (!mode) { setPill('#pillData', 'pending', 'DATA MODE: UNKNOWN'); return; }
+        const m = modeInfo(mode);
+        setPill('#pillData', m.cls, m.label === 'SYNTHETIC DEMONSTRATION DATA' ? 'SYNTHETIC DEMO DATA' : m.label);
+    }
+
+    async function loadHealth() {
+        setPill('#pillApi', 'pending', 'API: CHECKING');
+        try {
+            const h = await api.get('/api/health', { timeout: 8000 });
+            state.health = h;
+            state.apiOnline = h && String(h.status).toLowerCase() === 'ok';
+        } catch (e) {
+            state.health = null;
+            state.apiOnline = false;
+        }
+        const h = state.health;
+        $('#backendBanner').hidden = state.apiOnline !== false || !!h;
+        if (h) {
+            setPill('#pillApi', state.apiOnline ? 'ok' : 'warn', state.apiOnline ? 'API ONLINE' : `API ${upperHuman(h.status || 'DEGRADED')}`);
+            const exp = h.exploration_model === true, prod = h.production_models === true;
+            if (exp && prod) setPill('#pillModels', 'ok', 'MODELS READY');
+            else if (exp || prod) setPill('#pillModels', 'warn', `MODELS PARTIAL (${exp ? 'exploration' : 'production'} only)`);
+            else setPill('#pillModels', 'bad', 'MODELS UNAVAILABLE');
+            $('#telApiVersion').textContent = h.api_version || '—';
+            $('#telEarthEngine').textContent = h.earth_engine === true ? 'AVAILABLE' : (h.earth_engine === false ? 'UNAVAILABLE → REPLAY' : '—');
+            $('#telCache').textContent = h.cache === true ? 'LOADED' : (h.cache === false ? 'UNAVAILABLE' : '—');
+            $('#statusDot').className = `status-indicator-dot ${state.apiOnline ? 'online' : 'warn'}`;
+            $('#statusText').textContent = state.apiOnline ? 'API ONLINE' : 'API DEGRADED';
+        } else {
+            setPill('#pillApi', 'bad', 'API OFFLINE');
+            setPill('#pillModels', 'bad', 'MODELS UNKNOWN');
+            $('#statusDot').className = 'status-indicator-dot offline';
+            $('#statusText').textContent = 'BACKEND UNAVAILABLE';
+            ['#telApiVersion', '#telEarthEngine', '#telCache'].forEach(s => { $(s).textContent = '—'; });
+        }
+        updateDataModePill();
+        return state.apiOnline;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SCREEN 1 — SUPPLY COMMAND
+    // ═══════════════════════════════════════════════════════
+    async function loadSupply() {
+        const btn = $('#btnRefreshSupply');
+        setLoading(btn, true);
+        $('#scStatusText').textContent = 'Loading supply outlook…';
+        try {
+            state.supply = await api.get(`/api/supply-command?mine_id=${encodeURIComponent(MINE_ID)}`);
+            renderSupply();
+            renderRecoveryBaseline();
+            state.loaded['supply-command'] = true;
+        } catch (e) {
+            state.supply = null;
+            $('#scStatus').className = 'supply-status supply-status-error';
+            $('#scStatusText').textContent = `Supply outlook unavailable. ${e.userMessage || ''} Try again or use the cached demo state if the backend provides one.`;
+            ['#scTarget', '#scP50', '#scP90', '#scGap', '#scExpRecovery', '#scExpResidual', '#scWorstResidual', '#scBestAction', '#scNextTarget'].forEach(s => { $(s).textContent = '—'; });
+            $('#scRisk').innerHTML = '<span class="muted">N/A</span>';
+            $('#scDrivers').innerHTML = '<div class="empty-state">Unavailable.</div>';
+            $('#scProvenance').innerHTML = badgeHTML('UNAVAILABLE', 'DATA');
+            renderDecision($('#scDecision'), null);
+            $('#scWhyNow').innerHTML = '';
+            $('#btnViewTarget').disabled = true;
+        } finally {
+            setLoading(btn, false);
+            updateDataModePill();
+        }
+    }
+
+    function actionName(a) {
+        if (!a) return null;
+        if (typeof a === 'string') return a;
+        const n = pick(a, 'label', 'name', 'portfolio', 'portfolio_name', 'id');
+        if (n) return human(n);
+        const acts = pick(a, 'actions');
+        if (Array.isArray(acts) && acts.length) return acts.map(x => human(typeof x === 'string' ? x : pick(x, 'name', 'id'))).join(' + ');
+        return null;
+    }
+
+    function renderSupply() {
+        const s = state.supply || {};
+        const target = pick(s, 'target_tonnes', 'target');
+        const p50 = pick(s, 'p50_tonnes', 'p50');
+        const p90 = pick(s, 'p90_tonnes', 'p90');
+        const gap = pick(s, 'gap_p50_tonnes', 'gap_tonnes', 'supply_gap_tonnes');
+        const risk = pick(s, 'risk_state', 'risk');
+
+        $('#scHorizon').textContent = `HORIZON: ${s.forecast_horizon ? upperHuman(s.forecast_horizon) : 'N/A'}`;
+        $('#scProvenance').innerHTML = provenanceHTML(s.provenance);
+        $('#scTarget').textContent = fmtT(target);
+        $('#scP50').textContent = fmtT(p50);
+        $('#scP90').textContent = fmtT(p90);
+        $('#scGap').textContent = fmtT(gap);
+        $('#scRisk').innerHTML = riskHTML(risk);
+        $('#scRiskPolicy').textContent = riskPolicyText(s);
+
+        const statusEl = $('#scStatus');
+        const g = num(gap);
+        if (g === null) {
+            statusEl.className = 'supply-status';
+            $('#scStatusText').textContent = 'Supply gap not returned by the backend.';
+        } else if (g > 0) {
+            statusEl.className = `supply-status supply-status-miss risk-${norm(risk).toLowerCase()}`;
+            $('#scStatusText').innerHTML = `P50 forecast is <b class="mono-val">${esc(fmtT(g))}</b> below target${risk ? ` &middot; risk ${esc(norm(risk))}` : ''}.`;
+        } else {
+            statusEl.className = 'supply-status supply-status-ok';
+            $('#scStatusText').innerHTML = `P50 forecast meets target (gap <b class="mono-val">${esc(fmtT(g))}</b>).`;
+        }
+
+        renderDriverBars($('#scDrivers'), s.primary_drivers);
+
+        $('#scBestAction').textContent = actionName(s.best_operational_action) || 'Not returned';
+        $('#scExpRecovery').textContent = fmtT(s.expected_recovery_tonnes);
+        $('#scExpResidual').textContent = fmtT(s.expected_residual_gap_tonnes);
+        $('#scWorstResidual').textContent = fmtT(pick(s, 'worst_case_residual_gap_tonnes', 'worst_tested_residual_gap_tonnes'));
+
+        const dec = normDecision(s);
+        if (dec && dec.residual === null) dec.residual = num(s.expected_residual_gap_tonnes);
+        renderDecision($('#scDecision'), dec);
+        if (dec && !state.decision.current) state.decision.current = dec;
+
+        const next = pick(s, 'next_target', 'next_target_id');
+        $('#scNextTarget').textContent = next || 'None';
+        $('#btnViewTarget').disabled = !next;
+        $('#scNextTargetPanel').classList.toggle('is-empty', !next);
+        if (next) {
+            renderWhyNow($('#scWhyNow'), {
+                targetId: next,
+                whyNow: s.why_target_now,
+                reasonCodes: s.reason_codes,
+                nextEvidence: s.next_evidence,
+                whyTarget: s.why_target,
+                showWhyTarget: !!s.why_target,
+            });
+        } else {
+            $('#scWhyNow').innerHTML = '<div class="muted">No exploration target was nominated by the backend for this decision.</div>';
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SCREEN 2 — EXPLORATION
+    // ═══════════════════════════════════════════════════════
+    function initExplorationMap() {
+        if (state.maps.exploration || !window.L) {
+            if (!window.L) $('#explorationMap').innerHTML = '<div class="error-state">Map library failed to load.</div>';
+            return;
+        }
+        const map = L.map('explorationMap', { center: [21.6, 79.9], zoom: 8, minZoom: 4, maxZoom: 16, zoomControl: true });
+        state.maps.exploration = map;
+
+        const satTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri, USGS, AeroGRID, IGN', maxZoom: 18 });
+        const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { attribution: 'CARTO', maxZoom: 18, subdomains: 'abcd' });
+        const lstTile = L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Land_Surface_Temp_Day/default/2024-05-01/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', { attribution: 'NASA GIBS — MODIS LST (2024-05-01)', maxNativeZoom: 7, maxZoom: 18, opacity: 0.9 });
+        const streetTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OpenStreetMap', maxZoom: 18 });
+
+        state.maps.baseLayers = {
+            satellite: L.layerGroup([satTile, satLabels]),
+            thermal: L.layerGroup([satTile, lstTile, satLabels]),
             street: streetTile,
         };
-        state.currentBaseLayer = satGroup;
+        state.maps.currentBase = state.maps.baseLayers.satellite.addTo(map);
 
-        // Build Heatmap Layer (kept off by default for clean pure satellite)
+        $$('.seg-btn[data-layer]').forEach(btn => btn.addEventListener('click', () => {
+            const next = state.maps.baseLayers[btn.dataset.layer];
+            if (!next || next === state.maps.currentBase) return;
+            map.removeLayer(state.maps.currentBase);
+            state.maps.currentBase = next.addTo(map);
+            $$('.seg-btn[data-layer]').forEach(b => { b.classList.toggle('active', b === btn); b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+        }));
+
+        map.on('mousemove', e => { $('#cursorCoordReadout').textContent = `Cursor: ${e.latlng.lat.toFixed(4)}°N, ${e.latlng.lng.toFixed(4)}°E`; });
+        map.on('click', e => {
+            $('#queryLat').value = e.latlng.lat.toFixed(4);
+            $('#queryLon').value = e.latlng.lng.toFixed(4);
+            queryCoordinate(e.latlng.lat, e.latlng.lng);
+        });
+
+        $('#toggleSurface').addEventListener('change', e => setSurfaceVisible(e.target.checked));
+        $('#btnResetMap').addEventListener('click', fitTargets);
+    }
+
+    async function loadExploration() {
+        initExplorationMap();
+        const list = $('#targetList');
+        list.innerHTML = loadingHTML('Loading exploration targets…');
         try {
-            state.reserveGridData = await apiGet('/reserve_grid');
-            renderLeafletHeatmap(map, state.reserveGridData);
+            const resp = await api.get('/api/exploration/targets');
+            const rawList = Array.isArray(resp) ? resp : asArray(pick(resp, 'targets', 'items', 'results'));
+            state.exploration.targetsMeta = Array.isArray(resp) ? null : resp;
+            state.exploration.targets = rawList.map(normTarget).filter(t => t && t.id);
+            state.loaded.exploration = true;
+            $('#exProvenance').innerHTML = provenanceHTML(state.exploration.targetsMeta && state.exploration.targetsMeta.provenance);
+            renderTargetList();
+            renderTargetMarkers();
+            await loadSurface(resp);
+            fitTargets();
+            if (state.exploration.selectedId) selectTarget(state.exploration.selectedId, { fly: true });
         } catch (e) {
-            console.warn('Reserve grid fetch error:', e);
+            state.exploration.targets = [];
+            list.innerHTML = errorHTML('Exploration targets unavailable.', e, 'exploration');
+            $('#targetCount').textContent = '—';
+            $('#exProvenance').innerHTML = badgeHTML('UNAVAILABLE', 'DATA');
+            $('#surfaceSourceLabel').textContent = 'Surface: unavailable';
         }
+        // The map may have been created while its section was hidden; size it, then fit.
+        setTimeout(() => {
+            if (!state.maps.exploration) return;
+            state.maps.exploration.invalidateSize();
+            if (!state.exploration.selectedId) fitTargets();
+        }, 150);
+    }
 
-        // Segmented Layer Switchers
-        setupLayerSwitchers(map);
-
-        // Real-time Cursor Coordinate Readout
-        map.on('mousemove', (e) => {
-            const readout = $('#cursorCoordReadout');
-            if (readout) {
-                readout.textContent = `Cursor: ${e.latlng.lat.toFixed(4)}°N, ${e.latlng.lng.toFixed(4)}°E`;
-            }
+    // Prospectivity surface: use the surface the targets endpoint returns; if it
+    // returns none, fall back to the pre-computed cached grid when the backend
+    // still exposes it. Nothing is interpolated or generated client-side.
+    async function loadSurface(resp) {
+        let pts = null, source = null;
+        const s = resp && !Array.isArray(resp) ? pick(resp, 'surface', 'prospectivity_surface', 'grid') : null;
+        if (Array.isArray(s) && s.length) { pts = s; source = pick(resp, 'surface_source') || 'backend surface'; }
+        if (!pts) {
+            try {
+                const grid = await api.get('/reserve_grid', { retries: 0, timeout: 10000 });
+                if (Array.isArray(grid) && grid.length) { pts = grid; source = 'cached grid'; }
+            } catch (_) { /* no surface available */ }
+        }
+        state.exploration.surface = pts;
+        state.exploration.surfaceSource = source;
+        const map = state.maps.exploration;
+        if (state.maps.surfaceLayer && map) { map.removeLayer(state.maps.surfaceLayer); state.maps.surfaceLayer = null; }
+        if (!pts || !map || !L.heatLayer) {
+            $('#surfaceSourceLabel').textContent = 'Surface: unavailable from backend';
+            $('#toggleSurface').disabled = true;
+            return;
+        }
+        const heat = pts.map(p => {
+            const lat = num(pick(p, 'lat', 'latitude')), lon = num(pick(p, 'lon', 'lng', 'longitude'));
+            const rank = num(pick(p, 'rank', 'prospectivity_rank', 'score'));
+            const prob = num(pick(p, 'probability', 'value'));
+            const intensity = rank !== null ? rank / 100 : prob;
+            return (lat !== null && lon !== null && intensity !== null) ? [lat, lon, Math.max(0.05, Math.min(1, intensity))] : null;
+        }).filter(Boolean);
+        state.maps.surfaceLayer = L.heatLayer(heat, {
+            radius: 28, blur: 22, maxZoom: 11, max: 1.0, minOpacity: 0.3,
+            gradient: { 0.15: '#1e3a8a', 0.4: '#0891b2', 0.65: '#10b981', 0.85: '#f59e0b', 1.0: '#ef4444' },
         });
+        $('#toggleSurface').disabled = false;
+        $('#surfaceSourceLabel').innerHTML = `Surface: ${esc(source)} ${badgeHTML(source === 'cached grid' ? 'CACHED' : (pick(resp, 'surface_mode') || 'CACHED'))}`;
+        setSurfaceVisible($('#toggleSurface').checked);
+    }
 
-        // Map Click Target Listener
-        map.on('click', async (e) => {
-            const lat = parseFloat(e.latlng.lat.toFixed(4));
-            const lon = parseFloat(e.latlng.lng.toFixed(4));
-            $('#reserveLat').value = lat.toFixed(4);
-            $('#reserveLon').value = lon.toFixed(4);
-            await predictReserve(lat, lon, false);
+    function setSurfaceVisible(v) {
+        const map = state.maps.exploration, layer = state.maps.surfaceLayer;
+        if (!map || !layer) return;
+        if (v && !map.hasLayer(layer)) layer.addTo(map);
+        if (!v && map.hasLayer(layer)) map.removeLayer(layer);
+    }
+
+    function levelText(l) {
+        if (!l) return 'N/A';
+        if (l.level && l.score !== null) return `${l.level} / ${fmtNum(l.score, 0)}`;
+        if (l.level) return l.level;
+        if (l.score !== null) return fmtNum(l.score, 0);
+        return 'N/A';
+    }
+
+    function renderTargetList() {
+        const list = $('#targetList');
+        const ts = state.exploration.targets;
+        $('#targetCount').textContent = `${ts.length} target${ts.length === 1 ? '' : 's'}`;
+        if (!ts.length) { list.innerHTML = '<div class="empty-state">The backend returned no exploration targets.</div>'; return; }
+        list.innerHTML = ts.map(t => {
+            const style = targetStyle(t);
+            return `<button type="button" class="target-item target-${style}${t.id === state.exploration.selectedId ? ' selected' : ''}" data-target="${esc(t.id)}" role="option" aria-selected="${t.id === state.exploration.selectedId}">
+                <span class="tmk tmk-${style}${isHigh(t.unc.level) ? ' tmk-uncertain' : ''}" aria-hidden="true">${style === 'caution' ? '!' : 'T'}</span>
+                <span class="ti-main">
+                    <span class="ti-id mono-val">${esc(t.id)}${t.name ? ` <span class="ti-name">${esc(t.name)}</span>` : ''}</span>
+                    <span class="ti-sub">Prospectivity ${esc(levelText(t.pros))} &middot; Applicability ${esc(t.appl.level || 'N/A')} &middot; Uncertainty ${esc(t.unc.level || 'N/A')}</span>
+                </span>
+                ${style === 'caution' ? '<span class="ti-flag">CAUTION</span>' : ''}
+                ${t.priority !== null ? `<span class="ti-priority mono-val" title="Exploration priority">${esc(fmtNum(t.priority, 0))}</span>` : ''}
+            </button>`;
+        }).join('');
+    }
+
+    function popupHTML(t) {
+        return `<div class="map-popup">
+            <div class="mp-title">TARGET ${esc(t.id)}</div>
+            <div>RELATIVE PROSPECTIVITY: <b>${esc(levelText(t.pros))}</b></div>
+            <div>APPLICABILITY: <b>${esc(t.appl.level || 'N/A')}</b></div>
+            <div>UNCERTAINTY: <b>${esc(t.unc.level || 'N/A')}</b></div>
+            <div>STATUS: <b>${esc(statusText(t))}</b></div>
+        </div>`;
+    }
+
+    function renderTargetMarkers() {
+        const map = state.maps.exploration;
+        if (!map) return;
+        Object.values(state.maps.markers).forEach(m => map.removeLayer(m));
+        state.maps.markers = {};
+        state.exploration.targets.forEach(t => {
+            if (t.lat === null || t.lon === null) return;
+            const style = targetStyle(t);
+            const icon = L.divIcon({
+                className: 'tmk-wrap',
+                html: `<span class="tmk tmk-${style}${isHigh(t.unc.level) ? ' tmk-uncertain' : ''} tmk-map">${esc(t.id)}</span>`,
+                iconSize: null,
+            });
+            const m = L.marker([t.lat, t.lon], { icon, title: `Target ${t.id}`, alt: `Target ${t.id}`, keyboard: true, riseOnHover: true })
+                .bindPopup(popupHTML(t))
+                .on('click', () => selectTarget(t.id, { fly: false }));
+            m.addTo(map);
+            state.maps.markers[t.id] = m;
         });
+    }
 
-        // Manual Input Target Submit
-        $('#btnPredictReserve')?.addEventListener('click', async (e) => {
-            e.preventDefault();
-            const lat = parseFloat($('#reserveLat').value);
-            const lon = parseFloat($('#reserveLon').value);
-            if (isNaN(lat) || isNaN(lon)) {
-                showToast('Please enter valid latitude and longitude coordinates', 'error');
+    function fitTargets() {
+        const map = state.maps.exploration;
+        const pts = state.exploration.targets.filter(t => t.lat !== null && t.lon !== null).map(t => [t.lat, t.lon]);
+        // Padding keeps markers clear of the toolbar (top) and legend (bottom-left).
+        if (map && pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.15), { maxZoom: 10, paddingTopLeft: [60, 70], paddingBottomRight: [40, 220] });
+    }
+
+    function highlightRegion(t) {
+        const map = state.maps.exploration;
+        if (!map) return;
+        if (state.maps.highlight) { map.removeLayer(state.maps.highlight); state.maps.highlight = null; }
+        const style = targetStyle(t);
+        const color = style === 'caution' ? '#f59e0b' : (style === 'priority' ? '#10b981' : '#06b6d4');
+        const opts = { color, weight: 2, fillColor: color, fillOpacity: 0.12, dashArray: isHigh(t.unc.level) ? '6 6' : null, className: 'target-highlight-shape' };
+        if (t.geometry && typeof t.geometry === 'object') {
+            try { state.maps.highlight = L.geoJSON(t.geometry, { style: () => opts }).addTo(map); } catch (_) { state.maps.highlight = null; }
+        }
+        if (!state.maps.highlight && t.lat !== null && t.lon !== null) {
+            // Only draw an extent the backend supplied; otherwise a focus ring of fixed screen size.
+            state.maps.highlight = t.radiusKm !== null
+                ? L.circle([t.lat, t.lon], { ...opts, radius: t.radiusKm * 1000 }).addTo(map)
+                : L.circleMarker([t.lat, t.lon], { ...opts, radius: 26, fillOpacity: 0.08 }).addTo(map);
+        }
+        $$('.tmk-map').forEach(el => el.classList.toggle('tmk-selected', el.textContent === t.id));
+    }
+
+    async function selectTarget(id, { fly = true } = {}) {
+        state.exploration.selectedId = id;
+        $$('.target-item').forEach(el => {
+            const sel = el.dataset.target === id;
+            el.classList.toggle('selected', sel);
+            el.setAttribute('aria-selected', sel ? 'true' : 'false');
+        });
+        let t = state.exploration.targets.find(x => x.id === id);
+        const card = $('#targetCard');
+        if (t) {
+            highlightRegion(t);
+            const map = state.maps.exploration;
+            if (fly && map && t.lat !== null && t.lon !== null) map.flyTo([t.lat, t.lon], Math.max(map.getZoom(), 10), { duration: 0.9 });
+            renderTargetCard(t, { loadingDetail: !state.exploration.detail[id] });
+        } else {
+            card.innerHTML = loadingHTML(`Loading target ${id}…`);
+        }
+        if (!state.exploration.detail[id]) {
+            try {
+                const d = await api.get(`/api/exploration/targets/${encodeURIComponent(id)}`);
+                state.exploration.detail[id] = d;
+            } catch (e) {
+                if (state.exploration.selectedId !== id) return;
+                if (!t) { card.innerHTML = errorHTML(`Target ${id} unavailable.`, e); return; }
+                renderTargetCard(t, { detailError: e });
                 return;
             }
-            await predictReserve(lat, lon, true);
-        });
-
-        // Sector Preset Quick Chips
-        $$('.geo-preset-chip').forEach(chip => {
-            chip.addEventListener('click', () => {
-                const lat = parseFloat(chip.dataset.lat);
-                const lon = parseFloat(chip.dataset.lon);
-                $('#reserveLat').value = lat.toFixed(4);
-                $('#reserveLon').value = lon.toFixed(4);
-                predictReserve(lat, lon, true);
-            });
-        });
-
-        // Heatmap Opacity Slider
-        $('#heatOpacityRange')?.addEventListener('input', (e) => {
-            const val = parseFloat(e.target.value);
-            if ($('#heatOpacityVal')) $('#heatOpacityVal').textContent = Math.round(val * 100) + '%';
-            updateHeatmapOpacity(val);
-        });
-
-        // Heatmap Overlay Toggle
-        $('#toggleHeatmapOverlay')?.addEventListener('change', (e) => {
-            setHeatmapVisible(e.target.checked);
-            if (e.target.checked) {
-                updateLegend('deposit');
-            } else if (state.currentBaseLayer === state.baseLayers.thermal) {
-                updateLegend('thermal');
-            } else {
-                updateLegend('satellite');
+        }
+        if (state.exploration.selectedId !== id) return;
+        const detail = state.exploration.detail[id];
+        const merged = normTarget({ ...(t ? t.raw : {}), ...(detail && detail.target ? detail.target : detail) });
+        if (merged) {
+            if (!t && merged.lat !== null) {
+                highlightRegion(merged);
+                const map = state.maps.exploration;
+                if (fly && map) map.flyTo([merged.lat, merged.lon], Math.max(map.getZoom(), 10), { duration: 0.9 });
             }
-        });
-
-        // Reset Center Button
-        $('#btnResetMap')?.addEventListener('click', () => {
-            map.flyTo([21.81, 80.23], 8, { duration: 1 });
-        });
-
-        // Initial Prediction at Balaghat Pit
-        setTimeout(() => {
-            predictReserve(21.81, 80.23, false);
-        }, 400);
+            renderTargetCard(merged, {});
+        }
     }
 
-    function setupLayerSwitchers(map) {
-        const btns = {
-            satellite: $('#btnLayerSatellite'),
-            thermal: $('#btnLayerThermal'),
-            street: $('#btnLayerStreet'),
+    function evidenceRows(t) {
+        const ev = t.evidence;
+        const layers = [['surface', 'Surface'], ['geology', 'Geology'], ['subsurface', 'Subsurface']];
+        const MATCH = {
+            surface: n => /^(SURFACE|REMOTE|SATELLITE|SPECTRAL)/.test(n),
+            geology: n => /GEOLOG/.test(n),
+            subsurface: n => /SUBSURFACE|GEOPHYS|DRILL|GROUND/.test(n),
         };
-
-        const heatToggle = $('#toggleHeatmapOverlay');
-
-        Object.keys(btns).forEach(type => {
-            const btn = btns[type];
-            if (!btn) return;
-            btn.addEventListener('click', () => {
-                if (state.currentBaseLayer && state.currentBaseLayer !== state.baseLayers[type]) {
-                    map.removeLayer(state.currentBaseLayer);
-                }
-                state.currentBaseLayer = state.baseLayers[type].addTo(map);
-
-                if (type === 'satellite') {
-                    if (heatToggle) heatToggle.checked = false;
-                    setHeatmapVisible(false);
-                    updateLegend('satellite');
-                } else if (type === 'thermal') {
-                    if (heatToggle) heatToggle.checked = false;
-                    setHeatmapVisible(false);
-                    updateLegend('thermal');
-                } else {
-                    if (heatToggle) setHeatmapVisible(heatToggle.checked);
-                    updateLegend(heatToggle && heatToggle.checked ? 'deposit' : 'satellite');
-                }
-
-                if (state.heatLayer && map.hasLayer(state.heatLayer)) state.heatLayer.bringToFront?.();
-                if (state.selectedCircle) state.selectedCircle.bringToFront?.();
-                if (state.selectedMarker) state.selectedMarker.bringToFront?.();
-
-                Object.values(btns).forEach(b => b?.classList.remove('active'));
-                btn.classList.add('active');
-            });
-        });
-    }
-
-    function setHeatmapVisible(visible) {
-        if (!state.reserveMap || !state.heatLayer) return;
-        const map = state.reserveMap;
-        if (visible) {
-            if (!map.hasLayer(state.heatLayer)) map.addLayer(state.heatLayer);
-            const opacitySlider = $('#heatOpacityRange');
-            if (opacitySlider) updateHeatmapOpacity(parseFloat(opacitySlider.value));
-            const group = $('#heatOpacityGroup');
-            if (group) group.style.display = 'flex';
-        } else {
-            if (map.hasLayer(state.heatLayer)) map.removeLayer(state.heatLayer);
-            const group = $('#heatOpacityGroup');
-            if (group) group.style.display = 'none';
-        }
-    }
-
-    function updateHeatmapOpacity(val) {
-        const canvas = document.querySelector('.leaflet-heatmap-layer');
-        if (canvas) {
-            canvas.style.opacity = val;
-            canvas.style.transition = 'opacity 0.2s ease';
-        }
-    }
-
-    function renderLeafletHeatmap(map, data) {
-        if (!window.L || !window.L.heatLayer || !data || data.length === 0) return;
-        // Heatmap intensity uses rank so the layer spreads across the full
-        // colour range instead of saturating (raw probabilities cluster 0.6-1.0).
-        const heatPoints = data.map(d => [d.lat, d.lon,
-            Math.max(0.05, (typeof d.rank === 'number') ? d.rank / 100 : d.probability)]);
-        const heat = L.heatLayer(heatPoints, {
-            radius: 28,
-            blur: 22,
-            maxZoom: 11,
-            max: 1.0,
-            minOpacity: 0.35,
-            gradient: {
-                0.15: '#3b82f6',
-                0.35: '#06b6d4',
-                0.55: '#10b981',
-                0.75: '#f59e0b',
-                0.95: '#ef4444'
+        const truthy = av => {
+            if (av === undefined) return true;
+            if (typeof av === 'boolean') return av;
+            const n = norm(av);
+            return !/UNAVAIL|NONE|FALSE|MISSING|ABSENT|PENDING/.test(n) && n !== 'NO';
+        };
+        const status = key => {
+            if (ev === undefined || ev === null) return null;
+            if (Array.isArray(ev)) {
+                const hit = ev.find(x => MATCH[key](norm(typeof x === 'string' ? x : pick(x, 'type', 'name', 'layer') || '')));
+                if (!hit) return false;
+                return typeof hit === 'string' ? true : truthy(pick(hit, 'available', 'status'));
             }
+            const v = ev[key] ?? ev[`${key}_evidence`] ?? (key === 'geology' ? ev.geological : undefined);
+            if (v === undefined || v === null) return false;
+            if (typeof v === 'object') return truthy(pick(v, 'available', 'status'));
+            return truthy(v);
+        };
+        return layers.map(([k, label]) => ({ key: k, label, ok: status(k) }));
+    }
+
+    const LADDER = ['REMOTE SENSING', 'GEOLOGICAL SUPPORT', 'GROUND / GEOPHYSICAL', 'DRILL / ASSAY', 'RESOURCE / RESERVE WORK'];
+
+    function ladderHTML(level) {
+        return `<ol class="evidence-ladder" aria-label="Evidence maturity ladder">
+            ${LADDER.map((name, i) => {
+                const n = i + 1;
+                const cls = level === null ? '' : (n < level ? 'done' : (n === level ? 'current' : 'todo'));
+                return `<li class="ladder-step ${cls}"${n === level ? ' aria-current="step"' : ''}>
+                    <span class="ladder-n">${n}</span><span class="ladder-name">${name}</span>${n === level ? '<span class="ladder-here">CURRENT</span>' : ''}
+                </li>`;
+            }).join('')}
+        </ol>`;
+    }
+
+    function renderTargetCard(t, { loadingDetail = false, detailError = null } = {}) {
+        const card = $('#targetCard');
+        const style = targetStyle(t);
+        const lowAppl = style === 'caution';
+        const level = maturityLevel(t.maturity);
+        const ev = evidenceRows(t);
+        const subsurface = ev.find(e => e.key === 'subsurface');
+        const src = t.source;
+        const warnings = t.warnings.filter(Boolean).map(reasonText);
+        const cautionBlock = lowAppl ? `<div class="caution-block" role="alert">
+                <div class="caution-title">${esc(t.pros.level || 'N/A')} PROSPECTIVITY &middot; ${esc(t.appl.level || 'LOW')} MODEL APPLICABILITY</div>
+                <div>Caution: prediction is outside the model's supported feature domain.${t.appl.note ? ' ' + esc(reasonText(t.appl.note)) : ''}</div>
+            </div>` : '';
+        const warnBlock = warnings.length ? `<div class="caution-block caution-soft">${warnings.map(w => `<div>${esc(w)}</div>`).join('')}</div>` : '';
+
+        card.className = `panel target-card target-card-${style} focus-in`;
+        card.innerHTML = `
+            <div class="tc-head">
+                <div>
+                    <div class="kpi-label">TARGET</div>
+                    <div class="tc-id mono-val">${esc(t.id)}${t.name ? ` <span class="ti-name">${esc(t.name)}</span>` : ''}</div>
+                </div>
+                <div class="prov-row">
+                    ${src ? badgeHTML(src, 'SOURCE') : '<span class="badge badge-neutral"><span class="badge-k">SOURCE:</span> NOT REPORTED</span>'}
+                    ${t.window ? `<span class="badge badge-window"><span class="badge-k">OBSERVATION WINDOW:</span> ${esc(t.window)}</span>` : ''}
+                    ${t.provenance ? provenanceHTML(t.provenance) : ''}
+                    ${loadingDetail ? '<span class="badge badge-neutral">LOADING DETAIL…</span>' : ''}
+                    ${detailError ? `<span class="badge badge-unavailable">DETAIL UNAVAILABLE</span>` : ''}
+                </div>
+            </div>
+            ${cautionBlock}${warnBlock}
+            <div class="tc-grid">
+                <div class="tc-cell ${lowAppl ? 'tc-muted-high' : ''}"><span class="kpi-label">RELATIVE PROSPECTIVITY</span><div class="tc-val">${esc(levelText(t.pros))}</div></div>
+                <div class="tc-cell ${lowAppl ? 'tc-warn' : ''}"><span class="kpi-label">APPLICABILITY</span><div class="tc-val">${esc(t.appl.level || (t.inDomain === false ? 'OUT OF DOMAIN' : 'N/A'))}</div></div>
+                <div class="tc-cell"><span class="kpi-label">UNCERTAINTY</span><div class="tc-val">${esc(t.unc.level || (t.unc.score !== null ? fmtNum(t.unc.score, 2) : 'N/A'))}</div></div>
+                <div class="tc-cell"><span class="kpi-label">EVIDENCE MATURITY</span><div class="tc-val">${level !== null ? `LEVEL ${level}` : 'N/A'}</div></div>
+                <div class="tc-cell"><span class="kpi-label">STRATEGIC RELEVANCE</span><div class="tc-val">${esc(t.strategic ? upperHuman(typeof t.strategic === 'object' ? pick(t.strategic, 'level', 'label') : t.strategic) : 'N/A')}</div></div>
+                <div class="tc-cell"><span class="kpi-label">EXPLORATION PRIORITY</span><div class="tc-val mono-val">${t.priority !== null ? esc(fmtNum(t.priority, 0)) : 'N/A'}</div></div>
+                <div class="tc-cell tc-cell-wide"><span class="kpi-label">STATUS</span><div class="tc-val">${esc(statusText(t))}</div></div>
+            </div>
+            <div class="tc-split">
+                <div>
+                    <h3 class="why-title">EVIDENCE</h3>
+                    <ul class="evidence-list">
+                        ${ev.map(e => `<li class="ev-${e.ok === true ? 'yes' : (e.ok === false ? 'no' : 'unk')}">
+                            <span class="ev-mark" aria-hidden="true">${e.ok === true ? '✓' : (e.ok === false ? '✕' : '?')}</span>
+                            <span>${e.label}</span>
+                            <span class="ev-state">${e.ok === true ? 'AVAILABLE' : (e.ok === false ? 'UNAVAILABLE' : 'NOT REPORTED')}</span>
+                        </li>`).join('')}
+                    </ul>
+                    ${subsurface && subsurface.ok !== true ? `<div class="subsurface-note"><b>SUBSURFACE UNAVAILABLE</b><br>Further field / geophysical / drilling validation required.</div>` : ''}
+                </div>
+                <div>
+                    <h3 class="why-title">EVIDENCE LADDER</h3>
+                    ${ladderHTML(level)}
+                </div>
+            </div>
+            <div class="why-grid" id="tcWhy"></div>`;
+        renderWhyNow($('#tcWhy'), {
+            targetId: t.id,
+            whyTarget: t.whyTarget,
+            whyNow: t.whyNow,
+            reasonCodes: t.reasonCodes,
+            nextEvidence: t.nextEvidence,
         });
-        state.heatLayer = heat;
     }
 
-    function updateLegend(mode) {
-        const title = $('#legendTitle');
-        const sub = $('#legendSubtitle');
-        const bar = $('#legendBar');
-        const labels = $('#legendLabels');
-        const hint = $('#legendHint');
-        const hud = document.querySelector('.floating-legend-hud');
-        if (!title) return;
-
-        // In plain satellite mode there is no data scale to explain — the old
-        // "Dense Foliage / Exposed Rock" bar was decorative, not derived from
-        // anything. Hide the whole HUD rather than show a meaningless legend.
-        if (hud) hud.style.display = (mode === 'satellite') ? 'none' : '';
-
-        if (mode === 'thermal') {
-            title.textContent = 'Thermal Map from Satellite (NASA MODIS LST)';
-            if (sub) sub.textContent = 'Infrared Land Surface Radiation (°C)';
-            if (bar) bar.style.background = 'linear-gradient(90deg, #313695 0%, #4575b4 20%, #74add1 40%, #fee090 60%, #f46d43 80%, #a50026 100%)';
-            if (labels) labels.innerHTML = '<span>Cool (&lt;25°C)</span><span>Moderate (35°C)</span><span>High Thermal Radiation (&gt;50°C)</span>';
-            if (hint) hint.textContent = 'Real-time satellite infrared thermal radiometry. High thermal inertia indicates exposed mineralized rock outcrops and active quarries.';
-        } else if (mode === 'satellite') {
-            title.textContent = 'High-Resolution Satellite Terrain';
-            if (sub) sub.textContent = 'Esri World Imagery + Regional Geographic Labels';
-            if (bar) bar.style.background = 'linear-gradient(90deg, #1e293b 0%, #334155 50%, #64748b 100%)';
-            if (labels) labels.innerHTML = '<span>Dense Foliage</span><span>Vegetation / Soil</span><span>Exposed Ground / Rock</span>';
-            if (hint) hint.textContent = 'Pure satellite terrain view without overlays. Click anywhere on the terrain to inspect coordinates and place a target crosshair.';
-        } else {
-            title.textContent = 'Relative Manganese Prospectivity Rank';
-            if (sub) sub.textContent = 'Percentile within the analyzed belt (VNIR/SWIR/DEM/LST features)';
-            if (bar) bar.style.background = 'linear-gradient(90deg, #3b82f6 0%, #06b6d4 25%, #10b981 50%, #f59e0b 75%, #ef4444 100%)';
-            if (labels) labels.innerHTML = '<span>Rank 0 — deprioritize</span><span>Rank 50 — moderate</span><span>Rank 100 — top drill target</span>';
-            if (hint) hint.textContent = 'Model confidence is derived from hydrothermal clay alteration, iron oxide capping, topography, and thermal signatures.';
-        }
-    }
-
-    async function predictReserve(lat, lon, fly = true) {
-        const btn = $('#btnPredictReserve');
+    async function queryCoordinate(lat, lon) {
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) { showToast('Enter a valid latitude and longitude.', 'error'); return; }
+        const btn = $('#btnQueryCoord');
         setLoading(btn, true);
+        const map = state.maps.exploration;
         try {
-            const data = await apiPost('/predict_reserve', { lat, lon });
-            renderGeologicalTelemetry(data);
-            highlightTargetOnMap(lat, lon, data);
-
-            if (fly && state.reserveMap) {
-                state.reserveMap.flyTo([lat, lon], Math.max(state.reserveMap.getZoom(), 8), { duration: 1 });
+            const d = await api.post('/api/exploration/predict', { lat, lon }, { timeout: 45000 });
+            state.exploration.query = d;
+            const t = normTarget({ ...d, target_id: pick(d, 'target_id') || `QUERY ${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat: pick(d, 'lat', 'query_lat') ?? lat, lon: pick(d, 'lon', 'query_lon') ?? lon });
+            t.status = pick(d, 'status') || 'COORDINATE QUERY — NOT A TARGET';
+            state.exploration.selectedId = null;
+            $$('.target-item').forEach(el => { el.classList.remove('selected'); el.setAttribute('aria-selected', 'false'); });
+            if (map) {
+                if (state.maps.queryMarker) map.removeLayer(state.maps.queryMarker);
+                state.maps.queryMarker = L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 2, fillColor: '#8b5cf6', fillOpacity: 1 })
+                    .bindPopup(popupHTML(t)).addTo(map).openPopup();
+                highlightRegion(t);
             }
+            renderTargetCard(t, {});
         } catch (e) {
-            showToast('Reserve query failed: ' + e.message, 'error');
+            showToast(`Coordinate query failed. ${e.userMessage || ''}`, 'error');
         } finally {
             setLoading(btn, false);
         }
     }
 
-    function renderGeologicalTelemetry(data) {
-        // Warn when the coordinate sits outside the model's trained region —
-        // otherwise an extrapolated rank looks identical to a supported one.
-        // Only name a target mineral where the rank supports it. The old build
-        // printed "Manganese Oxide (Pyrolusite)" for every coordinate on Earth,
-        // including 3%-rank points outside the trained region — a mineralogical
-        // claim the model never makes.
-        const mineralRow = $('#primaryMineralRow');
-        const mineralVal = $('#primaryMineralVal');
-        if (mineralRow && mineralVal) {
-            const rk = (typeof data.rank === 'number') ? data.rank : 0;
-            const supported = rk >= 50 && !data.coverage_warning;
-            mineralRow.style.display = supported ? '' : 'none';
-            if (supported) {
-                mineralVal.textContent = rk >= 75
-                    ? 'Manganese oxide association (Sausar-type) — indicated'
-                    : 'Manganese oxide association — possible';
-            }
+    // ═══════════════════════════════════════════════════════
+    // SCREEN 3 — PRODUCTION RISK
+    // ═══════════════════════════════════════════════════════
+    function normHistory(h) {
+        if (!h) return [];
+        let rows = Array.isArray(h) ? h : pick(h, 'history', 'series', 'data', 'records', 'rows');
+        if (!rows && Array.isArray(h.dates)) {
+            rows = h.dates.map((d, i) => ({ date: d, actual: h.actual?.[i] ?? h.actual_tonnes?.[i], target: h.target?.[i] ?? h.target_tonnes?.[i] }));
         }
-
-        const cw = $('#coverageWarning');
-        if (cw) {
-            cw.textContent = data.coverage_warning || '';
-            cw.classList.toggle('visible', Boolean(data.coverage_warning));
-        }
-
-        // Display the percentile RANK, not the raw probability. The classifier
-        // is not calibrated in absolute terms; its ordering is what we trust.
-        const rank = (typeof data.rank === 'number') ? data.rank : data.probability * 100;
-        const frac = rank / 100;
-        const pct = rank.toFixed(1);
-
-        const ring = $('#gaugeProgressRing');
-        if (ring) {
-            const circumference = 301.6;
-            const offset = circumference * (1 - frac);
-            ring.style.strokeDashoffset = offset;
-            ring.style.stroke = frac > 0.75 ? 'var(--accent-emerald)' : (frac > 0.5 ? 'var(--risk-medium)' : 'var(--risk-high)');
-        }
-        if ($('#reserveProbValue')) $('#reserveProbValue').textContent = `${pct}%`;
-
-        const badge = $('#geolClassBadge');
-        if (badge) {
-            badge.textContent = data.tier || 'RANK UNAVAILABLE';
-            const style = frac >= 0.75
-                ? ['var(--accent-emerald)', 'rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.3)']
-                : frac >= 0.50
-                    ? ['var(--risk-medium)', 'rgba(245, 158, 11, 0.1)', 'rgba(245, 158, 11, 0.3)']
-                    : ['var(--text-muted)', 'rgba(255, 255, 255, 0.03)', 'var(--border-subtle)'];
-            badge.style.color = style[0];
-            badge.style.background = style[1];
-            badge.style.borderColor = style[2];
-        }
-
-        if ($('#resQueryLatLon')) {
-            $('#resQueryLatLon').textContent = `${data.query_lat.toFixed(4)}°N, ${data.query_lon.toFixed(4)}°E`;
-        }
-
-        const isLive = data.source === 'live_satellite';
-
-        if ($('#resGridLatLon')) {
-            $('#resGridLatLon').textContent = isLive
-                ? 'Direct live extraction — no grid lookup needed'
-                : `${data.nearest_grid_lat.toFixed(2)}°N, ${data.nearest_grid_lon.toFixed(2)}°E`;
-        }
-
-        if ($('#resDistance')) {
-            $('#resDistance').textContent = isLive
-                ? '0 km (exact coordinate)'
-                : `${data.grid_distance_degrees.toFixed(4)}° (~${(data.grid_distance_degrees * 111).toFixed(1)} km)`;
-        }
-
-        const sourceEl = $('#resDataSource');
-        if (sourceEl) {
-            sourceEl.textContent = isLive ? '🛰️ LIVE SATELLITE EXTRACTION' : '📊 CACHED GRID (nearest analyzed point)';
-            sourceEl.style.color = isLive ? 'var(--accent-emerald)' : 'var(--text-muted)';
-        }
+        return asArray(rows).map(r => ({
+            date: pick(r, 'date', 'period', 'day', 'timestamp', 'period_start'),
+            actual: num(pick(r, 'actual_tonnes', 'actual', 'production_tonnes', 'production')),
+            target: num(pick(r, 'target_tonnes', 'target')),
+        })).filter(r => r.date !== undefined && r.date !== null);
     }
 
-    function highlightTargetOnMap(lat, lon, data) {
-        if (!state.reserveMap) return;
-        const map = state.reserveMap;
-        if (state.selectedCircle) map.removeLayer(state.selectedCircle);
-        if (state.selectedMarker) map.removeLayer(state.selectedMarker);
-        const r = (data && typeof data.rank === 'number') ? data.rank : 50;
-        const color = r > 75 ? '#10b981' : (r > 50 ? '#f59e0b' : '#ef4444');
-
-        state.selectedCircle = L.circle([lat, lon], {
-            radius: 16000, color: color, fillColor: color, fillOpacity: 0.16, weight: 2, dashArray: '4, 4'
-        }).addTo(map);
-
-        state.selectedMarker = L.circleMarker([lat, lon], {
-            radius: 6, color: '#ffffff', fillColor: color, fillOpacity: 1, weight: 2
-        }).addTo(map);
-
-        const isLive = data && data.source === 'live_satellite';
-        const offsetLine = isLive
-            ? 'Live satellite extraction (exact point)'
-            : (data && typeof data.grid_distance_degrees === 'number'
-                ? `Offset: ${(data.grid_distance_degrees * 111).toFixed(1)} km from grid cell`
-                : '');
-
-        const prob = (data && typeof data.probability === 'number') ? data.probability : 0.5;
-
-        const popupHtml = `
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 4px;">
-                <div style="font-weight: 700; color: ${color}; margin-bottom: 4px;">TARGET COORDINATES</div>
-                <div>Lat: ${lat.toFixed(4)}°N</div>
-                <div>Lon: ${lon.toFixed(4)}°E</div>
-                <div style="margin-top: 4px; font-weight: 700; color: #fff;">Deposit Probability: ${(prob * 100).toFixed(1)}%</div>
-                <div style="color: #94a3b8; font-size: 10px;">${offsetLine}</div>
-            </div>
-        `;
-        state.selectedMarker.bindPopup(popupHtml).openPopup();
-    }
-
-    // ── Module 3: Production Shortfall Engine ────────────────
-    function initShortfallEngine() {
-        // Slider Live Text Bindings
-        setupRangeSlider('sf-equipment_availability', 'val-equip-avail', v => `${v} (${Math.round(v * 100)}%)`);
-        setupRangeSlider('sf-drilling_delay', 'val-drill-delay', v => `${v} hrs`);
-        setupRangeSlider('sf-rainfall', 'val-rainfall', v => `${v} mm`);
-        setupRangeSlider('sf-soil_moisture', 'val-soil-moisture', v => `${v}`);
-
-        // Operational Preset Buttons
-        $('#presetOptimal')?.addEventListener('click', () => {
-            setFormData('sf', {
-                equipment_availability: 0.92,
-                equipment_downtime: 1.0,
-                maintenance_hours: 2.0,
-                truck_count: 18,
-                rainfall: 2.0,
-                soil_moisture: 0.15,
-                temperature: 30.0,
-                drilling_delay: 0.5,
-                blast_delay: 0.4,
-                haulage_delay: 0.5,
-                target_production: 1000
-            });
-            showToast('Loaded Preset: Normal Dry Shift (Optimal)');
-        });
-
-        $('#presetMonsoon')?.addEventListener('click', () => {
-            setFormData('sf', {
-                equipment_availability: 0.76,
-                equipment_downtime: 4.5,
-                maintenance_hours: 5.0,
-                truck_count: 12,
-                rainfall: 65.0,
-                soil_moisture: 0.85,
-                temperature: 26.0,
-                drilling_delay: 3.0,
-                blast_delay: 2.5,
-                haulage_delay: 3.5,
-                target_production: 1000
-            });
-            showToast('Loaded Preset: Heavy Monsoon Downpour (Severe Risk)');
-        });
-
-        $('#presetCrisis')?.addEventListener('click', () => {
-            setFormData('sf', {
-                equipment_availability: 0.52,
-                equipment_downtime: 8.0,
-                maintenance_hours: 10.0,
-                truck_count: 8,
-                rainfall: 15.0,
-                soil_moisture: 0.30,
-                temperature: 34.0,
-                drilling_delay: 4.0,
-                blast_delay: 1.5,
-                haulage_delay: 4.5,
-                target_production: 1000
-            });
-            showToast('Loaded Preset: Fleet Breakdown Crisis (Critical Risk)');
-        });
-
-        // Form Submit
-        $('#shortfallForm')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = $('#btnPredictShortfall');
-            setLoading(btn, true);
-
-            const payload = gatherFormData('sf');
-            try {
-                const data = await apiPost('/predict_shortfall', payload);
-                renderShortfallResults(data);
-            } catch (err) {
-                showToast('Shortfall calculation failed: ' + err.message, 'error');
-            } finally {
-                setLoading(btn, false);
-            }
-        });
-    }
-
-    function setupRangeSlider(sliderId, readoutId, formatter) {
-        const slider = $(`#${sliderId}`);
-        const readout = $(`#${readoutId}`);
-        if (!slider || !readout) return;
-        slider.addEventListener('input', (e) => {
-            readout.textContent = formatter ? formatter(e.target.value) : e.target.value;
-        });
-    }
-
-    function setFormData(prefix, vals) {
-        Object.keys(vals).forEach(key => {
-            const input = $(`#${prefix}-${key}`);
-            if (input) {
-                input.value = vals[key];
-                input.dispatchEvent(new Event('input'));
-            }
-        });
-    }
-
-    function gatherFormData(prefix) {
+    function normForecast(f) {
+        if (!f) return null;
+        const src = pick(f, 'forecast') && typeof f.forecast === 'object' ? { ...f, ...f.forecast } : f;
         return {
-            equipment_availability: parseFloat($(`#${prefix}-equipment_availability`).value),
-            equipment_downtime: parseFloat($(`#${prefix}-equipment_downtime`).value),
-            maintenance_hours: parseFloat($(`#${prefix}-maintenance_hours`).value),
-            drilling_delay: parseFloat($(`#${prefix}-drilling_delay`).value),
-            blast_delay: parseFloat($(`#${prefix}-blast_delay`).value),
-            rainfall: parseFloat($(`#${prefix}-rainfall`).value),
-            soil_moisture: parseFloat($(`#${prefix}-soil_moisture`).value),
-            temperature: parseFloat($(`#${prefix}-temperature`).value),
-            truck_count: parseInt($(`#${prefix}-truck_count`).value, 10),
-            haulage_delay: parseFloat($(`#${prefix}-haulage_delay`).value),
-            target_production: parseFloat($(`#${prefix}-target_production`).value),
+            p10: num(pick(src, 'p10_tonnes', 'p10')),
+            p50: num(pick(src, 'p50_tonnes', 'p50', 'forecast_tonnes')),
+            p90: num(pick(src, 'p90_tonnes', 'p90')),
+            target: num(pick(src, 'target_tonnes', 'target')),
+            gap: num(pick(src, 'gap_p50_tonnes', 'gap_tonnes', 'supply_gap_tonnes')),
+            risk: pick(src, 'risk_state', 'risk'),
+            horizon: pick(src, 'forecast_horizon', 'horizon'),
+            date: pick(src, 'forecast_date', 'period', 'period_end', 'forecast_period'),
+            series: asArray(pick(src, 'forecast_series', 'series')),
+            contributions: pick(src, 'model_contributions', 'contributions', 'drivers', 'primary_drivers'),
+            provenance: pick(src, 'provenance'),
+            quantilesValidated: pick(src, 'quantiles_validated', 'intervals_validated'),
+            raw: src,
         };
     }
 
-    // ── SHAP root-cause horizontal bar chart ─────────────────
-    // Bars are scaled to the LARGEST contributor rather than to 100, so the
-    // top driver always fills the track and the relative sizes stay readable
-    // even when the top cause is only 30% of total attributed loss.
-    const CAUSE_LABELS = {
-        equipment_availability: 'Equipment availability',
-        equipment_downtime: 'Equipment downtime',
-        maintenance_hours: 'Maintenance hours',
-        drilling_delay: 'Drilling delay',
-        blast_delay: 'Blast delay',
-        rainfall: 'Rainfall',
-        soil_moisture: 'Soil moisture',
-        temperature: 'Temperature',
-        truck_count: 'Truck count',
-        haulage_delay: 'Haulage delay',
-    };
+    async function loadProduction() {
+        const btn = $('#btnRefreshProduction');
+        setLoading(btn, true);
+        $('#histChart').innerHTML = loadingHTML('Loading production history…');
+        $('#prContributions').innerHTML = loadingHTML('Loading forecast…');
+        const [hist, fc] = await Promise.allSettled([
+            api.get(`/api/production/history?mine_id=${encodeURIComponent(MINE_ID)}&days=90`),
+            api.post('/api/production/forecast', { mine_id: MINE_ID }),
+        ]);
+        state.production.history = hist.status === 'fulfilled' ? hist.value : null;
+        state.production.forecast = fc.status === 'fulfilled' ? fc.value : null;
+        state.loaded['production-risk'] = hist.status === 'fulfilled' || fc.status === 'fulfilled';
 
-    function renderRootCauseChart(container, causes) {
-        if (!container) return;
-        container.innerHTML = '';
+        const f = normForecast(state.production.forecast);
+        const provs = [];
+        if (state.production.history && state.production.history.provenance) provs.push(provenanceHTML(state.production.history.provenance));
+        if (f && f.provenance) provs.push(provenanceHTML(f.provenance));
+        $('#prProvenance').innerHTML = provs.length ? dedupeBadges(provs.join('')) : badgeHTML('UNAVAILABLE', 'DATA');
 
-        if (!causes || typeof causes !== 'object') return;
+        if (fc.status === 'fulfilled') renderForecast(f);
+        else {
+            ['#prP10', '#prP50', '#prP90', '#prTarget', '#prGap'].forEach(s => { $(s).textContent = '—'; });
+            $('#prRisk').innerHTML = '<span class="muted">N/A</span>';
+            $('#prRangeChart').innerHTML = '';
+            $('#prContributions').innerHTML = errorHTML('Production forecast unavailable.', fc.reason, 'production');
+        }
+        if (hist.status === 'fulfilled') renderHistoryChart(normHistory(state.production.history), f);
+        else $('#histChart').innerHTML = errorHTML('Production history unavailable.', hist.reason, 'production');
+        setLoading(btn, false);
+    }
 
-        const entries = Object.entries(causes).filter(([, v]) => typeof v === 'number');
+    function renderForecast(f) {
+        $('#prHorizon').textContent = `FORECAST HORIZON: ${f.horizon ? upperHuman(f.horizon) : 'N/A'}`;
+        $('#prP10').textContent = fmtT(f.p10);
+        $('#prP50').textContent = fmtT(f.p50);
+        $('#prP90').textContent = fmtT(f.p90);
+        $('#prTarget').textContent = fmtT(f.target);
+        $('#prGap').textContent = fmtT(f.gap);
+        $('#prRisk').innerHTML = riskHTML(f.risk);
+        $('#prRiskPolicy').textContent = riskPolicyText(f.raw);
+        const hasBand = f.p10 !== null && f.p90 !== null;
+        $('#prForecastSub').textContent = hasBand
+            ? (f.quantilesValidated === false ? 'P10 / P50 / P90 — interval not validated' : 'P10 / P50 / P90')
+            : 'Only the forecast fields returned by the backend are shown';
+        renderRangeChart($('#prRangeChart'), f);
+        renderDriverBars($('#prContributions'), f.contributions);
+    }
 
-        // Backend returns {Status: "..."} when SHAP is unavailable or found
-        // no negative drivers — show that message instead of an empty chart.
-        if (entries.length === 0) {
-            const msg = document.createElement('div');
-            msg.className = 'cause-empty';
-            msg.textContent = Object.values(causes)[0] || 'No attribution available.';
-            container.appendChild(msg);
+    // Horizontal range: P10–P90 band, P50 tick, target line. One axis, labelled.
+    function renderRangeChart(el, f) {
+        const vals = [f.p10, f.p50, f.p90, f.target].filter(v => v !== null);
+        if (vals.length < 2 || f.p50 === null) { el.innerHTML = ''; return; }
+        const lo = Math.min(...vals), hi = Math.max(...vals);
+        const pad = (hi - lo) * 0.12 || hi * 0.05 || 1;
+        const min = lo - pad, max = hi + pad;
+        const x = v => ((v - min) / (max - min)) * 100;
+        const marks = [];
+        if (f.p10 !== null && f.p90 !== null) marks.push(`<div class="rc-band" style="left:${x(f.p10)}%;width:${x(f.p90) - x(f.p10)}%" title="P10–P90: ${esc(fmtT(f.p10))} – ${esc(fmtT(f.p90))}"></div>`);
+        marks.push(`<div class="rc-p50" style="left:${x(f.p50)}%" title="P50 ${esc(fmtT(f.p50))}"><span>P50 ${esc(fmtT(f.p50))}</span></div>`);
+        if (f.target !== null) marks.push(`<div class="rc-target" style="left:${x(f.target)}%" title="Target ${esc(fmtT(f.target))}"><span>TARGET ${esc(fmtT(f.target))}</span></div>`);
+        el.innerHTML = `<div class="rc-track" role="img" aria-label="Forecast range P10 ${esc(fmtT(f.p10))}, P50 ${esc(fmtT(f.p50))}, P90 ${esc(fmtT(f.p90))}, target ${esc(fmtT(f.target))}">${marks.join('')}</div>
+            <div class="rc-axis"><span>${esc(fmtT(min))}</span><span>${esc(fmtT(max))}</span></div>
+            <div class="rc-legend">${f.p10 !== null && f.p90 !== null ? '<span><i class="lg-band"></i>P10–P90 range: 80% of forecast outcomes fall inside</span>' : ''}<span><i class="lg-p50"></i>P50 median</span>${f.target !== null ? '<span><i class="lg-target"></i>Target</span>' : ''}</div>`;
+    }
+
+    const C_ACTUAL = '#0891b2', C_FORECAST = '#d97706', C_TARGET = '#94a3b8';
+
+    function renderHistoryChart(rows, f) {
+        const el = $('#histChart');
+        const legend = $('#histLegend');
+        if (!rows.length) {
+            el.innerHTML = '<div class="empty-state">No production history returned by the backend.</div>';
+            legend.innerHTML = '';
             return;
         }
-
-        entries.sort((a, b) => b[1] - a[1]);
-        const max = entries[0][1] || 1;
-
-        const chart = document.createElement('div');
-        chart.className = 'shap-chart';
-
-        entries.forEach(([feature, pct], i) => {
-            const label = CAUSE_LABELS[feature] || feature.replace(/_/g, ' ');
-            const width = Math.max(2, (pct / max) * 100);
-            const row = document.createElement('div');
-            row.className = 'shap-row';
-            row.innerHTML = `
-                <div class="shap-label" title="${label}">${label}</div>
-                <div class="shap-track">
-                    <div class="shap-bar ${i === 0 ? 'shap-bar-top' : ''}" style="width:${width}%"></div>
-                </div>
-                <div class="shap-value mono-val">${pct.toFixed(1)}%</div>
-            `;
-            chart.appendChild(row);
-        });
-
-        const axis = document.createElement('div');
-        axis.className = 'shap-axis';
-        axis.textContent = 'Share of attributed shortfall (SHAP, negative contributors only)';
-
-        container.appendChild(chart);
-        container.appendChild(axis);
-    }
-
-    // Returns gatherFormData(prefix), or `fallback` if the form is missing or
-    // any field is blank/non-numeric. parseFloat('') is NaN, and JSON.stringify
-    // serialises NaN as null — which Pydantic rejects with a 422.
-    function gatherFormDataSafe(prefix, fallback) {
-        let data;
-        try {
-            data = gatherFormData(prefix);
-        } catch (e) {
-            console.warn(`Form "${prefix}" not found; using fallback values.`);
-            return fallback;
-        }
-        const bad = Object.entries(data).filter(([, v]) => typeof v !== 'number' || !isFinite(v));
-        if (bad.length) {
-            console.warn(`Form "${prefix}" has invalid fields, using fallback:`, bad.map(b => b[0]));
-            return fallback;
-        }
-        return data;
-    }
-
-    // Shift presets — illustrative operating states, one per risk tier.
-    // Values are tuned so each lands in the tier its label claims
-    // (7.5 / 12.4 / 20.8 / 55.6 % shortfall). Re-check the tier if you edit one.
-    const SHIFT_PRESETS = {
-        optimal: { equipment_availability: 0.98, equipment_downtime: 0.3, maintenance_hours: 0.5,
-                   drilling_delay: 0.1, blast_delay: 0.1, rainfall: 1.0, soil_moisture: 0.15,
-                   temperature: 29.0, truck_count: 28, haulage_delay: 0.2, target_production: 1000 },
-        normal:  { equipment_availability: 0.98, equipment_downtime: 0.3, maintenance_hours: 0.5,
-                   drilling_delay: 0.1, blast_delay: 0.1, rainfall: 1.0, soil_moisture: 0.15,
-                   temperature: 29.0, truck_count: 15, haulage_delay: 0.2, target_production: 1000 },
-        strained:{ equipment_availability: 0.80, equipment_downtime: 0.3, maintenance_hours: 0.5,
-                   drilling_delay: 0.1, blast_delay: 0.1, rainfall: 15.0, soil_moisture: 0.15,
-                   temperature: 29.0, truck_count: 16, haulage_delay: 0.2, target_production: 1000 },
-        monsoon: { equipment_availability: 0.78, equipment_downtime: 4.5, maintenance_hours: 6.0,
-                   drilling_delay: 2.5, blast_delay: 1.5, rainfall: 45.0, soil_moisture: 0.72,
-                   temperature: 27.0, truck_count: 12, haulage_delay: 2.0, target_production: 1000 },
-    };
-
-    function applyPreset(prefix, preset) {
-        Object.entries(preset).forEach(([field, value]) => {
-            const el = $(`#${prefix}-${field}`);
-            if (!el) return;
-            el.value = value;
-            // Range inputs need an input event so their value pill updates.
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-        });
-    }
-
-    function initShortfallPresets() {
-        $$('.sf-preset-chip').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const preset = SHIFT_PRESETS[btn.dataset.preset];
-                if (!preset) return;
-                applyPreset('sf', preset);
-                $$('.sf-preset-chip').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            });
-        });
-    }
-
-    // ── Equipment consistency (mirrors check_equipment_consistency in main.py) ──
-    const SHIFT_HOURS = 8.0;
-    const FIELD_LABELS = {
-        equipment_availability: 'Equipment availability', equipment_downtime: 'Downtime',
-        maintenance_hours: 'Maintenance', drilling_delay: 'Drilling delay',
-        blast_delay: 'Blast delay', rainfall: 'Rainfall', soil_moisture: 'Soil moisture',
-        temperature: 'Temperature', truck_count: 'Truck count',
-        haulage_delay: 'Haulage delay', target_production: 'Target',
-    };
-
-    function checkEquipment(prefix) {
-        const box = $(`#${prefix}EquipWarning`);
-        if (!box) return;
-        const num = f => parseFloat($(`#${prefix}-${f}`)?.value);
-        const avail = num('equipment_availability');
-        const lost = num('equipment_downtime') + num('maintenance_hours');
-        if (![avail, lost].every(Number.isFinite)) { box.innerHTML = ''; return; }
-
-        let msg = '';
-        if (lost > SHIFT_HOURS) {
-            msg = `Downtime plus maintenance is ${lost}h, longer than the ${SHIFT_HOURS}h shift.`;
-        } else {
-            const implied = 1 - lost / SHIFT_HOURS;
-            if (avail > implied + 0.01) {
-                msg = `Availability of ${Math.round(avail * 100)}% is not possible with ${lost}h lost `
-                    + `in an ${SHIFT_HOURS}h shift — the most it could be is ${Math.round(implied * 100)}%.`;
-            }
-        }
-        box.innerHTML = msg ? `<span class="equip-warning-icon">!</span>${msg}` : '';
-        box.classList.toggle('visible', Boolean(msg));
-    }
-
-    function initEquipmentValidation() {
-        ['sf', 'sim'].forEach(prefix => {
-            ['equipment_availability', 'equipment_downtime', 'maintenance_hours'].forEach(f => {
-                const el = $(`#${prefix}-${f}`);
-                if (el) el.addEventListener('input', () => checkEquipment(prefix));
-            });
-            checkEquipment(prefix);
-        });
-    }
-
-    // ── Copy the baseline across so only intended fields differ ──
-    function initCopyBaseline() {
-        const btn = $('#btnCopyBaseline');
-        if (!btn) return;
-        btn.addEventListener('click', () => {
-            Object.keys(FIELD_LABELS).forEach(f => {
-                const src = $(`#sf-${f}`), dst = $(`#sim-${f}`);
-                if (src && dst) {
-                    dst.value = src.value;
-                    dst.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-            });
-            checkEquipment('sim');
-            showToast('Baseline copied. Now change only what you want to test.', 'info');
-        });
-    }
-
-    function renderShortfallResults(data) {
-        const area = $('#shortfallResults');
-        if (!area) return;
-        area.style.display = 'block';
-
-        // Risk Badge
-        const badge = $('#riskTierBadge');
-        if (badge) {
-            badge.className = `risk-pill-badge risk-${data.risk_tier.toLowerCase()}`;
-            badge.textContent = `${data.risk_tier} OPERATIONAL RISK`;
-        }
-
-        // 4 KPI Metrics
-        if ($('#resEfficiency')) $('#resEfficiency').textContent = `${(data.predicted_efficiency * 100).toFixed(1)}%`;
-        if ($('#resPredictedProd')) $('#resPredictedProd').textContent = `${data.predicted_production.toFixed(1)} T`;
-        if ($('#resTargetSub')) $('#resTargetSub').textContent = `Target: ${data.target_production.toLocaleString()} T`;
-        if ($('#resShortfallTonnes')) $('#resShortfallTonnes').textContent = `${(data.target_production - data.predicted_production).toFixed(1)} T`;
-        if ($('#resShortfallPct')) $('#resShortfallPct').textContent = `${data.shortfall_pct.toFixed(1)}% Shortfall`;
-        if ($('#resRiskFlags')) $('#resRiskFlags').textContent = `${data.risk_flags} Detected`;
-
-        renderRootCauseChart($('#rootCausesContainer'), data.root_causes);
-
-        // Backend echoes any physically impossible equipment combination.
-        const warnBox = $('#sfEquipWarning');
-        if (warnBox && data.input_warnings && data.input_warnings.length) {
-            warnBox.innerHTML = `<span class="equip-warning-icon">!</span>${data.input_warnings.join(' ')}`;
-            warnBox.classList.add('visible');
-        }
-
-        // Prescriptive Engineering Directives
-        const recBox = $('#recommendationsContainer');
-        if (recBox) {
-            recBox.innerHTML = '';
-            (data.recommendations || []).forEach(rec => {
-                const card = document.createElement('div');
-                const isCritical = rec.toLowerCase().includes('escalate') || rec.toLowerCase().includes('exceeds');
-                const isWarning = rec.toLowerCase().includes('preventive') || rec.toLowerCase().includes('drainage');
-                card.className = `directive-card ${isCritical ? 'directive-critical' : (isWarning ? 'directive-warning' : '')}`;
-                card.innerHTML = `
-                    <div class="directive-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            ${isCritical ? '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>' : '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>'}
-                        </svg>
-                    </div>
-                    <span>${rec}</span>
-                `;
-                recBox.appendChild(card);
-            });
-        }
-
-        area.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    // ── Module 4: Simulator Ledger ───────────────────────────
-    function initSimulatorEngine() {
-        setupRangeSlider('sim-equipment_availability', 'sim-val-equip-avail', v => `${v}`);
-        setupRangeSlider('sim-drilling_delay', 'sim-val-drill-delay', v => `${v} hrs`);
-        setupRangeSlider('sim-rainfall', 'sim-val-rainfall', v => `${v} mm`);
-        setupRangeSlider('sim-soil_moisture', 'sim-val-soil-moisture', v => `${v}`);
-
-        $('#simulatorForm')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = $('#btnRunSimulation');
-            setLoading(btn, true);
-
-            // /simulate now compares TWO states: the shortfall form is the
-            // baseline (current operating conditions), the simulator form is
-            // the scenario. If the shortfall form isn't on the page, fall back
-            // to comparing the scenario against itself so nothing crashes.
-            const scenario = gatherFormData('sim');
-            const baseline = gatherFormDataSafe('sf', scenario);
-            const payload = { baseline: baseline, scenario: scenario };
-            try {
-                const data = await apiPost('/simulate', payload);
-                renderSimulatorResults(data);
-                addSimToHistory(data);
-            } catch (err) {
-                showToast('Simulation error: ' + err.message, 'error');
-            } finally {
-                setLoading(btn, false);
-            }
-        });
-    }
-
-    function renderSimulatorResults(data) {
-        const area = $('#simResults');
-        if (!area) return;
-        area.style.display = 'block';
-
-        const base = data.baseline;
-        const scen = data.scenario;
-        const d = data.delta;
-
-        const badge = $('#simRiskBadge');
-        if (badge) {
-            badge.className = `risk-pill-badge risk-${scen.risk_tier.toLowerCase()}`;
-            badge.textContent = `${scen.risk_tier} SCENARIO RISK`;
-        }
-
-        if ($('#simEfficiency')) $('#simEfficiency').textContent = `${(scen.predicted_efficiency * 100).toFixed(1)}%`;
-        if ($('#simPredictedProd')) $('#simPredictedProd').textContent = `${scen.predicted_production.toFixed(1)} T`;
-        if ($('#simShortfallTonnes')) $('#simShortfallTonnes').textContent = `${scen.shortfall_tonnes.toFixed(1)} T`;
-        if ($('#simShortfallPct')) $('#simShortfallPct').textContent = `${scen.shortfall_pct.toFixed(1)}% Target Shortfall`;
-
-        // Every field that differs between the two states. Without this, editing
-        // two fields while nine others silently differ looks like a model bug.
-        const cf = $('#simChangedFields');
-        if (cf) {
-            const list = data.changed_fields || [];
-            if (!list.length) {
-                cf.innerHTML = '<b>Identical inputs</b> — baseline and scenario are the same, so there is nothing to compare.';
-                cf.className = 'changed-fields visible';
+        // Forecast overlays the history only if it is on the same scale (a
+        // per-period series). A period-total forecast is shown in the range
+        // panel instead — plotting it on a daily axis would be misleading.
+        const fSeries = f ? f.series.map(p => ({
+            date: pick(p, 'date', 'period'),
+            p10: num(pick(p, 'p10_tonnes', 'p10')), p50: num(pick(p, 'p50_tonnes', 'p50')), p90: num(pick(p, 'p90_tonnes', 'p90')),
+        })).filter(p => p.date && p.p50 !== null) : [];
+        const lastActual = [...rows].reverse().find(r => r.actual !== null);
+        let fPoints = fSeries;
+        let fNote = '';
+        if (!fPoints.length && f && f.p50 !== null && lastActual) {
+            const ratio = f.p50 / (lastActual.actual || 1);
+            if (ratio > 0.2 && ratio < 5) {
+                fPoints = [{ date: f.date || 'Forecast', p10: f.p10, p50: f.p50, p90: f.p90 }];
             } else {
-                const rows = list.map(c =>
-                    `<span class="cf-item"><b>${FIELD_LABELS[c.field] || c.field}</b> ${c.baseline} &rarr; ${c.scenario}</span>`
-                ).join('');
-                cf.innerHTML = `<div class="cf-head">${list.length} field${list.length === 1 ? '' : 's'} differ between baseline and scenario</div>${rows}`;
-                cf.className = 'changed-fields visible';
+                fNote = `Forecast is a ${f.horizon ? human(f.horizon) : 'period'} total on a different scale from daily history — see the Forecast panel.`;
             }
         }
 
-        // All three framings, one line each. They are not separate calculations —
-        // the same model scores both sides — so there is no reason to make the
-        // user pick one and hide the other two.
-        const sumBox = $('#simSummary');
-        if (sumBox) {
-            const improving = d.production_change_tonnes > 0;
-            sumBox.className = `sim-summary ${improving ? 'sim-summary-good' : (d.production_change_tonnes < 0 ? 'sim-summary-bad' : '')}`;
-            const s = data.summaries || {};
-            const rows = [
-                ['What-if', s.what_if],
-                ['Optimisation', s.optimization],
-                ['Stress test', s.stress_test],
-            ];
-            sumBox.innerHTML = rows.map(([label, text]) =>
-                `<div class="sum-line"><span class="sum-tag">${label}</span>` +
-                `<span class="sum-text">${text && text.trim() ? text : 'None.'}</span></div>`
-            ).join('');
+        const all = rows.map(r => ({ ...r, kind: 'hist' })).concat(fPoints.map(p => ({ ...p, kind: 'fc' })));
+        const vals = all.flatMap(r => [r.actual, r.target, r.p10, r.p50, r.p90]).filter(v => v !== null && v !== undefined);
+        if (!vals.length) { el.innerHTML = '<div class="empty-state">History contains no numeric values.</div>'; return; }
+        let yMin = Math.min(...vals), yMax = Math.max(...vals);
+        const pad = (yMax - yMin) * 0.1 || yMax * 0.1 || 1;
+        yMin = Math.max(0, yMin - pad); yMax += pad;
+
+        const W = 1000, H = 300, m = { l: 64, r: 20, t: 14, b: 36 };
+        const n = all.length;
+        const xs = i => m.l + (n === 1 ? (W - m.l - m.r) / 2 : i * (W - m.l - m.r) / (n - 1));
+        const ys = v => m.t + (1 - (v - yMin) / (yMax - yMin)) * (H - m.t - m.b);
+        const line = (key, filterKind) => {
+            let d = '', pen = false;
+            all.forEach((r, i) => {
+                const v = r[key];
+                if ((filterKind && r.kind !== filterKind) || v === null || v === undefined) { pen = false; return; }
+                d += `${pen ? 'L' : 'M'}${xs(i).toFixed(1)},${ys(v).toFixed(1)}`;
+                pen = true;
+            });
+            return d;
+        };
+        const ticks = 4;
+        const grid = Array.from({ length: ticks + 1 }, (_, i) => yMin + (yMax - yMin) * i / ticks).map(v =>
+            `<line class="ch-grid" x1="${m.l}" x2="${W - m.r}" y1="${ys(v)}" y2="${ys(v)}"></line><text class="ch-tick" x="${m.l - 8}" y="${ys(v) + 4}" text-anchor="end">${esc(fmtT(v))}</text>`).join('');
+        const labelEvery = Math.max(1, Math.ceil(n / 8));
+        const xLabels = all.map((r, i) => ((i % labelEvery === 0 && (n - 1 - i >= labelEvery / 2 || i === 0)) || i === n - 1)
+            ? `<text class="ch-tick" x="${xs(i)}" y="${H - 12}" text-anchor="middle">${esc(String(r.date).slice(0, 10))}</text>` : '').join('');
+
+        const fcStart = all.findIndex(r => r.kind === 'fc');
+        let band = '';
+        if (fcStart >= 0) {
+            const fc = all.map((r, i) => ({ r, i })).filter(o => o.r.kind === 'fc' && o.r.p10 !== null && o.r.p90 !== null);
+            if (fc.length === 1) {
+                const { r, i } = fc[0];
+                band = `<rect class="ch-band" x="${xs(i) - 10}" y="${ys(r.p90)}" width="20" height="${Math.max(1, ys(r.p10) - ys(r.p90))}" rx="4"></rect>`;
+            } else if (fc.length > 1) {
+                const top = fc.map(o => `${xs(o.i)},${ys(o.r.p90)}`).join(' ');
+                const bot = fc.slice().reverse().map(o => `${xs(o.i)},${ys(o.r.p10)}`).join(' ');
+                band = `<polygon class="ch-band" points="${top} ${bot}"></polygon>`;
+            }
         }
+        const fcDivider = fcStart > 0 ? `<line class="ch-divider" x1="${(xs(fcStart - 1) + xs(fcStart)) / 2}" x2="${(xs(fcStart - 1) + xs(fcStart)) / 2}" y1="${m.t}" y2="${H - m.b}"></line><text class="ch-tick" x="${(xs(fcStart - 1) + xs(fcStart)) / 2 + 4}" y="${m.t + 10}">FORECAST →</text>` : '';
+        const fcDots = all.map((r, i) => r.kind === 'fc' && r.p50 !== null ? `<circle class="ch-fc-dot" cx="${xs(i)}" cy="${ys(r.p50)}" r="5"></circle>` : '').join('');
+        const actualPath = line('actual', 'hist');
+        const targetPath = line('target', 'hist');
+        const fcPath = fPoints.length > 1 ? line('p50', 'fc') : '';
 
-        // Baseline vs scenario comparison table
-        const cmp = $('#simComparison');
-        if (cmp) {
-            // Colour follows the METRIC, not the sign. Efficiency and output are
-            // better when they rise; shortfall and risk flags are better when
-            // they fall. Zero is neutral.
-            const signed = (v, unit, higherIsBetter, decimals = 1) => {
-                let cls = 'delta-flat';
-                if (v > 0) cls = higherIsBetter ? 'delta-good' : 'delta-bad';
-                else if (v < 0) cls = higherIsBetter ? 'delta-bad' : 'delta-good';
-                return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toFixed(decimals)}${unit}</span>`;
-            };
+        el.innerHTML = `<svg class="hist-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Production history: actual versus target over time${fPoints.length ? ', with forecast' : ''}">
+                ${grid}${band}${fcDivider}
+                ${targetPath ? `<path class="ch-target" d="${targetPath}" stroke="${C_TARGET}"></path>` : ''}
+                ${actualPath ? `<path class="ch-actual" d="${actualPath}" stroke="${C_ACTUAL}"></path>` : ''}
+                ${fcPath ? `<path class="ch-fc" d="${fcPath}" stroke="${C_FORECAST}"></path>` : ''}
+                ${fcDots}
+                ${xLabels}
+                <text class="ch-axis-title" x="${W - m.r}" y="${H - 1}" text-anchor="end">Time (date) →</text>
+                <line class="ch-cross" id="chCross" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" visibility="hidden"></line>
+            </svg>
+            <div class="ch-tooltip" id="chTooltip" hidden></div>
+            ${fNote ? `<div class="chart-note">${esc(fNote)}</div>` : ''}
+            <details class="chart-table"><summary>View data table</summary><div class="table-responsive"><table class="enterprise-table">
+                <thead><tr><th>Date</th><th>Actual</th><th>Target</th><th>P10</th><th>P50</th><th>P90</th></tr></thead>
+                <tbody>${all.map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.actual != null ? fmtT(r.actual) : '')}</td><td>${esc(r.target != null ? fmtT(r.target) : '')}</td><td>${esc(r.p10 != null ? fmtT(r.p10) : '')}</td><td>${esc(r.p50 != null ? fmtT(r.p50) : '')}</td><td>${esc(r.p90 != null ? fmtT(r.p90) : '')}</td></tr>`).join('')}</tbody>
+            </table></div></details>`;
 
-            // Risk tier: colour each tier by its own severity, so the milder of
-            // the two always reads green and the harsher always reads red,
-            // whichever direction the move went.
-            const TIER_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
-            const tierArrow = (from, to) => {
-                if (from === to) return `<span class="delta-flat">unchanged</span>`;
-                const a = TIER_RANK[from] ?? 0, b = TIER_RANK[to] ?? 0;
-                const fromCls = a < b ? 'delta-good' : 'delta-bad';
-                const toCls   = a < b ? 'delta-bad'  : 'delta-good';
-                return `<span class="${fromCls}">${from}</span>`
-                     + `<span class="delta-flat"> &rarr; </span>`
-                     + `<span class="${toCls}">${to}</span>`;
-            };
-            cmp.innerHTML = `
-                <table class="cmp-table">
-                    <thead>
-                        <tr><th>Metric</th><th>Baseline</th><th>Scenario</th><th>Change</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Efficiency</td>
-                            <td class="mono-val">${(base.predicted_efficiency * 100).toFixed(1)}%</td>
-                            <td class="mono-val">${(scen.predicted_efficiency * 100).toFixed(1)}%</td>
-                            <td class="mono-val">${signed(d.efficiency_change_pct_points, ' pp', true)}</td>
-                        </tr>
-                        <tr>
-                            <td>Production</td>
-                            <td class="mono-val">${base.predicted_production.toFixed(1)} T</td>
-                            <td class="mono-val">${scen.predicted_production.toFixed(1)} T</td>
-                            <td class="mono-val">${signed(d.production_change_tonnes, ' T', true)}</td>
-                        </tr>
-                        <tr>
-                            <td>Shortfall</td>
-                            <td class="mono-val">${base.shortfall_tonnes.toFixed(1)} T</td>
-                            <td class="mono-val">${scen.shortfall_tonnes.toFixed(1)} T</td>
-                            <td class="mono-val">${signed(d.shortfall_change_tonnes, ' T', false)}</td>
-                        </tr>
-                        <tr>
-                            <td>Risk tier</td>
-                            <td>${base.risk_tier}</td>
-                            <td>${scen.risk_tier}</td>
-                            <td>${tierArrow(base.risk_tier, scen.risk_tier)}</td>
-                        </tr>
-                        <tr>
-                            <td>Risk flags</td>
-                            <td class="mono-val">${base.risk_flags}</td>
-                            <td class="mono-val">${scen.risk_flags}</td>
-                            <td class="mono-val">${signed(d.risk_flags_change, '', false, 0)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            `;
-        }
+        legend.innerHTML = `<span><i class="lg-line" style="background:${C_ACTUAL}"></i>Actual</span>
+            <span><i class="lg-line lg-dashed" style="border-color:${C_TARGET}"></i>Target</span>
+            ${fPoints.length ? `<span><i class="lg-dot" style="background:${C_FORECAST}"></i>Forecast P50 (median)</span>` : ''}
+            ${band ? '<span><i class="lg-band"></i>P10–P90 forecast band</span>' : ''}`;
 
-        renderRootCauseChart($('#simRootCauses'), scen.root_causes);
+        // Crosshair + tooltip
+        const svg = $('.hist-svg', el), tip = $('#chTooltip', el), cross = $('#chCross', el);
+        svg.addEventListener('mousemove', ev => {
+            const rect = svg.getBoundingClientRect();
+            const px = (ev.clientX - rect.left) / rect.width * W;
+            let best = 0, bd = Infinity;
+            all.forEach((_, i) => { const d = Math.abs(xs(i) - px); if (d < bd) { bd = d; best = i; } });
+            const r = all[best];
+            cross.setAttribute('x1', xs(best)); cross.setAttribute('x2', xs(best)); cross.setAttribute('visibility', 'visible');
+            tip.hidden = false;
+            tip.innerHTML = `<b>${esc(r.date)}</b>${r.kind === 'fc' ? ' <span class="muted">(forecast)</span>' : ''}<br>` +
+                (r.kind === 'hist'
+                    ? `Actual: ${esc(fmtT(r.actual))}<br>Target: ${esc(fmtT(r.target))}`
+                    : `P10: ${esc(fmtT(r.p10))}<br>P50: ${esc(fmtT(r.p50))}<br>P90: ${esc(fmtT(r.p90))}`);
+            const left = xs(best) / W * rect.width;
+            tip.style.left = `${Math.min(left + 12, rect.width - 170)}px`;
+        });
+        svg.addEventListener('mouseleave', () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); });
     }
 
-    function addSimToHistory(data) {
-        state.simHistory.unshift(data);
-        if (state.simHistory.length > 5) state.simHistory.pop();
+    // ═══════════════════════════════════════════════════════
+    // SCREEN 4 — RECOVERY & CONTINGENCY
+    // ═══════════════════════════════════════════════════════
+    function renderRecoveryBaseline() {
+        const s = state.supply;
+        const set = (id, v) => { $(id).textContent = fmtT(v); };
+        set('#rcTarget', pick(s, 'target_tonnes'));
+        set('#rcP10', pick(s, 'p10_tonnes'));
+        set('#rcP50', pick(s, 'p50_tonnes'));
+        set('#rcP90', pick(s, 'p90_tonnes'));
+        set('#rcGap', pick(s, 'gap_p50_tonnes', 'gap_tonnes'));
+    }
 
-        const tbody = $('#historyBody');
-        if (!tbody) return;
-        tbody.innerHTML = '';
+    function currentInputs(includeConditions) {
+        const scenario = ($('input[name="scenario"]:checked') || {}).value || 'normal';
+        const actions = $$('input[name="action"]:checked').map(i => i.value);
+        const body = { mine_id: MINE_ID, scenario, actions };
+        if (includeConditions) {
+            body.conditions = {
+                rainfall_mm: Number($('#flipRainfall').value),
+                equipment_availability: Number($('#flipEquip').value),
+                blast_delay_hours: Number($('#flipBlast').value),
+            };
+        }
+        return body;
+    }
 
-        state.simHistory.forEach((run, idx) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>#${state.simHistory.length - idx}</td>
-                <td>${run.scenario.target_production.toLocaleString()} T</td>
-                <td>${run.scenario.predicted_production.toFixed(1)} T</td>
-                <td style="color:${run.scenario.shortfall_pct > 15 ? 'var(--risk-high)' : 'var(--text-secondary)'}; font-weight:700;">
-                    ${run.scenario.shortfall_pct.toFixed(1)}%
-                </td>
-                <td>${(run.scenario.predicted_efficiency * 100).toFixed(1)}%</td>
-                <td><span class="stat-chip chip-${run.scenario.risk_tier === 'LOW' ? 'success' : (run.scenario.risk_tier === 'MEDIUM' ? 'cyan' : 'purple')}">${run.scenario.risk_tier}</span></td>
-            `;
-            tbody.appendChild(tr);
+    function normPortfolios(r) {
+        const list = asArray(pick(r, 'portfolios', 'action_portfolios', 'results', 'candidates'));
+        return list.map(p => {
+            if (typeof p === 'string') return { name: human(p), id: p };
+            const feasible = pick(p, 'feasibility', 'status', 'feasibility_status');
+            return {
+                id: pick(p, 'id', 'portfolio_id', 'name', 'portfolio'),
+                name: actionName(p) || '—',
+                recovery: num(pick(p, 'expected_recovery_tonnes', 'recovery_tonnes')),
+                residual: num(pick(p, 'expected_residual_gap_tonnes', 'residual_gap_tonnes', 'expected_gap_tonnes')),
+                worst: num(pick(p, 'worst_case_residual_gap_tonnes', 'worst_tested_residual_gap_tonnes', 'worst_gap_tonnes')),
+                feasibility: feasible !== undefined ? feasible : (typeof p.feasible === 'boolean' ? (p.feasible ? 'FEASIBLE' : 'NOT FEASIBLE') : null),
+                selectedFlag: p.selected === true || p.is_selected === true,
+                raw: p,
+            };
         });
     }
 
-    // ── Global Bootstrapper ──────────────────────────────────
-    document.addEventListener('DOMContentLoaded', () => {
-        initNavigation();
-        initDashboard();
-        initReserveMap();
-        initShortfallEngine();
-        initShortfallPresets();
-        initSimulatorEngine();
-        initEquipmentValidation();
-        initCopyBaseline();
+    function selectedKey(r) {
+        const sel = pick(r, 'selected_portfolio', 'selected', 'best_operational_action');
+        if (!sel) return null;
+        if (typeof sel === 'string') return sel;
+        return pick(sel, 'id', 'portfolio_id', 'name', 'portfolio', 'label');
+    }
 
-        // Restore the section named in the URL (#simulator, #reserve, ...).
-        // Runs last so every module has initialised and the Leaflet map can
-        // size itself correctly if we land straight on the prospecting view.
-        const fromHash = window.location.hash.replace('#', '');
-        showSection(VALID_SECTIONS.includes(fromHash) ? fromHash : 'dashboard');
+    function renderPortfolios(r) {
+        const el = $('#portfolioTable');
+        const ps = normPortfolios(r);
+        const selKey = selectedKey(r);
+        const isSel = p => p.selectedFlag || (selKey !== null && (String(p.id) === String(selKey) || p.name === human(selKey)));
+        if (!ps.length) {
+            el.innerHTML = `<div class="empty-state">No action portfolios returned by the backend.${selKey ? ` Selected: <b>${esc(human(selKey))}</b>` : ''}</div>`;
+            return null;
+        }
+        el.innerHTML = `<table class="enterprise-table portfolio-table">
+            <thead><tr><th scope="col">ACTION PORTFOLIO</th><th scope="col">EXPECTED RECOVERY</th><th scope="col">EXPECTED RESIDUAL</th><th scope="col">WORST TESTED RESIDUAL</th><th scope="col">FEASIBILITY</th></tr></thead>
+            <tbody>${ps.map(p => `<tr class="${isSel(p) ? 'row-selected' : ''}">
+                <td>${isSel(p) ? '<span class="sel-tag">SELECTED</span> ' : ''}${esc(p.name)}</td>
+                <td class="mono-val">${p.recovery !== null ? '+' + esc(fmtT(p.recovery)) : 'N/A'}</td>
+                <td class="mono-val">${esc(fmtT(p.residual))}</td>
+                <td class="mono-val">${esc(fmtT(p.worst))}</td>
+                <td>${p.feasibility !== null && p.feasibility !== undefined ? `<span class="feas feas-${/NOT|INFEAS/.test(norm(p.feasibility)) ? 'no' : (/REVIEW/.test(norm(p.feasibility)) ? 'review' : 'yes')}">${esc(upperHuman(p.feasibility))}</span>` : 'N/A'}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+        ${selKey === null && !ps.some(p => p.selectedFlag) ? '<div class="chart-note">The backend did not identify a selected portfolio.</div>' : ''}`;
+        return ps.find(isSel) || null;
+    }
 
-        // Browser back/forward between sections.
+    function renderResidual(rec, sel, dec) {
+        const residual = num(pick(rec, 'expected_residual_gap_tonnes', 'residual_gap_tonnes')) ?? (sel ? sel.residual : null);
+        const el = $('#rcResidual');
+        const prev = el.dataset.value ? Number(el.dataset.value) : null;
+        el.textContent = fmtT(residual);
+        el.dataset.value = residual ?? '';
+        if (prev !== null && residual !== null && prev !== residual) { el.classList.remove('value-change'); void el.offsetWidth; el.classList.add('value-change'); }
+        $('#rcResidualSub').textContent = sel ? `After backend-selected portfolio: ${sel.name}` : 'After backend-selected portfolio';
+        $('#residualHero').classList.toggle('residual-positive', residual !== null && residual > 0);
+
+        const can = pick(rec, 'can_operations_close', 'operations_can_close', 'gap_closed', 'operational_sufficient');
+        $('#rcCanClose').innerHTML = can === true ? '<span class="yes-no yes">YES</span>'
+            : can === false ? '<span class="yes-no no">NO</span>'
+            : '<span class="muted">Not returned</span>';
+
+        const horizon = (dec && dec.horizon) || pick(rec, 'decision_horizon', 'horizon');
+        const h = norm(horizon);
+        $('#rcHorizon').textContent = horizon ? upperHuman(horizon) : 'N/A';
+        $('#rcHorizonNote').textContent = /NEAR/.test(h) ? 'Exploration is not treated as immediate recovery.'
+            : /STRATEGIC|LONG/.test(h) ? 'Exploration contingency may be activated.' : '';
+    }
+
+    async function evaluateRecovery({ flip = false } = {}) {
+        const btn = flip ? $('#btnFlip') : $('#btnEvaluate');
+        setLoading(btn, true);
+        const previous = state.decision.current;
+        const body = currentInputs(flip);
+        if (!flip) $('#portfolioTable').innerHTML = loadingHTML('Evaluating recovery portfolios…');
+        let rec = null, con = null, recErr = null, conErr = null;
+        try {
+            rec = await api.post('/api/recovery/evaluate', body, { timeout: 30000 });
+        } catch (e) { recErr = e; }
+        const conBody = { ...body };
+        if (rec) {
+            const sk = selectedKey(rec);
+            if (sk) conBody.selected_portfolio = sk;
+            const res = num(pick(rec, 'expected_residual_gap_tonnes', 'residual_gap_tonnes'));
+            if (res !== null) conBody.residual_gap_tonnes = res;
+        }
+        try {
+            con = await api.post('/api/contingency/evaluate', conBody, { timeout: 30000 });
+        } catch (e) { conErr = e; }
+        state.recovery = rec;
+        state.contingency = con;
+        state.loaded.recovery = true;
+
+        let sel = null;
+        if (rec) {
+            sel = renderPortfolios(rec);
+            $('#rcProvenance').innerHTML = provenanceHTML(pick(rec, 'provenance'));
+        } else {
+            $('#portfolioTable').innerHTML = errorHTML('Recovery evaluation unavailable.', recErr, 'recovery');
+            $('#rcProvenance').innerHTML = badgeHTML('UNAVAILABLE', 'DATA');
+        }
+        // Decision: contingency response is authoritative; recovery may carry one too.
+        const dec = normDecision(con) || normDecision(rec);
+        if (dec && dec.residual === null) dec.residual = num(pick(rec, 'expected_residual_gap_tonnes', 'residual_gap_tonnes'));
+        renderResidual(rec || {}, sel, dec);
+        renderDecision($('#rcDecision'), dec);
+        if (!dec && conErr) {
+            $('#rcDecision').insertAdjacentHTML('beforeend', `<div class="decision-text muted">Contingency evaluation failed: ${esc(conErr.userMessage || '')}</div>`);
+        }
+
+        const src = con || rec || {};
+        const nextT = dec && dec.nextTarget;
+        const whyPanel = $('#rcWhyNowPanel');
+        if (nextT) {
+            whyPanel.hidden = false;
+            renderWhyNow($('#rcWhyNow'), {
+                targetId: nextT,
+                whyTarget: pick(src, 'why_target'),
+                whyNow: pick(src, 'why_target_now'),
+                reasonCodes: pick(src, 'reason_codes'),
+                nextEvidence: pick(src, 'next_evidence'),
+                showWhyTarget: !!pick(src, 'why_target'),
+            });
+            $('#rcWhyNow').insertAdjacentHTML('beforeend', `<div class="why-actions"><button type="button" class="cmd-btn cmd-btn-outline" data-open-target="${esc(nextT)}">Open ${esc(nextT)} in Exploration</button></div>`);
+        } else {
+            whyPanel.hidden = true;
+        }
+
+        if (dec) {
+            state.decision.previous = previous;
+            state.decision.current = dec;
+        }
+        $('#btnLogDecision').disabled = !dec;
+        if (flip) renderFlip(previous, dec, conErr || recErr);
+        setLoading(btn, false);
+    }
+
+    function renderFlip(prev, cur, err) {
+        const el = $('#flipResult');
+        state.decision.flipRuns++;
+        if (!cur) {
+            el.innerHTML = errorHTML('Decision could not be recomputed.', err);
+            return;
+        }
+        const changed = prev && norm(prev.state) !== norm(cur.state);
+        const cls = s => (DECISIONS[norm(s)] || {}).cls || 'unknown';
+        el.innerHTML = `
+            <div class="flip-status ${changed ? 'flip-changed' : 'flip-same'}" role="status">${changed ? 'DECISION CHANGED' : (prev ? 'DECISION UNCHANGED' : 'DECISION COMPUTED')}</div>
+            <div class="flip-states">
+                <div class="flip-state flip-prev decision-${prev ? cls(prev.state) : 'none'}">
+                    <span class="kpi-label">PREVIOUS DECISION</span>
+                    <div class="flip-title">${esc(prev ? decisionTitle(prev.state) : 'NONE')}</div>
+                </div>
+                <div class="flip-arrow" aria-hidden="true">&rarr;</div>
+                <div class="flip-state flip-cur decision-${cls(cur.state)} ${changed ? 'flip-anim' : ''}">
+                    <span class="kpi-label">CURRENT DECISION</span>
+                    <div class="flip-title">${esc(decisionTitle(cur.state))}</div>
+                    ${cur.nextTarget ? `<div class="flip-sub">Next target: <b class="mono-val">${esc(cur.nextTarget)}</b></div>` : ''}
+                </div>
+            </div>
+            <div class="chart-note">Conditions sent: rainfall ${esc($('#flipRainfall').value)} mm &middot; equipment availability ${esc(Math.round(Number($('#flipEquip').value) * 100))}% &middot; blast delay ${esc($('#flipBlast').value)} h &middot; scenario ${esc(human(currentInputs(false).scenario))}. <span class="badge badge-simulated">SIMULATED SCENARIO</span></div>`;
+    }
+
+    async function loadDecisionHistory() {
+        const el = $('#decisionHistory');
+        try {
+            const h = await api.get(`/api/decision/history?mine_id=${encodeURIComponent(MINE_ID)}`);
+            state.decisionHistory = Array.isArray(h) ? h : asArray(pick(h, 'history', 'decisions', 'items'));
+            if (!state.decisionHistory.length) { el.innerHTML = '<div class="empty-state">No decisions recorded yet.</div>'; return; }
+            el.innerHTML = `<table class="enterprise-table"><thead><tr><th>TIME</th><th>DECISION</th><th>SCENARIO</th><th>NEXT TARGET</th><th>STATUS</th></tr></thead>
+                <tbody>${state.decisionHistory.slice(0, 20).map(d => `<tr>
+                    <td class="mono-val">${esc(pick(d, 'timestamp', 'created_at', 'time') || '—')}</td>
+                    <td>${esc(decisionTitle(pick(d, 'decision_state', 'decision')))}</td>
+                    <td>${esc(human(pick(d, 'scenario') || '—'))}</td>
+                    <td class="mono-val">${esc(pick(d, 'next_target') || '—')}</td>
+                    <td>${esc(upperHuman(pick(d, 'review_status', 'status') || '—'))}</td>
+                </tr>`).join('')}</tbody></table>`;
+        } catch (e) {
+            el.innerHTML = errorHTML('Decision history unavailable.', e);
+        }
+    }
+
+    async function submitDecisionReview() {
+        const btn = $('#btnLogDecision');
+        const dec = state.decision.current;
+        if (!dec) return;
+        setLoading(btn, true);
+        const inputs = currentInputs(state.decision.flipRuns > 0);
+        try {
+            await api.post('/api/decision/review', {
+                ...inputs,
+                decision_state: dec.state,
+                decision_horizon: dec.horizon || null,
+                next_target: dec.nextTarget || null,
+                selected_portfolio: state.recovery ? selectedKey(state.recovery) : null,
+            });
+            showToast('Decision submitted for review.', 'success');
+            loadDecisionHistory();
+        } catch (e) {
+            showToast(`Decision review failed. ${e.userMessage || ''}`, 'error');
+        } finally {
+            setLoading(btn, false);
+            btn.disabled = !state.decision.current;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SCREEN 5 — MODEL TRUST
+    // ═══════════════════════════════════════════════════════
+    function metricValueHTML(v) {
+        if (v === undefined || v === null || v === '') return null;
+        if (typeof v === 'boolean') return v ? 'YES' : 'NO';
+        if (typeof v === 'number') return esc(fmtNum(v, 3));
+        if (typeof v === 'string') return esc(v);
+        if (Array.isArray(v)) return v.length ? esc(v.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(', ')) : null;
+        const entries = Object.entries(v).filter(([, x]) => x !== null && x !== undefined && typeof x !== 'object');
+        if (!entries.length) return null;
+        return entries.map(([k, x]) => `<span class="mv-sub">${esc(human(k))}: <b>${typeof x === 'number' ? esc(fmtNum(x, 3)) : esc(x)}</b></span>`).join('');
+    }
+
+    function metricsGridHTML(src, defs) {
+        return `<dl class="metric-grid">${defs.map(([label, keys, hint]) => {
+            const val = metricValueHTML(deepPick(src, keys));
+            return `<div class="metric ${val === null ? 'metric-na' : ''}">
+                <dt>${esc(label)}</dt>
+                <dd>${val === null ? `N/A <span class="na-why">${esc(hint || 'Not returned by the backend validation report.')}</span>` : val}</dd>
+            </div>`;
+        }).join('')}</dl>`;
+    }
+
+    function trustNotes(src) {
+        const n = asArray(pick(src, 'notes', 'note', 'caveats', 'message'));
+        return n.length ? `<ul class="trust-notes">${n.map(x => `<li>${esc(reasonText(x))}</li>`).join('')}</ul>` : '';
+    }
+
+    async function loadTrust() {
+        const btn = $('#btnRefreshTrust');
+        setLoading(btn, true);
+        ['#trustExploration', '#trustProduction', '#trustReconciliation', '#trustProvenance'].forEach(s => { $(s).innerHTML = loadingHTML(); });
+        const [ex, pr, pv, rc] = await Promise.allSettled([
+            api.get('/api/trust/exploration'),
+            api.get('/api/trust/production'),
+            api.get('/api/trust/provenance'),
+            api.get(`/api/production/reconciliation?mine_id=${encodeURIComponent(MINE_ID)}`),
+        ]);
+        state.trust.exploration = ex.status === 'fulfilled' ? ex.value : null;
+        state.trust.production = pr.status === 'fulfilled' ? pr.value : null;
+        state.trust.provenance = pv.status === 'fulfilled' ? pv.value : null;
+        state.trust.reconciliation = rc.status === 'fulfilled' ? rc.value : null;
+        state.loaded['model-trust'] = true;
+
+        $('#trustExploration').innerHTML = ex.status === 'fulfilled'
+            ? provenanceRowIf(ex.value) + metricsGridHTML(ex.value, [
+                ['Spatial validation', ['spatial_validation', 'validation_method', 'cv_method', 'validation']],
+                ['ROC-AUC', ['roc_auc', 'auc', 'spatial_roc_auc']],
+                ['PR-AUC', ['pr_auc', 'average_precision', 'spatial_pr_auc']],
+                ['Top-area capture', ['top_area_capture', 'top_area_capture_rate', 'capture_rate']],
+                ['Applicability', ['applicability', 'applicability_method', 'applicability_domain']],
+                ['Uncertainty', ['uncertainty', 'uncertainty_method']],
+            ]) + trustNotes(ex.value)
+            : errorHTML('Exploration validation unavailable.', ex.reason, 'model-trust');
+
+        $('#trustProduction').innerHTML = pr.status === 'fulfilled'
+            ? provenanceRowIf(pr.value) + metricsGridHTML(pr.value, [
+                ['Rolling backtest', ['rolling_backtest', 'backtest', 'validation_method', 'backtest_method']],
+                ['MAE', ['mae', 'MAE']],
+                ['RMSE', ['rmse', 'RMSE']],
+                ['R²', ['r2', 'R2', 'r_squared']],
+                ['Baseline', ['baseline', 'baseline_mae', 'naive_baseline', 'baseline_metrics']],
+                ['Pinball loss', ['pinball_loss', 'quantile_loss']],
+                ['Coverage', ['coverage', 'p10_p90_coverage', 'interval_coverage']],
+            ]) + trustNotes(pr.value)
+            : errorHTML('Production validation unavailable.', pr.reason, 'model-trust');
+
+        renderProvenanceTrust(pv);
+        renderReconciliation(rc);
+        updateDataModePill();
+        setLoading(btn, false);
+    }
+
+    function provenanceRowIf(src) {
+        const p = pick(src, 'provenance');
+        return p ? `<div class="prov-row prov-row-block">${provenanceHTML(p)}</div>` : '';
+    }
+
+    function renderProvenanceTrust(pv) {
+        const el = $('#trustProvenance');
+        if (pv.status !== 'fulfilled') { el.innerHTML = errorHTML('Provenance unavailable.', pv.reason, 'model-trust'); return; }
+        const p = pv.value;
+        const entries = Array.isArray(p) ? p.map((x, i) => [pick(x, 'name', 'dataset', 'component') || `Source ${i + 1}`, x])
+            : Object.entries(p.sources || p.datasets || p).filter(([k]) => k !== 'notes');
+        if (!entries.length) { el.innerHTML = '<div class="empty-state">No provenance entries returned.</div>'; return; }
+        el.innerHTML = `<table class="enterprise-table prov-table"><tbody>${entries.map(([k, v]) => {
+            let mode = null, desc = '';
+            if (typeof v === 'string') { if (modeInfo(v).known) mode = v; else desc = v; }
+            else if (v && typeof v === 'object') {
+                mode = pick(v, 'mode', 'data_mode', 'type', 'status');
+                desc = [pick(v, 'description', 'source', 'note'), fmtWindow(pick(v, 'observation_window'))].filter(Boolean).join(' · ');
+            } else if (typeof v === 'boolean') desc = v ? 'yes' : 'no';
+            return `<tr><th scope="row">${esc(upperHuman(k))}</th><td>${mode ? badgeHTML(mode) : ''} <span class="muted">${esc(desc)}</span></td></tr>`;
+        }).join('')}</tbody></table>${trustNotes(p)}`;
+    }
+
+    function renderReconciliation(rc) {
+        const el = $('#trustReconciliation');
+        if (rc.status !== 'fulfilled') { el.innerHTML = errorHTML('Reconciliation unavailable.', rc.reason, 'model-trust'); return; }
+        const r = rc.value || {};
+        const rows = asArray(Array.isArray(r) ? r : pick(r, 'rows', 'records', 'reconciliation', 'history', 'periods')).map(x => ({
+            period: pick(x, 'period', 'date', 'period_end'),
+            forecast: num(pick(x, 'forecast_tonnes', 'forecast', 'p50_tonnes', 'p50')),
+            actual: num(pick(x, 'actual_tonnes', 'actual')),
+            error: num(pick(x, 'error_tonnes', 'error')),
+        }));
+        const mae = num(pick(r, 'rolling_mae', 'rolling_mae_tonnes', 'mae'));
+        const bias = num(pick(r, 'bias', 'bias_tonnes', 'mean_error'));
+        const hasActual = rows.some(x => x.actual !== null);
+        const status = pick(r, 'status', 'actuals_status');
+        const summary = `<div class="kpi-strip kpi-strip-2">
+            <div class="kpi-tile"><span class="kpi-label">ROLLING MAE</span><div class="kpi-val mono-val">${mae !== null ? esc(fmtT(mae)) : 'N/A'}</div></div>
+            <div class="kpi-tile"><span class="kpi-label">BIAS (forecast − actual)</span><div class="kpi-val mono-val">${bias !== null ? esc((bias > 0 ? '+' : '') + fmtT(bias)) : 'N/A'}</div></div>
+        </div>`;
+        if (!hasActual) {
+            el.innerHTML = `${provenanceRowIf(r)}<div class="empty-state empty-strong">Actual data unavailable${status ? ` (${esc(upperHuman(status))})` : ''}. Forecast accuracy cannot be reconciled until actual production is recorded.</div>${rows.length ? recTable(rows) : ''}`;
+            return;
+        }
+        el.innerHTML = provenanceRowIf(r) + summary + recTable(rows);
+    }
+
+    function recTable(rows) {
+        return `<div class="table-responsive"><table class="enterprise-table"><thead><tr><th>PERIOD</th><th>FORECAST</th><th>ACTUAL</th><th>ERROR</th></tr></thead>
+            <tbody>${rows.map(x => `<tr><td class="mono-val">${esc(x.period ?? '—')}</td><td class="mono-val">${esc(fmtT(x.forecast))}</td><td class="mono-val">${x.actual !== null ? esc(fmtT(x.actual)) : 'Actual unavailable'}</td><td class="mono-val">${x.error !== null ? esc((x.error > 0 ? '+' : '') + fmtT(x.error)) : 'N/A'}</td></tr>`).join('')}</tbody></table></div>`;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // NAVIGATION
+    // ═══════════════════════════════════════════════════════
+    const SECTIONS = {
+        'supply-command': { title: 'SUPPLY COMMAND', load: loadSupply },
+        'exploration': { title: 'EXPLORATION', load: loadExploration },
+        'production-risk': { title: 'PRODUCTION RISK', load: loadProduction },
+        'recovery': { title: 'RECOVERY & CONTINGENCY', load: () => { loadDecisionHistory(); return evaluateRecovery(); } },
+        'model-trust': { title: 'MODEL TRUST', load: loadTrust },
+    };
+
+    function showSection(id, updateHash = true) {
+        if (!SECTIONS[id]) id = 'supply-command';
+        state.currentSection = id;
+        if (updateHash && window.location.hash !== `#${id}`) history.replaceState(null, '', `#${id}`);
+        $$('.nav-link').forEach(l => {
+            const on = l.dataset.section === id;
+            l.classList.toggle('active', on);
+            if (on) l.setAttribute('aria-current', 'page'); else l.removeAttribute('aria-current');
+        });
+        $$('.section').forEach(s => s.classList.toggle('active', s.id === `section-${id}`));
+        $('#pageTitle').textContent = SECTIONS[id].title;
+        if (!state.loaded[id]) SECTIONS[id].load();
+        if (id === 'exploration' && state.maps.exploration) setTimeout(() => state.maps.exploration.invalidateSize(), 120);
+    }
+
+    function openTarget(id) {
+        state.exploration.selectedId = id;
+        showSection('exploration');
+        if (state.loaded.exploration) selectTarget(id, { fly: true });
+        // else loadExploration selects it once targets arrive
+    }
+
+    function bindEvents() {
+        $$('.nav-link').forEach(link => link.addEventListener('click', e => {
+            e.preventDefault();
+            showSection(link.dataset.section);
+            $('#sidebar').classList.remove('open');
+            $('#mobileToggle').setAttribute('aria-expanded', 'false');
+        }));
+        $('#mobileToggle').addEventListener('click', () => {
+            const open = $('#sidebar').classList.toggle('open');
+            $('#mobileToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
         window.addEventListener('hashchange', () => {
-            const sec = window.location.hash.replace('#', '');
-            if (VALID_SECTIONS.includes(sec) && sec !== state.currentSection) {
-                showSection(sec, false);
+            const id = window.location.hash.slice(1);
+            if (SECTIONS[id] && id !== state.currentSection) showSection(id, false);
+        });
+
+        $('#btnRetryBackend').addEventListener('click', retryAll);
+        $('#btnRefreshSupply').addEventListener('click', loadSupply);
+        $('#btnRefreshProduction').addEventListener('click', loadProduction);
+        $('#btnRefreshTrust').addEventListener('click', loadTrust);
+        $('#btnViewTarget').addEventListener('click', () => {
+            const id = state.supply && pick(state.supply, 'next_target', 'next_target_id');
+            if (id) openTarget(String(id));
+        });
+
+        $('#targetList').addEventListener('click', e => {
+            const b = e.target.closest('[data-target]');
+            if (b) {
+                selectTarget(b.dataset.target, { fly: true });
+                const m = state.maps.markers[b.dataset.target];
+                if (m) m.openPopup();
             }
         });
-    });
+        $('#coordQueryForm').addEventListener('submit', e => {
+            e.preventDefault();
+            const lat = parseFloat($('#queryLat').value), lon = parseFloat($('#queryLon').value);
+            queryCoordinate(lat, lon);
+            if (state.maps.exploration && Number.isFinite(lat) && Number.isFinite(lon)) state.maps.exploration.flyTo([lat, lon], Math.max(state.maps.exploration.getZoom(), 9), { duration: 0.9 });
+        });
 
+        $('#btnEvaluate').addEventListener('click', () => evaluateRecovery());
+        $('#btnFlip').addEventListener('click', () => evaluateRecovery({ flip: true }));
+        $('#btnLogDecision').addEventListener('click', submitDecisionReview);
+
+        const bindRange = (id, out, fmt) => {
+            const el = $(id);
+            const upd = () => { $(out).textContent = fmt(Number(el.value)); };
+            el.addEventListener('input', upd);
+            upd();
+        };
+        bindRange('#flipRainfall', '#flipRainfallVal', v => `${v} mm`);
+        bindRange('#flipEquip', '#flipEquipVal', v => `${Math.round(v * 100)}%`);
+        bindRange('#flipBlast', '#flipBlastVal', v => `${v.toFixed(1)} h`);
+
+        // Delegated: retry buttons and "open target" links rendered inside panels.
+        document.addEventListener('click', e => {
+            const retry = e.target.closest('[data-retry]');
+            if (retry) {
+                const id = retry.dataset.retry;
+                state.loaded[id] = false;
+                if (SECTIONS[id]) SECTIONS[id].load();
+                return;
+            }
+            const open = e.target.closest('[data-open-target]');
+            if (open) openTarget(open.dataset.openTarget);
+        });
+    }
+
+    async function retryAll() {
+        const btn = $('#btnRetryBackend');
+        setLoading(btn, true);
+        const ok = await loadHealth();
+        setLoading(btn, false);
+        state.loaded = {};
+        if (ok || state.health) {
+            showToast('Backend reachable. Reloading.', 'success');
+        } else {
+            showToast('Backend still unavailable.', 'error');
+        }
+        SECTIONS[state.currentSection].load();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        bindEvents();
+        const fromHash = window.location.hash.slice(1);
+        const first = SECTIONS[fromHash] ? fromHash : 'supply-command';
+        await loadHealth();
+        showSection(first);
+        // Supply baseline feeds the Recovery screen and the data-mode pill.
+        if (first !== 'supply-command') loadSupply();
+    });
 })();
