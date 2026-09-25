@@ -215,6 +215,7 @@ class ExplorationService:
                                f"Live query unavailable ({live_error or 'not requested'}) and the nearest cached cell is "
                                f"{cache_km:.1f} km away (maximum supported {max_km} km).",
                                {"cache_distance_km": round(cache_km, 2), "max_cache_distance_km": max_km,
+                                "fallback_distance_km": round(cache_km, 2), "max_supported_fallback_distance_km": max_km,
                                 "live_status": live_error})
             result = {"prospectivity_rank": float(cell["prospectivity_rank"]), "rank_sd": float(cell["rank_sd"]),
                       "uncertainty": cell["uncertainty"], "feature_applicability": cell["applicability"]}
@@ -250,6 +251,8 @@ class ExplorationService:
             "observation_window": _obs_window(),
             "fallback_used": source == CACHED,
             "cache_distance_km": round(cache_km, 3) if cache_km is not None else None,
+            "fallback_distance_km": round(cache_km, 3) if cache_km is not None else None,
+            "max_supported_fallback_distance_km": self.cfg["cache_max_distance_km"],
             "live_status": "OK" if source == LIVE_COORDINATE_QUERY else live_error,
             "coverage_warning": coverage_warning,
             "status": status,

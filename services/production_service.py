@@ -124,6 +124,26 @@ class ProductionService:
     def quantiles_validated(self) -> bool:
         return bool(load_manifest().get("production", {}).get("quantiles_validated", False))
 
+    def quantile_validation(self) -> dict:
+        """Backend-measured interval evidence (never computed or assumed by the client)."""
+        man = load_manifest().get("production", {})
+        vm = man.get("validation_metrics", {})
+        if not vm:
+            return {"status": "NOT_AVAILABLE", "nominal_coverage": 0.8, "observed_coverage": None}
+        validated = bool(man.get("quantiles_validated", False))
+        return {
+            "status": "VALIDATED" if validated else "NOT_VALIDATED",
+            "nominal_coverage": vm.get("p10_p90_nominal", 0.8),
+            "observed_coverage": round(vm["p10_p90_coverage"], 3),
+            "quantile_hit_rate": {k: round(v, 3) for k, v in vm.get("quantile_hit_rate", {}).items()},
+            "evaluation_window": "/".join(vm.get("test_window", [])),
+            "n_periods": vm.get("n_test_periods"),
+            "rule": man.get("quantile_validation_rule"),
+            "note": ("Observed coverage is the share of untouched backtest periods (synthetic data) whose actual fell "
+                     "inside P10-P90; the nominal level is what the interval is designed for."
+                     + ("" if validated else " The interval did NOT pass the validation rule: treat P10/P90 as indicative only.")),
+        }
+
     def history_end(self) -> pd.Timestamp:
         return self.daily.index[-1]
 
@@ -327,8 +347,15 @@ class ProductionService:
             "risk_policy_version": risk["risk_policy_version"],
             "risk_detail": risk,
             "quantiles_validated": self.quantiles_validated,
-            "interval_note": ("P10/P90 passed the backtest calibration check on synthetic data."
-                              if self.quantiles_validated else "P10/P90 interval NOT validated — treat as indicative."),
+            "quantile_validation": self.quantile_validation(),
+            "interval_note": ("P10/P90 passed the backtest validation rule on synthetic data."
+                              if self.quantiles_validated else "P10-P90 interval not validated — treat as indicative only."),
+            "forecast_method": "conditional_production_forecast",
+            "persistence_assumption": True,
+            "scenario_override_applied": ctx["simulated"],
+            "forecast_basis": ("7-day conditional production forecast: trailing 7-day operating and weather conditions are "
+                               "assumed to persist through the period unless a scenario overrides them. This is not a "
+                               "weather or operations forecast."),
             "drivers": drivers,
             "model_contributions": contrib,
             "applicability": appl,
@@ -403,8 +430,9 @@ class ProductionService:
         return {
             "status": "AVAILABLE",
             "mine_id": sc["mine_id"],
-            "basis": ("Retrospective OUT-OF-SAMPLE backtest forecasts (each made by a model trained only on earlier data) "
-                      "compared with SYNTHETIC actuals. Not live operational reconciliation."),
+            "basis": ("Historical diagnostic: retrospective OUT-OF-SAMPLE backtest forecasts (each made by a model trained only "
+                      "on earlier data, with frozen calibration offsets) compared with SYNTHETIC actuals. Not live operational "
+                      "reconciliation and not proof of future accuracy."),
             "error_convention": "error = forecast - actual (positive = over-forecast)",
             "summary": {
                 "periods": int(len(e)),
@@ -412,6 +440,8 @@ class ProductionService:
                 "rolling_mae": round(float(np.mean(np.abs(e[-4:]))), 1),
                 "bias": round(float(np.mean(e)), 1),
                 "latest_error_tonnes": round(float(e[-1]), 1),
+                "over_forecast_count": int(np.sum(e > 0)),
+                "under_forecast_count": int(np.sum(e < 0)),
                 "p10_p90_coverage": round(float(np.mean([r["within_p10_p90"] for r in rows])), 3),
             },
             "mae": round(float(np.mean(np.abs(e))), 1),

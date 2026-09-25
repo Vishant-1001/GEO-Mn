@@ -37,6 +37,10 @@ def exploration() -> dict:
         "success_rate_curve": cv["success_rate_curve"],
         "success_rate_auc": _r(cv["success_rate_auc"]),
         "per_fold": cv["per_fold"],
+        "region_holdout_method": "train west of 79.8E / test east, and the reverse; pooled within-region ranks",
+        "observation_window": man.get("observation_window"),
+        "effective_resolution": man.get("effective_resolution"),
+        "subsurface_evidence": "UNAVAILABLE — no drilling, assay or geophysical data are used",
         "region_holdout": {"roc_auc": _r(ho["roc_auc"]), "pr_auc": _r(ho["pr_auc"], 4),
                            "top_area_capture": {k: _r(v) for k, v in ho["top_area_capture"].items()},
                            "splits": {k: v for k, v in rep["region_holdout"].items() if k != "pooled"}},
@@ -56,6 +60,8 @@ def exploration() -> dict:
             "Metrics are computed on held-out spatial blocks / regions only.",
             "Background cells are unlabelled (unknown != barren), so ROC/PR are indicative comparisons.",
             f"PR-AUC must be read against its prevalence baseline ({_r(cv['pr_auc_prevalence_baseline'], 4)}).",
+            "Output is a relative prospectivity rank within the study area — not a deposit probability or reserve estimate.",
+            "Satellite features come from a fixed 2024 reference window (not real-time imagery).",
         ],
         "provenance": provenance("REAL_PUBLIC", rep["model_version"], man.get("observation_window"), None, False,
                                  labels_mode="REAL_PUBLIC", features_mode="REAL_PUBLIC"),
@@ -88,6 +94,8 @@ def production() -> dict:
         "mae_improvement_vs_best_baseline_pct": _r(bt["mae_improvement_vs_best_baseline_pct"], 1),
         "pinball_loss": {k: _r(v, 1) for k, v in bt["pinball_loss"].items()},
         "coverage": _r(bt["p10_p90_coverage"]),
+        "observed_coverage": _r(bt["p10_p90_coverage"]),
+        "nominal_coverage": 0.8,
         "p10_p90_coverage": _r(bt["p10_p90_coverage"]),
         "p10_p90_coverage_before_recalibration": _r(bt["p10_p90_coverage_before_recalibration"]),
         "p10_p90_nominal": 0.8,
@@ -97,6 +105,7 @@ def production() -> dict:
         "shortfall_classification": bt["shortfall_classification"],
         "diagnostic_oracle_conditions_p50": bt.get("diagnostic_oracle_conditions_p50"),
         "selection_window": rep["selection_window"],
+        "protocol": rep.get("protocol"),
         "selected_configuration": rep["selected_configuration"],
         "forecast_procedure": man.get("forecast_procedure"),
         "uncertainty_method": man.get("uncertainty_method"),
@@ -104,12 +113,14 @@ def production() -> dict:
         "limitations": man.get("limitations", []),
         "notes": [
             rep["caveat"],
-            "Model selection used only the selection window; the reported metrics come from the later, untouched window.",
-            "In the selection window the best candidate did NOT beat the previous-period baseline "
-            f"(see selection_window). On the test window it does "
-            f"({_r(bt['model_p50']['mae'], 0)} vs {_r(min(bt['baseline_previous_period']['mae'], bt['baseline_moving_average_4']['mae']), 0)} t MAE)."
-            if not all(c["p50_mae_raw"] < c["baseline_previous_period_mae"] for c in rep["selection_window"]["candidates"].values())
-            else "Model beat the baselines in the selection window as well.",
+            "Real mine accuracy requires training and validation on mine-level operational data.",
+            "Configuration chosen on the selection window; quantile offsets estimated on the separate calibration window "
+            "and frozen; all reported metrics come from the later, untouched test window.",
+            "The deployed model is a post-evaluation refit on all history; the metrics describe the backtest procedure.",
+            (f"P10-P90 observed coverage {_r(bt['p10_p90_coverage'], 2)} vs nominal 0.80; "
+             + ("the interval passed the validation rule." if rep["quantiles_validated"] else
+                "the quantiles did NOT pass the validation rule, so P10/P90 are indicative only.")),
+            "Forecasts assume the trailing 7-day operating/weather state persists (conditional forecast).",
         ],
         "provenance": provenance("SYNTHETIC", rep["model_version"], f"{bt['test_start']}/{bt['test_end']}", None, False,
                                  operations_mode="SYNTHETIC", weather_mode="REAL_PUBLIC"),

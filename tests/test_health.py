@@ -40,3 +40,7 @@ def test_no_cors_by_default(client):
 def test_unknown_route_structured_404(client):
     r = client.get("/api/does-not-exist")
     assert r.status_code == 404 and r.json()["error"] == "NOT_FOUND"
+
+
+def test_legacy_reserve_endpoint_removed(client):
+    assert client.get("/reserve_grid").status_code == 404

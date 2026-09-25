@@ -101,3 +101,29 @@ def test_missing_model_returns_503(client, production_svc, monkeypatch):
     monkeypatch.setattr(production_svc, "models", {})
     r = _fc(client)
     assert r.status_code == 503 and r.json()["error"] == "MODEL_UNAVAILABLE"
+
+
+def test_quantile_validation_and_forecast_basis_exposed(client):
+    import json
+
+    from services.common import MODELS_DIR
+
+    d = _fc(client).json()
+    qv = d["quantile_validation"]
+    rep = json.loads((MODELS_DIR / "reports" / "production_validation.json").read_text())
+    assert qv["observed_coverage"] == pytest.approx(rep["backtest"]["p10_p90_coverage"], abs=1e-3)
+    assert qv["nominal_coverage"] == 0.8
+    assert qv["status"] == ("VALIDATED" if rep["quantiles_validated"] else "NOT_VALIDATED")
+    assert d["quantiles_validated"] == rep["quantiles_validated"]
+    assert qv["evaluation_window"].startswith(rep["backtest"]["test_start"])
+    assert d["forecast_method"] == "conditional_production_forecast"
+    assert d["persistence_assumption"] is True and d["scenario_override_applied"] is False
+    assert _fc(client, conditions={"blast_delay_h": 2}).json()["scenario_override_applied"] is True
+
+
+def test_target_is_not_a_model_input(production_svc):
+    # the primary formulation forecasts tonnes directly; the plan target must not drive the forecast
+    assert not any("target" in c for c in production_svc.feature_columns)
+    a = production_svc.forecast("DEMO_MINE", target_tonnes=5000.0, explain=False)
+    b = production_svc.forecast("DEMO_MINE", target_tonnes=50000.0, explain=False)
+    assert a["p50_tonnes"] == b["p50_tonnes"] and a["gap_p50_tonnes"] != b["gap_p50_tonnes"]

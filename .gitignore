@@ -1,15 +1,26 @@
+# Python / tooling
 __pycache__/
 *.py[cod]
 *$py.class
-*.env
-.env
-.venv
-env/
-venv/
-.DS_Store
 .pytest_cache/
-# credentials must never be committed
-gee_key.json
+*.log
+.DS_Store
+.venv
+venv/
+env/
+
+# Secrets — never commit credentials
+.env
+.env.*
+*.env
+*.pem
+*.key
+*credentials*.json
 *service-account*.json
-# runtime decision log (human review records)
+gee_key.json
+
+# Runtime state (local demo review log)
 data/runtime/
+
+# Local editor / agent launch configs
+.claude/

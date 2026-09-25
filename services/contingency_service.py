@@ -8,7 +8,8 @@ Decision states (exactly three):
 Logic
   1. baseline gap (nominal scenario, no action) and robust recovery (recovery_service)
   2. confidence checks -> REVIEW_REQUIRED if the model is outside its experience in the
-     nominal scenario, or no physically feasible action exists while a gap remains
+     nominal scenario, or no action portfolio passes the modelled-feasibility and
+     applicability gates (automated selection withheld)
   3. horizon gate
        NEAR_TERM : exploration can never be near-term recovery.
                    expected residual <= materiality -> OPERATIONAL_RESPONSE
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 from services import demo_service, recovery_service
 from services.common import SIMULATED, load_config, provenance
+from services.exploration_service import NEXT_EVIDENCE
 from services.exploration_service import get_service as exploration
 from services.production_service import get_service as production
 
@@ -52,26 +54,35 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
     materiality = pol["materiality_gap_pct"] / 100 * target
     worst_tol = pol["strategic_worst_case_tolerance_pct"] / 100 * target
     baseline_gap = rec["baseline"]["gap_p50_tonnes"]
-    exp_res = rec["expected_residual_gap_tonnes"]
-    worst_res = rec["worst_case_residual_gap_tonnes"]
     selected = rec["best_operational_action"]
+    withheld = rec["selection_status"] != "SELECTED"
+    # With no eligible portfolio the residual is unknown for decision purposes; fall back to the
+    # no-action figures only to describe the situation, never to recommend actions.
+    exp_res = rec["expected_residual_gap_tonnes"] if not withheld else rec["no_action_expected_gap_tonnes"]
+    worst_res = rec["worst_case_residual_gap_tonnes"] if not withheld else rec["no_action_worst_case_gap_tonnes"]
 
     reason_codes, review_reasons = [], []
     if rec["nominal_applicability"] == "LOW":
         review_reasons.append({"code": "PRODUCTION_INPUTS_OUT_OF_DISTRIBUTION",
                                "text": "The current operating state is outside the production model's training experience "
                                        f"(range violations: {[v['feature'] for v in fc['applicability']['range_violations']] or 'multivariate'})."})
-    if baseline_gap > materiality and selected is None:
-        review_reasons.append({"code": "NO_FEASIBLE_OPERATIONAL_ACTION",
-                               "text": "No physically feasible action portfolio is available for the current state."})
+    on_track = baseline_gap <= materiality
+    if withheld and not (on_track and horizon == "NEAR_TERM"):
+        blocked = sorted({s for p in rec["evaluated_portfolios"] for s in p["low_applicability_scenarios"]})
+        review_reasons.append({"code": "NO_ELIGIBLE_OPERATIONAL_PORTFOLIO",
+                               "text": ("No action portfolio passed the modelled-feasibility and applicability gates"
+                                        + (f" (scenarios outside model experience: {', '.join(blocked)})" if blocked else "")
+                                        + "; automated portfolio selection withheld.")})
     if selected is not None and selected["feasibility"] == recovery_service.UNKNOWN:
         review_reasons.append({"code": "FEASIBILITY_UNKNOWN", "text": "Feasibility of the selected actions could not be judged."})
     if not prod.quantiles_validated:
         reason_codes.append("INTERVALS_NOT_VALIDATED")
+    if selected is not None and selected["selection_applicability"] == "MODERATE":
+        reason_codes.append("REDUCED_CONFIDENCE_MODERATE_APPLICABILITY")
 
-    if baseline_gap <= materiality:
+    if on_track:
         supply_status = "ON_TRACK"
-    elif exp_res <= materiality:
+    elif not withheld and exp_res <= materiality:
         supply_status = "OPERATIONALLY_RECOVERABLE"
     else:
         supply_status = "RESIDUAL_GAP"
@@ -100,7 +111,7 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
         else:
             state = "REVIEW_REQUIRED"
             review_reasons.append({"code": "NEAR_TERM_RESIDUAL_GAP",
-                                   "text": (f"Best operational portfolio leaves {exp_res:.0f} t unrecovered in the next period; "
+                                   "text": (f"Best eligible operational portfolio leaves {exp_res:.0f} t unrecovered in the next period; "
                                             "exploration cannot supply near-term tonnes. Escalate (stockpile draw, "
                                             "inter-mine transfer or plan revision are human decisions).")})
             summary = review_reasons[-1]["text"]
@@ -160,8 +171,10 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
         "target_tonnes": target,
         "baseline_gap_tonnes": baseline_gap,
         "best_operational_recovery_tonnes": rec["expected_recovery_tonnes"],
-        "expected_residual_gap_tonnes": exp_res,
-        "worst_case_residual_gap_tonnes": worst_res,
+        "expected_residual_gap_tonnes": rec["expected_residual_gap_tonnes"],
+        "worst_case_residual_gap_tonnes": rec["worst_case_residual_gap_tonnes"],
+        "selection_status": rec["selection_status"],
+        "selection_explanation": rec["selection_explanation"],
         "worst_case_scenario": rec["worst_case_scenario"],
         "selected_portfolio": rec["selected_portfolio"],
         "best_operational_action": selected,
@@ -180,6 +193,7 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
                                               "strategic_relevance", "evidence_level", "distance_to_demo_mine_km")}
                            for t in ranked[:5]],
         "why_target_now": why_now,
+        "next_evidence": NEXT_EVIDENCE if selected_target is not None else [],
         "reason_codes": reason_codes,
         "review_reasons": review_reasons,
         "strategic_requirement": strategic,
@@ -211,7 +225,7 @@ def decision_flip(mine_id="DEMO_MINE", baseline_conditions=None, perturbed_condi
         return {k: d[k] for k in ("decision_state", "supply_status", "baseline_gap_tonnes", "best_operational_recovery_tonnes",
                                   "expected_residual_gap_tonnes", "worst_case_residual_gap_tonnes", "selected_portfolio",
                                   "next_target", "target_priority", "reason_codes", "decision_summary", "overrides_applied",
-                                  "nominal_scenario")}
+                                  "nominal_scenario", "selection_status", "review_reasons", "supply_status")}
 
     b_in, p_in = base["overrides_applied"], pert["overrides_applied"]
     keys = sorted(set(b_in) | set(p_in))

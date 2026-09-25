@@ -94,3 +94,26 @@ def test_supply_command_contract(client):
               "why_target_now", "provenance"):
         assert k in d
     assert client.get("/api/supply-command?mine_id=UNKNOWN").status_code == 404
+
+
+def test_no_eligible_portfolio_requires_review(production_svc, monkeypatch):
+    real = production_svc.applicability
+    # nominal state stays applicable; every simulated action/stress state is outside experience
+    calls = {"n": 0}
+
+    def appl(row):
+        calls["n"] += 1
+        return real(row) if calls["n"] == 1 else {"level": "LOW", "score": 0, "range_violations": [], "method": "t"}
+
+    monkeypatch.setattr(production_svc, "applicability", appl)
+    d = cs.evaluate("DEMO_C", "STRATEGIC")
+    assert d["decision_state"] == "REVIEW_REQUIRED"
+    assert "NO_ELIGIBLE_OPERATIONAL_PORTFOLIO" in d["reason_codes"]
+    assert d["selected_portfolio"] is None and d["selected_target"] is None
+
+
+def test_why_now_only_with_strategic_gap():
+    near = cs.evaluate("DEMO_MINE", "NEAR_TERM")
+    assert near["why_target_now"] == [] and near["next_target"] is None
+    strat = cs.evaluate("DEMO_MINE", "STRATEGIC")
+    assert strat["why_target_now"] and strat["strategic_requirement"]["active"] is True

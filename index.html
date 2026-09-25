@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=6">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2'><polygon points='12 2 2 7 12 12 22 7 12 2'/><polyline points='2 17 12 22 22 17'/><polyline points='2 12 12 17 22 12'/></svg>">
 </head>
 <body>
@@ -89,8 +89,8 @@
                 <div class="telemetry-details">
                     <div class="tel-row"><span>Mine</span><span class="mono-badge" id="telMine">DEMO_MINE</span></div>
                     <div class="tel-row"><span>API version</span><span class="mono-badge" id="telApiVersion">&mdash;</span></div>
-                    <div class="tel-row"><span>Satellite provider</span><span class="mono-badge" id="telEarthEngine">&mdash;</span></div>
-                    <div class="tel-row"><span>Replay cache</span><span class="mono-badge" id="telCache">&mdash;</span></div>
+                    <div class="tel-row"><span>Live EO query</span><span class="mono-badge" id="telEarthEngine">&mdash;</span></div>
+                    <div class="tel-row"><span>Cached grid</span><span class="mono-badge" id="telCache">&mdash;</span></div>
                 </div>
             </div>
         </div>
@@ -104,6 +104,12 @@
                 <span class="breadcrumb-sector">GEO-MN</span>
                 <span class="breadcrumb-separator">/</span>
                 <span class="breadcrumb-active" id="pageTitle">SUPPLY COMMAND</span>
+            </div>
+
+            <div class="demo-select-wrap" title="Deterministic demonstration states on SYNTHETIC operations data">
+                <label for="demoSelect" class="demo-select-label">DEMO STATE</label>
+                <select id="demoSelect" class="demo-select" aria-describedby="demoSelectNote"><option value="DEMO_MINE">DEMO_MINE</option></select>
+                <span class="badge badge-synthetic" id="demoSelectNote">DEMO / SYNTHETIC</span>
             </div>
 
             <div class="top-telemetry-bar" aria-label="System status">
@@ -160,8 +166,8 @@
 
                     <div class="kpi-strip kpi-strip-5" id="scKpis">
                         <div class="kpi-tile"><span class="kpi-label">TARGET</span><div class="kpi-val mono-val" id="scTarget">&mdash;</div></div>
-                        <div class="kpi-tile"><span class="kpi-label">P50 FORECAST</span><div class="kpi-val mono-val" id="scP50">&mdash;</div><span class="kpi-sub">Median outcome</span></div>
-                        <div class="kpi-tile"><span class="kpi-label">P90 FORECAST</span><div class="kpi-val mono-val" id="scP90">&mdash;</div><span class="kpi-sub">90th-percentile outcome</span></div>
+                        <div class="kpi-tile"><span class="kpi-label">P50 FORECAST</span><div class="kpi-val mono-val" id="scP50">&mdash;</div><span class="kpi-sub">Model median (next 7 days)</span></div>
+                        <div class="kpi-tile"><span class="kpi-label">P10 &ndash; P90</span><div class="kpi-val mono-val kpi-val-sm" id="scP90">&mdash;</div><span class="kpi-sub" id="scIntervalNote">Prediction interval</span></div>
                         <div class="kpi-tile kpi-tile-gap"><span class="kpi-label">SUPPLY GAP (P50)</span><div class="kpi-val mono-val" id="scGap">&mdash;</div><span class="kpi-sub">Target minus P50</span></div>
                         <div class="kpi-tile"><span class="kpi-label">RISK</span><div class="kpi-val" id="scRisk">&mdash;</div><span class="kpi-sub" id="scRiskPolicy">Risk policy: configured policy</span></div>
                     </div>
@@ -169,7 +175,7 @@
                     <div class="split-2">
                         <div class="panel">
                             <div class="panel-head">
-                                <h2 class="panel-title">PRIMARY DRIVERS</h2>
+                                <h2 class="panel-title">PRIMARY MODEL DRIVERS</h2>
                                 <span class="panel-sub">Model contribution, not causal attribution.</span>
                             </div>
                             <div id="scDrivers" class="panel-body"></div>
@@ -180,7 +186,7 @@
                                 <span class="badge badge-simulated">SIMULATED SCENARIO</span>
                             </div>
                             <div class="recovery-grid">
-                                <div class="rec-cell rec-cell-wide"><span class="kpi-label">BEST ROBUST RECOVERY</span><div class="rec-action" id="scBestAction">&mdash;</div></div>
+                                <div class="rec-cell rec-cell-wide"><span class="kpi-label">SELECTED ROBUST PORTFOLIO</span><div class="rec-action" id="scBestAction">&mdash;</div><div class="rec-why muted" id="scSelectionWhy"></div></div>
                                 <div class="rec-cell"><span class="kpi-label">EXPECTED RECOVERY</span><div class="kpi-val mono-val" id="scExpRecovery">&mdash;</div></div>
                                 <div class="rec-cell"><span class="kpi-label">EXPECTED RESIDUAL GAP</span><div class="kpi-val mono-val" id="scExpResidual">&mdash;</div></div>
                                 <div class="rec-cell"><span class="kpi-label">WORST TESTED RESIDUAL GAP</span><div class="kpi-val mono-val" id="scWorstResidual">&mdash;</div></div>
@@ -188,7 +194,17 @@
                         </div>
                     </div>
 
+                    <div class="forecast-basis" id="scForecastBasis"></div>
+
                     <div class="decision-block" id="scDecision"></div>
+
+                    <div class="panel" id="scFlipPanel" hidden>
+                        <div class="panel-head">
+                            <h2 class="panel-title">DECISION FLIP &mdash; DEMO SCENARIO</h2>
+                            <span class="badge badge-simulated">SIMULATED SCENARIO</span>
+                        </div>
+                        <div id="scFlip"></div>
+                    </div>
 
                     <div class="panel next-target-panel" id="scNextTargetPanel">
                         <div class="next-target-left">
@@ -241,7 +257,7 @@
                         <div class="floating-map-toolbar">
                             <div class="segmented-control" role="group" aria-label="Base layer">
                                 <button type="button" class="seg-btn active" data-layer="satellite" aria-pressed="true">Satellite</button>
-                                <button type="button" class="seg-btn" data-layer="thermal" aria-pressed="false">MODIS LST (2024-05-01)</button>
+                                <button type="button" class="seg-btn" data-layer="thermal" aria-pressed="false" title="NASA GIBS MODIS daytime LST tile for 2024-05-01. Visual context only — not the per-cell model feature.">MODIS LST &mdash; context layer</button>
                                 <button type="button" class="seg-btn" data-layer="street" aria-pressed="false">Streets</button>
                             </div>
                             <div class="map-addon-controls">
@@ -261,14 +277,16 @@
                         </div>
 
                         <div id="explorationMap" class="enterprise-gis-map" role="region" aria-label="Exploration target map"></div>
+                        <div class="map-notice" id="mapNotice" role="status" hidden></div>
 
                         <div class="floating-legend-hud" id="mapLegend">
                             <div class="legend-hud-top">
-                                <span class="legend-hud-title">Relative Prospectivity</span>
+                                <span class="legend-hud-title">Relative prospectivity rank (0&ndash;100)</span>
                                 <span class="legend-hud-source" id="surfaceSourceLabel">Surface: loading…</span>
                             </div>
                             <div class="legend-bar-track legend-bar-prosp"></div>
-                            <div class="legend-labels-row"><span>Lower</span><span>Higher</span></div>
+                            <div class="legend-labels-row"><span>Lower rank</span><span>Higher rank</span></div>
+                            <div class="legend-note">Rank within the study area &mdash; not a deposit probability. Satellite reference window: 2024 (not real-time).</div>
                             <div class="legend-markers">
                                 <span class="lg-item"><span class="tmk tmk-priority" aria-hidden="true">T</span>Priority styling &mdash; high prospectivity, supported applicability</span>
                                 <span class="lg-item"><span class="tmk tmk-caution" aria-hidden="true">!</span>Caution &mdash; low applicability / outside domain</span>
@@ -315,7 +333,7 @@
                 <div class="panel">
                     <div class="panel-head">
                         <h2 class="panel-title">HISTORICAL PRODUCTION</h2>
-                        <span class="panel-sub">Last 90 days &middot; actual vs target</span>
+                        <span class="panel-sub">Last 90 days &middot; 7-day period totals &middot; actual vs target &middot; synthetic operations</span>
                     </div>
                     <div class="chart-legend" id="histLegend"></div>
                     <div class="chart-wrap" id="histChart"></div>
@@ -324,15 +342,16 @@
                 <div class="split-2">
                     <div class="panel">
                         <div class="panel-head">
-                            <h2 class="panel-title">FORECAST</h2>
+                            <h2 class="panel-title">7-DAY CONDITIONAL PRODUCTION FORECAST</h2>
                             <span class="panel-sub" id="prForecastSub">P10 / P50 / P90</span>
                         </div>
                         <div class="kpi-strip kpi-strip-3">
-                            <div class="kpi-tile"><span class="kpi-label">P10</span><div class="kpi-val mono-val" id="prP10">&mdash;</div><span class="kpi-sub">10% chance output is lower</span></div>
-                            <div class="kpi-tile"><span class="kpi-label">P50</span><div class="kpi-val mono-val" id="prP50">&mdash;</div><span class="kpi-sub">Median forecast</span></div>
-                            <div class="kpi-tile"><span class="kpi-label">P90</span><div class="kpi-val mono-val" id="prP90">&mdash;</div><span class="kpi-sub">90% chance output is lower</span></div>
+                            <div class="kpi-tile"><span class="kpi-label">P10</span><div class="kpi-val mono-val" id="prP10">&mdash;</div><span class="kpi-sub">Model 10th-percentile estimate</span></div>
+                            <div class="kpi-tile"><span class="kpi-label">P50</span><div class="kpi-val mono-val" id="prP50">&mdash;</div><span class="kpi-sub">Model median estimate</span></div>
+                            <div class="kpi-tile"><span class="kpi-label">P90</span><div class="kpi-val mono-val" id="prP90">&mdash;</div><span class="kpi-sub">Model 90th-percentile estimate</span></div>
                         </div>
                         <div class="range-chart" id="prRangeChart"></div>
+                        <div class="forecast-basis" id="prForecastBasis"></div>
                     </div>
                     <div class="panel">
                         <div class="panel-head">
@@ -413,7 +432,7 @@
                 <div class="panel">
                     <div class="panel-head">
                         <h2 class="panel-title">ACTION PORTFOLIOS</h2>
-                        <span class="panel-sub">Ranking and selection come from the backend. Highlighted row = backend-selected portfolio.</span>
+                        <span class="panel-sub">Ranking, eligibility and selection come from the backend. Low-applicability portfolios are shown as diagnostics but cannot be auto-selected. Feasibility = modelled input-constraint check; planner/site confirmation required.</span>
                     </div>
                     <div class="table-responsive" id="portfolioTable"></div>
                 </div>
@@ -444,16 +463,16 @@
                 <div class="panel flip-panel">
                     <div class="panel-head">
                         <h2 class="panel-title">DECISION FLIP &mdash; STRESS TEST</h2>
-                        <span class="panel-sub">Change conditions and re-run. The decision is recomputed by the backend.</span>
+                        <span class="panel-sub">Baseline = current mine state; perturbed = the conditions below. Both are recomputed end-to-end by the backend (/api/decision/flip).</span>
                     </div>
                     <div class="flip-grid">
                         <div class="flip-controls">
                             <div class="param-row">
                                 <div class="param-label-group">
-                                    <label for="flipRainfall">Rainfall (mm)</label>
-                                    <output class="param-value-pill" id="flipRainfallVal" for="flipRainfall">12 mm</output>
+                                    <label for="flipRainfall">Rainfall, 7-day total (mm)</label>
+                                    <output class="param-value-pill" id="flipRainfallVal" for="flipRainfall">&mdash;</output>
                                 </div>
-                                <input type="range" class="custom-range" id="flipRainfall" min="0" max="200" step="1" value="12">
+                                <input type="range" class="custom-range" id="flipRainfall" min="0" max="450" step="1" value="35">
                             </div>
                             <div class="param-row">
                                 <div class="param-label-group">
@@ -464,28 +483,29 @@
                             </div>
                             <div class="param-row">
                                 <div class="param-label-group">
-                                    <label for="flipBlast">Blast delay (hours)</label>
+                                    <label for="flipBlast">Blast delay (hours / day)</label>
                                     <output class="param-value-pill" id="flipBlastVal" for="flipBlast">0.8 h</output>
                                 </div>
                                 <input type="range" class="custom-range" id="flipBlast" min="0" max="12" step="0.1" value="0.8">
                             </div>
                             <button type="button" class="cmd-btn cmd-btn-primary" id="btnFlip">
-                                <span>Re-run decision</span><span class="spinner"></span>
+                                <span>Run decision flip</span><span class="spinner"></span>
                             </button>
                         </div>
                         <div class="flip-result" id="flipResult">
-                            <div class="empty-state">Adjust the conditions and re-run to see whether the decision changes.</div>
+                            <div class="empty-state">Adjust the conditions and run the flip to compare the baseline and perturbed decisions.</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="panel">
                     <div class="panel-head">
-                        <h2 class="panel-title">DECISION LOG</h2>
+                        <h2 class="panel-title">LOCAL DEMO REVIEW LOG</h2>
                         <button type="button" class="cmd-btn cmd-btn-outline" id="btnLogDecision" disabled>
                             <span>Submit current decision for review</span><span class="spinner"></span>
                         </button>
                     </div>
+                    <div class="chart-note">Stored as a file on the API server for this demo. Not a durable audit trail &mdash; a production deployment needs managed persistent storage.</div>
                     <div class="table-responsive" id="decisionHistory"></div>
                 </div>
             </section>
@@ -526,7 +546,7 @@
                 <div class="panel">
                     <div class="panel-head">
                         <h2 class="panel-title">FORECAST VS ACTUAL</h2>
-                        <span class="panel-sub">Reconciliation of past forecasts against recorded production</span>
+                        <span class="panel-sub">Historical diagnostic: out-of-sample backtest forecasts vs synthetic actuals. Does not by itself prove future accuracy.</span>
                     </div>
                     <div id="trustReconciliation"></div>
                 </div>
@@ -545,7 +565,9 @@
                         <ul class="limitations-list">
                             <li>Remote sensing supports prospectivity targeting; it does not by itself confirm underground reserves.</li>
                             <li>Scenario effects are model estimates, not guaranteed causal outcomes.</li>
-                            <li>Synthetic operational data are explicitly identified where proprietary mine-level data are unavailable.</li>
+                            <li>Operational and production records are SYNTHETIC demonstration data; production metrics show pipeline behaviour, not real mine accuracy.</li>
+                            <li>Prospectivity is a relative rank within the study area, trained on public occurrence records with unlabelled (not barren) background; no subsurface evidence is available.</li>
+                            <li>Forecasts are conditional: trailing 7-day conditions are assumed to persist unless a scenario overrides them.</li>
                             <li>Predictions outside the model applicability envelope require independent validation.</li>
                         </ul>
                     </div>
@@ -559,6 +581,6 @@
 <!-- Scripts -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

@@ -12,7 +12,9 @@
     'use strict';
 
     const API_BASE = window.location.origin;
-    const MINE_ID = 'DEMO_MINE';
+    // Selected deterministic demo state (mine_id). Changed only via the demo selector;
+    // every result is recomputed by the backend for this id.
+    let MINE_ID = 'DEMO_MINE';
 
     // ── Single application state ────────────────────────────
     const state = {
@@ -153,6 +155,9 @@
 
     // FastAPI 422s arrive as detail: [{loc, msg}]; flatten without leaking internals.
     function describeDetail(body, status) {
+        if (body && typeof body.message === 'string' && body.message.length < 400) {
+            return body.error ? `${body.message} [${body.error}]` : body.message;
+        }
         const d = body && body.detail;
         if (Array.isArray(d)) {
             return d.slice(0, 3).map(e => {
@@ -317,8 +322,9 @@
 
     function driverValueText(d) {
         if (d.value === null) return '';
+        // A contribution in tonnes is a tonnage, whatever the feature's own unit is.
+        if (d.key && /tonnes/.test(d.key)) return `${d.value > 0 ? '+' : ''}${fmtT(d.value)}`;
         if (d.unit) return `${fmtNum(d.value, 2)} ${d.unit}`;
-        if (d.key && /tonnes/.test(d.key)) return fmtT(d.value);
         if (d.key && /pct|percent/.test(d.key)) return `${fmtNum(d.value, 1)}%`;
         return fmtNum(d.value, 3);
     }
@@ -362,14 +368,21 @@
             priority: num(pick(t, 'exploration_priority', 'priority_score', 'priority')),
             strategic: pick(t, 'strategic_relevance'),
             maturity: pick(t, 'evidence_maturity', 'evidence_level', 'maturity_level', 'maturity'),
-            evidence: pick(t, 'evidence', 'evidence_layers'),
+            evidence: pick(t, 'evidence', 'evidence_layers') ?? ((t.surface_evidence || t.geological_evidence || t.geological_context || t.features || t.subsurface_evidence || t.subsurface_status) ? {
+                surface: t.surface_evidence || (t.features ? { status: 'AVAILABLE' } : undefined),
+                geology: t.geological_evidence || (t.geological_context ? { status: t.geological_context.unit_name ? 'AVAILABLE' : 'UNAVAILABLE' } : undefined),
+                subsurface: t.subsurface_evidence || (t.subsurface_status ? { status: t.subsurface_status } : undefined),
+            } : undefined),
+            geology: t.geological_evidence || pick(t, 'geological_context'),
+            distanceKm: num(pick(t, 'distance_to_demo_mine_km')),
+            context: pick(t, 'target_context'),
             whyTarget: pick(t, 'why_target', 'why_this_target', 'rationale'),
-            whyNow: pick(t, 'why_target_now', 'why_now'),
+            whyNow: pick(t, 'why_this_target_now', 'why_target_now', 'why_now'),
             reasonCodes: pick(t, 'reason_codes'),
             nextEvidence: pick(t, 'next_evidence', 'next_evidence_steps'),
             warnings: asArray(pick(t, 'warnings', 'coverage_warning', 'applicability_warning', 'domain_warning')),
             inDomain: pick(t, 'in_domain', 'within_applicability', 'in_applicability_domain'),
-            source: pick(t, 'source', 'data_source', 'satellite_source'),
+            source: pick(t, 'source_mode', 'source', 'data_source', 'satellite_source'),
             window: fmtWindow(pick(t, 'observation_window')) || fmtWindow({ start: t.observation_start, end: t.observation_end }),
             provenance: pick(t, 'provenance'),
         };
@@ -431,6 +444,7 @@
             reasons: asArray(pick(src, 'review_reasons', 'reasons', 'decision_reasons')),
             summary: pick(src, 'decision_summary', 'summary', 'explanation'),
             residual: num(pick(src, 'expected_residual_gap_tonnes', 'residual_gap_tonnes')),
+            worst: num(pick(src, 'worst_case_residual_gap_tonnes')),
         };
     }
 
@@ -462,8 +476,8 @@
             body = `<div class="decision-text">Operational recovery actions are the recommended response for this horizon.</div>`;
         } else if (key === 'OPERATIONAL_AND_EXPLORATION_CONTINGENCY') {
             body = `<ol class="transition-steps">
-                    <li><span class="step-mark">1</span>OPERATIONAL RECOVERY INSUFFICIENT</li>
-                    <li><span class="step-mark">2</span>RESIDUAL STRATEGIC GAP REMAINS${dec.residual !== null ? ` <b class="mono-val">${esc(fmtT(dec.residual))}</b>` : ''}</li>
+                    <li><span class="step-mark">1</span>OPERATIONAL RECOVERY DOES NOT HOLD THE GAP WITHIN TOLERANCE (TESTED SCENARIOS)</li>
+                    <li><span class="step-mark">2</span>RESIDUAL STRATEGIC GAP REMAINS${dec.residual !== null ? ` &middot; expected <b class="mono-val">${esc(fmtT(dec.residual))}</b>` : ''}${dec.worst !== null && dec.worst !== undefined ? ` &middot; worst tested <b class="mono-val">${esc(fmtT(dec.worst))}</b>` : ''}</li>
                     <li><span class="step-mark">3</span>EXPLORATION CONTINGENCY ACTIVATED</li>
                     <li class="step-target"><span class="step-mark">&rarr;</span>NEXT TARGET: <b class="mono-val">${dec.nextTarget ? esc(dec.nextTarget) : 'not returned'}</b></li>
                 </ol>`;
@@ -527,7 +541,8 @@
                 ${whyNowItems.length ? list(whyNowItems) : '<div class="muted">Not returned by the backend.</div>'}
             </div>
             <div class="why-block">
-                <h3 class="why-title">NEXT EVIDENCE</h3>
+                <h3 class="why-title">NEXT REQUIRED EVIDENCE</h3>
+                <div class="muted why-note">Methodological next steps &mdash; none of these has been performed.</div>
                 ${nextItems.length ? list(nextItems) : '<div class="muted">Not returned by the backend.</div>'}
             </div>`;
     }
@@ -552,6 +567,20 @@
                 <div class="shap-value mono-val">${esc(valText)}</div>
             </div>`;
         }).join('')}</div>`;
+    }
+
+    // Interval wording is driven only by backend validation metadata.
+    function intervalInfo(src) {
+        const qv = src && src.quantile_validation;
+        const validated = src && src.quantiles_validated === true;
+        const obs = qv ? num(qv.observed_coverage) : null;
+        const nom = qv ? num(qv.nominal_coverage) : null;
+        const pct = v => `${Math.round(v * 100)}%`;
+        let text;
+        if (!qv || qv.status === 'NOT_AVAILABLE') text = 'P10–P90 interval: validation unavailable';
+        else if (validated) text = `P10–P90 prediction interval · observed backtest coverage ${obs !== null ? pct(obs) : 'N/A'} (nominal ${nom !== null ? pct(nom) : 'N/A'})`;
+        else text = `P10–P90 interval not validated · observed backtest coverage ${obs !== null ? pct(obs) : 'N/A'} vs nominal ${nom !== null ? pct(nom) : 'N/A'} — indicative only`;
+        return { validated, text, window: qv && qv.evaluation_window };
     }
 
     function riskHTML(risk) {
@@ -614,7 +643,7 @@
             else if (exp || prod) setPill('#pillModels', 'warn', `MODELS PARTIAL (${exp ? 'exploration' : 'production'} only)`);
             else setPill('#pillModels', 'bad', 'MODELS UNAVAILABLE');
             $('#telApiVersion').textContent = h.api_version || '—';
-            $('#telEarthEngine').textContent = h.earth_engine === true ? 'AVAILABLE' : (h.earth_engine === false ? 'UNAVAILABLE → REPLAY' : '—');
+            $('#telEarthEngine').textContent = h.live_satellite === true ? 'AVAILABLE (2024 REF.)' : (h.live_satellite === false ? 'OFF → CACHED GRID' : '—');
             $('#telCache').textContent = h.cache === true ? 'LOADED' : (h.cache === false ? 'UNAVAILABLE' : '—');
             $('#statusDot').className = `status-indicator-dot ${state.apiOnline ? 'online' : 'warn'}`;
             $('#statusText').textContent = state.apiOnline ? 'API ONLINE' : 'API DEGRADED';
@@ -676,11 +705,16 @@
         const gap = pick(s, 'gap_p50_tonnes', 'gap_tonnes', 'supply_gap_tonnes');
         const risk = pick(s, 'risk_state', 'risk');
 
-        $('#scHorizon').textContent = `HORIZON: ${s.forecast_horizon ? upperHuman(s.forecast_horizon) : 'N/A'}`;
+        $('#scHorizon').textContent = `FORECAST: NEXT 7 DAYS · DECISION HORIZON: ${s.decision_horizon ? upperHuman(s.decision_horizon) : 'N/A'}`;
         $('#scProvenance').innerHTML = provenanceHTML(s.provenance);
         $('#scTarget').textContent = fmtT(target);
         $('#scP50').textContent = fmtT(p50);
-        $('#scP90').textContent = fmtT(p90);
+        const p10 = pick(s, 'p10_tonnes', 'p10');
+        const iv = intervalInfo(s);
+        $('#scP90').textContent = (num(p10) !== null && num(p90) !== null) ? `${fmtT(p10)} – ${fmtT(p90)}` : 'N/A';
+        $('#scIntervalNote').textContent = iv.validated ? 'Prediction interval (validated)' : 'NOT VALIDATED — indicative only';
+        $('#scIntervalNote').classList.toggle('kpi-sub-warn', !iv.validated);
+        $('#scForecastBasis').innerHTML = `<b>Forecast basis:</b> ${esc(s.forecast_basis || 'Not returned by the backend.')} <span class="muted">${esc(iv.text)}${iv.window ? ` (${esc(iv.window)})` : ''}.</span>`;
         $('#scGap').textContent = fmtT(gap);
         $('#scRisk').innerHTML = riskHTML(risk);
         $('#scRiskPolicy').textContent = riskPolicyText(s);
@@ -700,7 +734,9 @@
 
         renderDriverBars($('#scDrivers'), s.primary_drivers);
 
-        $('#scBestAction').textContent = actionName(s.best_operational_action) || 'Not returned';
+        const withheld = s.selection_status === 'REVIEW_REQUIRED';
+        $('#scBestAction').textContent = withheld ? 'AUTOMATED SELECTION WITHHELD' : (actionName(s.best_operational_action) || 'Not returned');
+        $('#scSelectionWhy').textContent = [s.selection_explanation, s.action_note].filter(Boolean).join(' ');
         $('#scExpRecovery').textContent = fmtT(s.expected_recovery_tonnes);
         $('#scExpResidual').textContent = fmtT(s.expected_residual_gap_tonnes);
         $('#scWorstResidual').textContent = fmtT(pick(s, 'worst_case_residual_gap_tonnes', 'worst_tested_residual_gap_tonnes'));
@@ -710,6 +746,8 @@
         renderDecision($('#scDecision'), dec);
         if (dec && !state.decision.current) state.decision.current = dec;
 
+        renderSupplyFlip(s.decision_flip);
+
         const next = pick(s, 'next_target', 'next_target_id');
         $('#scNextTarget').textContent = next || 'None';
         $('#btnViewTarget').disabled = !next;
@@ -718,7 +756,7 @@
             renderWhyNow($('#scWhyNow'), {
                 targetId: next,
                 whyNow: s.why_target_now,
-                reasonCodes: s.reason_codes,
+                reasonCodes: undefined,
                 nextEvidence: s.next_evidence,
                 whyTarget: s.why_target,
                 showWhyTarget: !!s.why_target,
@@ -728,12 +766,96 @@
         }
     }
 
+    // ── Decision flip (backend /api/decision/flip result) ───
+    function flipSideHTML(label, d) {
+        if (!d) return `<div class="flip-state decision-none"><span class="kpi-label">${esc(label)}</span><div class="flip-title">NOT RETURNED</div></div>`;
+        const cls = (DECISIONS[norm(d.decision_state)] || {}).cls || 'unknown';
+        const port = d.selection_status === 'REVIEW_REQUIRED' ? 'withheld (review)' : (d.selected_portfolio || '—');
+        return `<div class="flip-state decision-${cls}">
+            <span class="kpi-label">${esc(label)}</span>
+            <div class="flip-title">${esc(decisionTitle(d.decision_state))}</div>
+            <div class="flip-sub">Portfolio: <b class="mono-val">${esc(port)}</b></div>
+            <div class="flip-sub">Next target: <b class="mono-val">${esc(d.next_target || 'none')}</b></div>
+            <div class="flip-sub">Residual (expected / worst): <b class="mono-val">${esc(fmtT(d.expected_residual_gap_tonnes))} / ${esc(fmtT(d.worst_case_residual_gap_tonnes))}</b></div>
+            ${asArray(d.review_reasons).length ? `<div class="flip-sub muted">${asArray(d.review_reasons).map(r => esc(reasonText(r))).join('<br>')}</div>` : ''}
+        </div>`;
+    }
+
+    function flipResultHTML(f) {
+        if (!f) return '<div class="empty-state">No decision flip returned by the backend.</div>';
+        const changed = asArray(f.changed_inputs);
+        const flipped = f.flipped === true;
+        return `
+            <div class="flip-status ${flipped ? 'flip-changed' : 'flip-same'}" role="status">FLIPPED? ${flipped ? 'YES' : 'NO'} &middot; <span class="mono-val">${esc(f.transition || '')}</span></div>
+            <div class="flip-states">
+                ${flipSideHTML('BASELINE', f.baseline)}
+                <div class="flip-arrow" aria-hidden="true">&rarr;</div>
+                ${flipSideHTML('PERTURBED', f.perturbed)}
+            </div>
+            <div class="flip-changed-inputs"><span class="kpi-label">CHANGED INPUTS</span>
+                ${changed.length ? `<table class="enterprise-table"><thead><tr><th>Input</th><th>Baseline</th><th>Perturbed</th></tr></thead><tbody>${changed.map(c => `<tr><td>${esc(human(c.input))}</td><td class="mono-val">${esc(c.baseline ?? '—')}</td><td class="mono-val">${esc(c.perturbed ?? '—')}</td></tr>`).join('')}</tbody></table>` : '<div class="muted">No inputs changed.</div>'}
+            </div>
+            <div class="chart-note">Both decisions were recomputed end-to-end by the backend. ${badgeHTML('SIMULATED')}</div>`;
+    }
+
+    function renderSupplyFlip(f) {
+        const panel = $('#scFlipPanel');
+        if (!panel) return;
+        panel.hidden = !f;
+        if (!f) return;
+        $('#scFlip').innerHTML = flipResultHTML(f);
+        // Start the Recovery-screen sliders at the backend's documented demo perturbation.
+        if (!state.decision.flipRuns) {
+            const map = { rainfall_7d_mm: '#flipRainfall', equipment_availability: '#flipEquip', blast_delay_h: '#flipBlast' };
+            asArray(f.changed_inputs).forEach(c => {
+                const el = map[c.input] && $(map[c.input]);
+                if (el && num(c.perturbed) !== null) { el.value = c.perturbed; el.dispatchEvent(new Event('input')); }
+            });
+        }
+    }
+
+    // ── Demo-state selector (backend list; no client logic) ─
+    async function loadDemoStates() {
+        const sel = $('#demoSelect');
+        try {
+            const d = await api.get('/api/demo/scenarios', { timeout: 8000 });
+            const items = asArray(pick(d, 'scenarios'));
+            if (!items.length) return;
+            sel.innerHTML = items.map(x => `<option value="${esc(x.mine_id)}">${esc(x.mine_id)}${x.demo_state ? ` · ${esc(human(x.demo_state))}` : ' · current synthetic state'}</option>`).join('');
+            sel.value = MINE_ID;
+            items.forEach(x => { const o = sel.querySelector(`option[value="${CSS.escape(x.mine_id)}"]`); if (o && x.label) o.title = x.label; });
+        } catch (_) {
+            sel.title = 'Demo state list unavailable; showing DEMO_MINE.';
+        }
+    }
+
+    function switchMine(id) {
+        if (!id || id === MINE_ID) return;
+        MINE_ID = id;
+        $('#telMine').textContent = id;
+        // Drop every mine-dependent result so nothing stale is shown for the new state.
+        state.supply = null;
+        state.recovery = null;
+        state.contingency = null;
+        state.decision = { current: null, previous: null, flipRuns: 0 };
+        state.exploration.detail = {};
+        state.exploration.selectedId = null;
+        state.production = { forecast: null, history: null };
+        state.flipPreset = false;
+        state.loaded = {};
+        $('#flipResult').innerHTML = '<div class="empty-state">Adjust the conditions and run the flip to compare the baseline and perturbed decisions.</div>';
+        $('#targetCard').innerHTML = '<div class="empty-state">Select an exploration target on the map or in the list.</div>';
+        showToast(`Demo state ${id} selected — results recomputed by the backend (synthetic data).`, 'info');
+        if (state.currentSection !== 'supply-command') loadSupply();
+        SECTIONS[state.currentSection].load();
+    }
+
     // ═══════════════════════════════════════════════════════
     // SCREEN 2 — EXPLORATION
     // ═══════════════════════════════════════════════════════
     function initExplorationMap() {
         if (state.maps.exploration || !window.L) {
-            if (!window.L) $('#explorationMap').innerHTML = '<div class="error-state">Map library failed to load.</div>';
+            if (!window.L) $('#explorationMap').innerHTML = '<div class="error-state">Map library failed to load (external CDN). Targets, ranks and decisions below remain available.</div>';
             return;
         }
         const map = L.map('explorationMap', { center: [21.6, 79.9], zoom: 8, minZoom: 4, maxZoom: 16, zoomControl: true });
@@ -741,7 +863,7 @@
 
         const satTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri, USGS, AeroGRID, IGN', maxZoom: 18 });
         const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { attribution: 'CARTO', maxZoom: 18, subdomains: 'abcd' });
-        const lstTile = L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Land_Surface_Temp_Day/default/2024-05-01/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', { attribution: 'NASA GIBS — MODIS LST (2024-05-01)', maxNativeZoom: 7, maxZoom: 18, opacity: 0.9 });
+        const lstTile = L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Land_Surface_Temp_Day/default/2024-05-01/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', { attribution: 'NASA GIBS — MODIS LST 2024-05-01 (context layer, not the model feature)', maxNativeZoom: 7, maxZoom: 18, opacity: 0.9 });
         const streetTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OpenStreetMap', maxZoom: 18 });
 
         state.maps.baseLayers = {
@@ -750,6 +872,12 @@
             street: streetTile,
         };
         state.maps.currentBase = state.maps.baseLayers.satellite.addTo(map);
+
+        // External tile failures are visual only: warn, never block or imply a model failure.
+        const tileWarn = name => () => mapNotice(`${name} tiles could not be loaded. The map context layer is degraded; targets, ranks and decisions are unaffected.`);
+        satTile.on('tileerror', tileWarn('Satellite basemap'));
+        lstTile.on('tileerror', tileWarn('MODIS LST context-layer'));
+        streetTile.on('tileerror', tileWarn('Street basemap'));
 
         $$('.seg-btn[data-layer]').forEach(btn => btn.addEventListener('click', () => {
             const next = state.maps.baseLayers[btn.dataset.layer];
@@ -770,12 +898,19 @@
         $('#btnResetMap').addEventListener('click', fitTargets);
     }
 
+    function mapNotice(text) {
+        const el = $('#mapNotice');
+        if (!el || !el.hidden) return;   // show once per load
+        el.textContent = text;
+        el.hidden = false;
+    }
+
     async function loadExploration() {
         initExplorationMap();
         const list = $('#targetList');
         list.innerHTML = loadingHTML('Loading exploration targets…');
         try {
-            const resp = await api.get('/api/exploration/targets');
+            const resp = await api.get(`/api/exploration/targets?mine_id=${encodeURIComponent(MINE_ID)}`);
             const rawList = Array.isArray(resp) ? resp : asArray(pick(resp, 'targets', 'items', 'results'));
             state.exploration.targetsMeta = Array.isArray(resp) ? null : resp;
             state.exploration.targets = rawList.map(normTarget).filter(t => t && t.id);
@@ -783,7 +918,7 @@
             $('#exProvenance').innerHTML = provenanceHTML(state.exploration.targetsMeta && state.exploration.targetsMeta.provenance);
             renderTargetList();
             renderTargetMarkers();
-            await loadSurface(resp);
+            await loadSurface();
             fitTargets();
             if (state.exploration.selectedId) selectTarget(state.exploration.selectedId, { fly: true });
         } catch (e) {
@@ -801,41 +936,34 @@
         }, 150);
     }
 
-    // Prospectivity surface: use the surface the targets endpoint returns; if it
-    // returns none, fall back to the pre-computed cached grid when the backend
-    // still exposes it. Nothing is interpolated or generated client-side.
-    async function loadSurface(resp) {
-        let pts = null, source = null;
-        const s = resp && !Array.isArray(resp) ? pick(resp, 'surface', 'prospectivity_surface', 'grid') : null;
-        if (Array.isArray(s) && s.length) { pts = s; source = pick(resp, 'surface_source') || 'backend surface'; }
-        if (!pts) {
-            try {
-                const grid = await api.get('/reserve_grid', { retries: 0, timeout: 10000 });
-                if (Array.isArray(grid) && grid.length) { pts = grid; source = 'cached grid'; }
-            } catch (_) { /* no surface available */ }
-        }
+    // Prospectivity surface: the backend's cached ~1 km rank grid (/api/exploration/grid).
+    // Intensity = prospectivity_rank / 100 (a relative rank, not a probability).
+    // Nothing is interpolated or generated client-side.
+    async function loadSurface() {
+        let pts = null, prov = null;
+        try {
+            const grid = await api.get('/api/exploration/grid?stride=3', { retries: 0, timeout: 15000 });
+            pts = asArray(pick(grid, 'points'));
+            prov = pick(grid, 'provenance');
+        } catch (_) { pts = null; }
         state.exploration.surface = pts;
-        state.exploration.surfaceSource = source;
         const map = state.maps.exploration;
         if (state.maps.surfaceLayer && map) { map.removeLayer(state.maps.surfaceLayer); state.maps.surfaceLayer = null; }
-        if (!pts || !map || !L.heatLayer) {
-            $('#surfaceSourceLabel').textContent = 'Surface: unavailable from backend';
+        if (!pts || !pts.length || !map || !L.heatLayer) {
+            $('#surfaceSourceLabel').textContent = !pts ? 'Surface: unavailable from backend' : 'Surface: heat-map plugin unavailable';
             $('#toggleSurface').disabled = true;
             return;
         }
         const heat = pts.map(p => {
-            const lat = num(pick(p, 'lat', 'latitude')), lon = num(pick(p, 'lon', 'lng', 'longitude'));
-            const rank = num(pick(p, 'rank', 'prospectivity_rank', 'score'));
-            const prob = num(pick(p, 'probability', 'value'));
-            const intensity = rank !== null ? rank / 100 : prob;
-            return (lat !== null && lon !== null && intensity !== null) ? [lat, lon, Math.max(0.05, Math.min(1, intensity))] : null;
+            const lat = num(p.lat), lon = num(p.lon), rank = num(p.prospectivity_rank);
+            return (lat !== null && lon !== null && rank !== null) ? [lat, lon, Math.max(0.02, Math.min(1, rank / 100))] : null;
         }).filter(Boolean);
         state.maps.surfaceLayer = L.heatLayer(heat, {
-            radius: 28, blur: 22, maxZoom: 11, max: 1.0, minOpacity: 0.3,
-            gradient: { 0.15: '#1e3a8a', 0.4: '#0891b2', 0.65: '#10b981', 0.85: '#f59e0b', 1.0: '#ef4444' },
+            radius: 14, blur: 12, maxZoom: 11, max: 1.0, minOpacity: 0.25,
+            gradient: { 0.2: '#1e3a8a', 0.5: '#0891b2', 0.75: '#10b981', 0.9: '#f59e0b', 1.0: '#ef4444' },
         });
         $('#toggleSurface').disabled = false;
-        $('#surfaceSourceLabel').innerHTML = `Surface: ${esc(source)} ${badgeHTML(source === 'cached grid' ? 'CACHED' : (pick(resp, 'surface_mode') || 'CACHED'))}`;
+        $('#surfaceSourceLabel').innerHTML = `Surface: cached ~1 km rank grid ${badgeHTML(prov ? prov.data_mode : 'CACHED')}`;
         setSurfaceVisible($('#toggleSurface').checked);
     }
 
@@ -949,7 +1077,7 @@
         }
         if (!state.exploration.detail[id]) {
             try {
-                const d = await api.get(`/api/exploration/targets/${encodeURIComponent(id)}`);
+                const d = await api.get(`/api/exploration/targets/${encodeURIComponent(id)}?mine_id=${encodeURIComponent(MINE_ID)}`);
                 state.exploration.detail[id] = d;
             } catch (e) {
                 if (state.exploration.selectedId !== id) return;
@@ -993,22 +1121,23 @@
                 return typeof hit === 'string' ? true : truthy(pick(hit, 'available', 'status'));
             }
             const v = ev[key] ?? ev[`${key}_evidence`] ?? (key === 'geology' ? ev.geological : undefined);
-            if (v === undefined || v === null) return false;
+            if (v === undefined || v === null) return null;
             if (typeof v === 'object') return truthy(pick(v, 'available', 'status'));
             return truthy(v);
         };
         return layers.map(([k, label]) => ({ key: k, label, ok: status(k) }));
     }
 
-    const LADDER = ['REMOTE SENSING', 'GEOLOGICAL SUPPORT', 'GROUND / GEOPHYSICAL', 'DRILL / ASSAY', 'RESOURCE / RESERVE WORK'];
+    // Backend evidence levels are L0..L4; the ladder index equals the level.
+    const LADDER = ['REMOTE-SENSING INDICATION', 'REMOTE + GEOLOGICAL CONTEXT', 'GROUND / GEOPHYSICAL / GEOCHEMICAL', 'DRILLING / ASSAY', 'RESOURCE / RESERVE WORK'];
 
     function ladderHTML(level) {
         return `<ol class="evidence-ladder" aria-label="Evidence maturity ladder">
             ${LADDER.map((name, i) => {
-                const n = i + 1;
+                const n = i;
                 const cls = level === null ? '' : (n < level ? 'done' : (n === level ? 'current' : 'todo'));
                 return `<li class="ladder-step ${cls}"${n === level ? ' aria-current="step"' : ''}>
-                    <span class="ladder-n">${n}</span><span class="ladder-name">${name}</span>${n === level ? '<span class="ladder-here">CURRENT</span>' : ''}
+                    <span class="ladder-n">L${n}</span><span class="ladder-name">${name}</span>${n === level ? '<span class="ladder-here">CURRENT</span>' : ''}
                 </li>`;
             }).join('')}
         </ol>`;
@@ -1052,7 +1181,10 @@
                 <div class="tc-cell"><span class="kpi-label">EVIDENCE MATURITY</span><div class="tc-val">${level !== null ? `LEVEL ${level}` : 'N/A'}</div></div>
                 <div class="tc-cell"><span class="kpi-label">STRATEGIC RELEVANCE</span><div class="tc-val">${esc(t.strategic ? upperHuman(typeof t.strategic === 'object' ? pick(t.strategic, 'level', 'label') : t.strategic) : 'N/A')}</div></div>
                 <div class="tc-cell"><span class="kpi-label">EXPLORATION PRIORITY</span><div class="tc-val mono-val">${t.priority !== null ? esc(fmtNum(t.priority, 0)) : 'N/A'}</div></div>
-                <div class="tc-cell tc-cell-wide"><span class="kpi-label">STATUS</span><div class="tc-val">${esc(statusText(t))}</div></div>
+                <div class="tc-cell"><span class="kpi-label">GEOLOGICAL CONTEXT</span><div class="tc-val tc-val-sm">${esc(t.geology && pick(t.geology, 'unit_name') ? pick(t.geology, 'unit_name') : 'N/A')}</div></div>
+                <div class="tc-cell"><span class="kpi-label">SUBSURFACE EVIDENCE</span><div class="tc-val">${esc(subsurface && subsurface.ok === true ? 'AVAILABLE' : 'UNAVAILABLE')}</div></div>
+                <div class="tc-cell"><span class="kpi-label">DISTANCE TO SUPPLY POINT</span><div class="tc-val mono-val">${t.distanceKm !== null ? esc(fmtNum(t.distanceKm, 1)) + ' km' : 'N/A'}</div></div>
+                <div class="tc-cell tc-cell-wide"><span class="kpi-label">STATUS</span><div class="tc-val">${esc(statusText(t))}${t.context ? ` &middot; ${esc(t.context)}` : ''}</div></div>
             </div>
             <div class="tc-split">
                 <div>
@@ -1064,7 +1196,7 @@
                             <span class="ev-state">${e.ok === true ? 'AVAILABLE' : (e.ok === false ? 'UNAVAILABLE' : 'NOT REPORTED')}</span>
                         </li>`).join('')}
                     </ul>
-                    ${subsurface && subsurface.ok !== true ? `<div class="subsurface-note"><b>SUBSURFACE UNAVAILABLE</b><br>Further field / geophysical / drilling validation required.</div>` : ''}
+                    ${subsurface && subsurface.ok !== true ? `<div class="subsurface-note"><b>SUBSURFACE EVIDENCE UNAVAILABLE</b><br>Field mapping, geochemistry, geophysics and drilling/assay are required before any reserve or resource conclusion.</div>` : ''}
                 </div>
                 <div>
                     <h3 class="why-title">EVIDENCE LADDER</h3>
@@ -1090,7 +1222,17 @@
             const d = await api.post('/api/exploration/predict', { lat, lon }, { timeout: 45000 });
             state.exploration.query = d;
             const t = normTarget({ ...d, target_id: pick(d, 'target_id') || `QUERY ${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat: pick(d, 'lat', 'query_lat') ?? lat, lon: pick(d, 'lon', 'query_lon') ?? lon });
-            t.status = pick(d, 'status') || 'COORDINATE QUERY — NOT A TARGET';
+            const QUERY_STATUS = {
+                EXPLORATION_TARGET: 'within the high-rank (target-threshold) range',
+                NOT_PRIORITISED: 'below the target threshold',
+                REVIEW_REQUIRED: 'high rank but low applicability — review required',
+            };
+            t.status = `COORDINATE QUERY (NOT A CLUSTERED TARGET) · ${(QUERY_STATUS[norm(pick(d, 'status'))] || upperHuman(pick(d, 'status') || 'N/A')).toUpperCase()}`;
+            if (d.fallback_used) {
+                t.warnings = t.warnings.concat([`Live query not used (${d.live_status || 'unavailable'}). Cached grid cell ${fmtNum(d.fallback_distance_km, 2)} km from the query (maximum supported ${fmtNum(d.max_supported_fallback_distance_km, 1)} km).`]);
+            } else if (d.source_mode) {
+                t.warnings = t.warnings.concat([`Live coordinate query from the fixed ${d.observation_window || '2024'} reference composite (not real-time).`]);
+            }
             state.exploration.selectedId = null;
             $$('.target-item').forEach(el => { el.classList.remove('selected'); el.setAttribute('aria-selected', 'false'); });
             if (map) {
@@ -1112,7 +1254,8 @@
     // ═══════════════════════════════════════════════════════
     function normHistory(h) {
         if (!h) return [];
-        let rows = Array.isArray(h) ? h : pick(h, 'history', 'series', 'data', 'records', 'rows');
+        // Prefer 7-day period totals: same unit as the 7-day forecast.
+        let rows = Array.isArray(h) ? h : pick(h, 'periods', 'history', 'series', 'data', 'records', 'rows');
         if (!rows && Array.isArray(h.dates)) {
             rows = h.dates.map((d, i) => ({ date: d, actual: h.actual?.[i] ?? h.actual_tonnes?.[i], target: h.target?.[i] ?? h.target_tonnes?.[i] }));
         }
@@ -1134,9 +1277,13 @@
             gap: num(pick(src, 'gap_p50_tonnes', 'gap_tonnes', 'supply_gap_tonnes')),
             risk: pick(src, 'risk_state', 'risk'),
             horizon: pick(src, 'forecast_horizon', 'horizon'),
-            date: pick(src, 'forecast_date', 'period', 'period_end', 'forecast_period'),
+            date: pick(src, 'period_start', 'forecast_date', 'period', 'period_end', 'forecast_period'),
             series: asArray(pick(src, 'forecast_series', 'series')),
-            contributions: pick(src, 'model_contributions', 'contributions', 'drivers', 'primary_drivers'),
+            // model_contributions = {status, method, base_value_tonnes, calibration_adjustment_tonnes, items[]}
+            contributions: (src.model_contributions && typeof src.model_contributions === 'object' && !Array.isArray(src.model_contributions))
+                ? src.model_contributions.items
+                : pick(src, 'model_contributions', 'contributions', 'drivers', 'primary_drivers'),
+            contributionMeta: (src.model_contributions && !Array.isArray(src.model_contributions)) ? src.model_contributions : null,
             provenance: pick(src, 'provenance'),
             quantilesValidated: pick(src, 'quantiles_validated', 'intervals_validated'),
             raw: src,
@@ -1184,11 +1331,23 @@
         $('#prRisk').innerHTML = riskHTML(f.risk);
         $('#prRiskPolicy').textContent = riskPolicyText(f.raw);
         const hasBand = f.p10 !== null && f.p90 !== null;
+        const iv = intervalInfo(f.raw);
         $('#prForecastSub').textContent = hasBand
-            ? (f.quantilesValidated === false ? 'P10 / P50 / P90 — interval not validated' : 'P10 / P50 / P90')
+            ? (iv.validated ? 'P10 / P50 / P90 — validated interval' : 'P10 / P50 / P90 — P10–P90 interval NOT validated')
             : 'Only the forecast fields returned by the backend are shown';
+        $('#prForecastBasis').innerHTML = `<b>Forecast basis:</b> ${esc(pick(f.raw, 'forecast_basis') || 'Not returned by the backend.')}
+            ${f.raw.scenario_override_applied ? badgeHTML('SIMULATED', 'INPUTS') : ''}
+            <div class="muted">${esc(iv.text)}${iv.window ? ` · evaluation window ${esc(iv.window)}` : ''}. Period ${esc(pick(f.raw, 'period_start') || '?')} → ${esc(pick(f.raw, 'period_end') || '?')}.</div>`;
         renderRangeChart($('#prRangeChart'), f);
-        renderDriverBars($('#prContributions'), f.contributions);
+        const cm = f.contributionMeta;
+        if (cm && cm.status === 'UNAVAILABLE') {
+            $('#prContributions').innerHTML = '<div class="empty-state">Model contributions unavailable for this forecast.</div>';
+        } else {
+            renderDriverBars($('#prContributions'), f.contributions);
+            if (cm && cm.status === 'AVAILABLE') {
+                $('#prContributions').insertAdjacentHTML('beforeend', `<div class="chart-note">Relative contribution of each input to the P50 model output (tonnes), measured from a model base value of ${esc(fmtT(cm.base_value_tonnes))}; calibration adjustment ${esc(fmtT(cm.calibration_adjustment_tonnes))}. ${esc(cm.method || '')}</div>`);
+            }
+        }
     }
 
     // Horizontal range: P10–P90 band, P50 tick, target line. One axis, labelled.
@@ -1205,7 +1364,7 @@
         if (f.target !== null) marks.push(`<div class="rc-target" style="left:${x(f.target)}%" title="Target ${esc(fmtT(f.target))}"><span>TARGET ${esc(fmtT(f.target))}</span></div>`);
         el.innerHTML = `<div class="rc-track" role="img" aria-label="Forecast range P10 ${esc(fmtT(f.p10))}, P50 ${esc(fmtT(f.p50))}, P90 ${esc(fmtT(f.p90))}, target ${esc(fmtT(f.target))}">${marks.join('')}</div>
             <div class="rc-axis"><span>${esc(fmtT(min))}</span><span>${esc(fmtT(max))}</span></div>
-            <div class="rc-legend">${f.p10 !== null && f.p90 !== null ? '<span><i class="lg-band"></i>P10–P90 range: 80% of forecast outcomes fall inside</span>' : ''}<span><i class="lg-p50"></i>P50 median</span>${f.target !== null ? '<span><i class="lg-target"></i>Target</span>' : ''}</div>`;
+            <div class="rc-legend">${f.p10 !== null && f.p90 !== null ? `<span><i class="lg-band"></i>${esc(intervalInfo(f.raw).text)}</span>` : ''}<span><i class="lg-p50"></i>P50 model median</span>${f.target !== null ? '<span><i class="lg-target"></i>Target (7-day plan)</span>' : ''}</div>`;
     }
 
     const C_ACTUAL = '#0891b2', C_FORECAST = '#d97706', C_TARGET = '#94a3b8';
@@ -1233,7 +1392,7 @@
             if (ratio > 0.2 && ratio < 5) {
                 fPoints = [{ date: f.date || 'Forecast', p10: f.p10, p50: f.p50, p90: f.p90 }];
             } else {
-                fNote = `Forecast is a ${f.horizon ? human(f.horizon) : 'period'} total on a different scale from daily history — see the Forecast panel.`;
+                fNote = `Forecast is a ${f.horizon ? human(f.horizon) : 'period'} total on a different scale from the history — see the Forecast panel.`;
             }
         }
 
@@ -1304,7 +1463,8 @@
         legend.innerHTML = `<span><i class="lg-line" style="background:${C_ACTUAL}"></i>Actual</span>
             <span><i class="lg-line lg-dashed" style="border-color:${C_TARGET}"></i>Target</span>
             ${fPoints.length ? `<span><i class="lg-dot" style="background:${C_FORECAST}"></i>Forecast P50 (median)</span>` : ''}
-            ${band ? '<span><i class="lg-band"></i>P10–P90 forecast band</span>' : ''}`;
+            ${band ? `<span><i class="lg-band"></i>P10–P90 forecast interval${f && f.raw && f.raw.quantiles_validated === true ? '' : ' (not validated)'}</span>` : ''}
+            <span class="muted">7-day period totals · synthetic operations</span>`;
 
         // Crosshair + tooltip
         const svg = $('.hist-svg', el), tip = $('#chTooltip', el), cross = $('#chCross', el);
@@ -1364,8 +1524,13 @@
                 recovery: num(pick(p, 'expected_recovery_tonnes', 'recovery_tonnes')),
                 residual: num(pick(p, 'expected_residual_gap_tonnes', 'residual_gap_tonnes', 'expected_gap_tonnes')),
                 worst: num(pick(p, 'worst_case_residual_gap_tonnes', 'worst_tested_residual_gap_tonnes', 'worst_gap_tonnes')),
-                feasibility: feasible !== undefined ? feasible : (typeof p.feasible === 'boolean' ? (p.feasible ? 'FEASIBLE' : 'NOT FEASIBLE') : null),
+                feasibility: pick(p, 'modelled_feasibility') ?? (feasible !== undefined ? feasible : (typeof p.feasible === 'boolean' ? (p.feasible ? 'FEASIBLE' : 'NOT FEASIBLE') : null)),
                 selectedFlag: p.selected === true || p.is_selected === true,
+                eligible: p.eligible,
+                applicability: pick(p, 'selection_applicability', 'applicability'),
+                lowScenarios: asArray(p.low_applicability_scenarios),
+                blockedReason: p.selection_blocked_reason,
+                burden: num(p.intervention_burden),
                 raw: p,
             };
         });
@@ -1387,17 +1552,24 @@
             el.innerHTML = `<div class="empty-state">No action portfolios returned by the backend.${selKey ? ` Selected: <b>${esc(human(selKey))}</b>` : ''}</div>`;
             return null;
         }
+        const applCls = a => /LOW/.test(norm(a)) ? 'no' : (/MOD/.test(norm(a)) ? 'review' : 'yes');
         el.innerHTML = `<table class="enterprise-table portfolio-table">
-            <thead><tr><th scope="col">ACTION PORTFOLIO</th><th scope="col">EXPECTED RECOVERY</th><th scope="col">EXPECTED RESIDUAL</th><th scope="col">WORST TESTED RESIDUAL</th><th scope="col">FEASIBILITY</th></tr></thead>
-            <tbody>${ps.map(p => `<tr class="${isSel(p) ? 'row-selected' : ''}">
+            <thead><tr><th scope="col">ACTION PORTFOLIO</th><th scope="col">BURDEN</th><th scope="col">EXPECTED RECOVERY</th><th scope="col">EXPECTED RESIDUAL</th><th scope="col">WORST TESTED RESIDUAL</th><th scope="col">APPLICABILITY</th><th scope="col">MODELLED FEASIBILITY</th><th scope="col">AUTOMATED SELECTION</th></tr></thead>
+            <tbody>${ps.map(p => `<tr class="${isSel(p) ? 'row-selected' : ''}${p.eligible === false ? ' row-blocked' : ''}">
                 <td>${isSel(p) ? '<span class="sel-tag">SELECTED</span> ' : ''}${esc(p.name)}</td>
-                <td class="mono-val">${p.recovery !== null ? '+' + esc(fmtT(p.recovery)) : 'N/A'}</td>
+                <td class="mono-val">${p.burden !== null ? esc(fmtNum(p.burden, 1)) : 'N/A'}</td>
+                <td class="mono-val">${p.recovery !== null ? (p.recovery > 0 ? '+' : '') + esc(fmtT(p.recovery)) : 'N/A'}</td>
                 <td class="mono-val">${esc(fmtT(p.residual))}</td>
                 <td class="mono-val">${esc(fmtT(p.worst))}</td>
-                <td>${p.feasibility !== null && p.feasibility !== undefined ? `<span class="feas feas-${/NOT|INFEAS/.test(norm(p.feasibility)) ? 'no' : (/REVIEW/.test(norm(p.feasibility)) ? 'review' : 'yes')}">${esc(upperHuman(p.feasibility))}</span>` : 'N/A'}</td>
+                <td>${p.applicability ? `<span class="feas feas-${applCls(p.applicability)}" title="${esc(p.lowScenarios.length ? 'Outside model experience in: ' + p.lowScenarios.map(human).join(', ') : 'All tested scenarios within model experience')}">${esc(upperHuman(p.applicability))}</span>` : 'N/A'}</td>
+                <td>${p.feasibility !== null && p.feasibility !== undefined ? `<span class="feas feas-${/NOT|INFEAS/.test(norm(p.feasibility)) ? 'no' : (/REVIEW|UNKNOWN/.test(norm(p.feasibility)) ? 'review' : 'yes')}">${esc(upperHuman(p.feasibility))}</span>` : 'N/A'}</td>
+                <td>${p.eligible === false ? `<span class="feas feas-no">BLOCKED</span><div class="blocked-why">${esc(p.blockedReason || '')}</div><div class="muted">Diagnostic only</div>` : (p.eligible === true ? '<span class="feas feas-yes">ELIGIBLE</span>' : 'N/A')}</td>
             </tr>`).join('')}</tbody>
         </table>
-        ${selKey === null && !ps.some(p => p.selectedFlag) ? '<div class="chart-note">The backend did not identify a selected portfolio.</div>' : ''}`;
+        ${pick(r, 'selection_explanation') ? `<div class="chart-note"><b>Why selected:</b> ${esc(r.selection_explanation)}</div>` : ''}
+        ${r.selection_status === 'REVIEW_REQUIRED' ? '<div class="caution-block" role="alert">Automated portfolio selection withheld — no portfolio passed the modelled-feasibility and applicability gates. Human review required.</div>' : ''}
+        ${selKey === null && !ps.some(p => p.selectedFlag) && r.selection_status !== 'REVIEW_REQUIRED' ? '<div class="chart-note">The backend did not identify a selected portfolio.</div>' : ''}
+        <div class="chart-note muted">Selection rule: ${esc(pick(r, 'selection_rule') || 'not returned')}.</div>`;
         return ps.find(isSel) || null;
     }
 
@@ -1408,7 +1580,7 @@
         el.textContent = fmtT(residual);
         el.dataset.value = residual ?? '';
         if (prev !== null && residual !== null && prev !== residual) { el.classList.remove('value-change'); void el.offsetWidth; el.classList.add('value-change'); }
-        $('#rcResidualSub').textContent = sel ? `After backend-selected portfolio: ${sel.name}` : 'After backend-selected portfolio';
+        $('#rcResidualSub').textContent = sel ? `After backend-selected portfolio: ${sel.name}` : (rec && rec.selection_status === 'REVIEW_REQUIRED' ? 'No eligible portfolio — selection withheld' : 'After backend-selected portfolio');
         $('#residualHero').classList.toggle('residual-positive', residual !== null && residual > 0);
 
         const can = pick(rec, 'can_operations_close', 'operations_can_close', 'gap_closed', 'operational_sufficient');
@@ -1423,12 +1595,12 @@
             : /STRATEGIC|LONG/.test(h) ? 'Exploration contingency may be activated.' : '';
     }
 
-    async function evaluateRecovery({ flip = false } = {}) {
-        const btn = flip ? $('#btnFlip') : $('#btnEvaluate');
+    async function evaluateRecovery() {
+        const btn = $('#btnEvaluate');
         setLoading(btn, true);
         const previous = state.decision.current;
-        const body = currentInputs(flip);
-        if (!flip) $('#portfolioTable').innerHTML = loadingHTML('Evaluating recovery portfolios…');
+        const body = currentInputs(false);
+        $('#portfolioTable').innerHTML = loadingHTML('Evaluating recovery portfolios…');
         let rec = null, con = null, recErr = null, conErr = null;
         try {
             rec = await api.post('/api/recovery/evaluate', body, { timeout: 30000 });
@@ -1473,7 +1645,7 @@
                 targetId: nextT,
                 whyTarget: pick(src, 'why_target'),
                 whyNow: pick(src, 'why_target_now'),
-                reasonCodes: pick(src, 'reason_codes'),
+                reasonCodes: undefined,
                 nextEvidence: pick(src, 'next_evidence'),
                 showWhyTarget: !!pick(src, 'why_target'),
             });
@@ -1487,34 +1659,49 @@
             state.decision.current = dec;
         }
         $('#btnLogDecision').disabled = !dec;
-        if (flip) renderFlip(previous, dec, conErr || recErr);
+        if (rec) presetFlipSliders(rec);
         setLoading(btn, false);
     }
 
-    function renderFlip(prev, cur, err) {
-        const el = $('#flipResult');
-        state.decision.flipRuns++;
-        if (!cur) {
-            el.innerHTML = errorHTML('Decision could not be recomputed.', err);
-            return;
+    // Sliders start at the backend's current operating state for the selected mine; for the
+    // DEMO_F scenario they start at the backend's documented perturbation instead.
+    function presetFlipSliders(rec) {
+        if (state.flipPreset) return;
+        const inp = rec.inputs || {};
+        const set = (id, v) => { const el = $(id); if (el && num(v) !== null) { el.value = v; el.dispatchEvent(new Event('input')); } };
+        set('#flipRainfall', inp.rainfall_7d_mm);
+        set('#flipEquip', inp.equipment_availability);
+        set('#flipBlast', inp.blast_delay_h);
+        const demoFlip = state.supply && state.supply.decision_flip;
+        if (demoFlip) {
+            const map = { rainfall_7d_mm: '#flipRainfall', equipment_availability: '#flipEquip', blast_delay_h: '#flipBlast' };
+            asArray(demoFlip.changed_inputs).forEach(c => { if (map[c.input]) set(map[c.input], c.perturbed); });
         }
-        const changed = prev && norm(prev.state) !== norm(cur.state);
-        const cls = s => (DECISIONS[norm(s)] || {}).cls || 'unknown';
-        el.innerHTML = `
-            <div class="flip-status ${changed ? 'flip-changed' : 'flip-same'}" role="status">${changed ? 'DECISION CHANGED' : (prev ? 'DECISION UNCHANGED' : 'DECISION COMPUTED')}</div>
-            <div class="flip-states">
-                <div class="flip-state flip-prev decision-${prev ? cls(prev.state) : 'none'}">
-                    <span class="kpi-label">PREVIOUS DECISION</span>
-                    <div class="flip-title">${esc(prev ? decisionTitle(prev.state) : 'NONE')}</div>
-                </div>
-                <div class="flip-arrow" aria-hidden="true">&rarr;</div>
-                <div class="flip-state flip-cur decision-${cls(cur.state)} ${changed ? 'flip-anim' : ''}">
-                    <span class="kpi-label">CURRENT DECISION</span>
-                    <div class="flip-title">${esc(decisionTitle(cur.state))}</div>
-                    ${cur.nextTarget ? `<div class="flip-sub">Next target: <b class="mono-val">${esc(cur.nextTarget)}</b></div>` : ''}
-                </div>
-            </div>
-            <div class="chart-note">Conditions sent: rainfall ${esc($('#flipRainfall').value)} mm &middot; equipment availability ${esc(Math.round(Number($('#flipEquip').value) * 100))}% &middot; blast delay ${esc($('#flipBlast').value)} h &middot; scenario ${esc(human(currentInputs(false).scenario))}. <span class="badge badge-simulated">SIMULATED SCENARIO</span></div>`;
+        state.flipPreset = true;
+    }
+
+    async function runFlip() {
+        const btn = $('#btnFlip');
+        const el = $('#flipResult');
+        setLoading(btn, true);
+        el.innerHTML = loadingHTML('Recomputing baseline and perturbed decisions…');
+        const inputs = currentInputs(true);
+        try {
+            const f = await api.post('/api/decision/flip', {
+                mine_id: MINE_ID,
+                scenario: inputs.scenario,
+                actions: inputs.actions,
+                baseline_conditions: {},
+                perturbed_conditions: inputs.conditions,
+            }, { timeout: 60000 });
+            state.decision.flipRuns++;
+            state.decision.lastFlip = f;
+            el.innerHTML = flipResultHTML(f);
+        } catch (e) {
+            el.innerHTML = errorHTML('Decision flip could not be computed.', e);
+        } finally {
+            setLoading(btn, false);
+        }
     }
 
     async function loadDecisionHistory() {
@@ -1566,7 +1753,7 @@
     function metricValueHTML(v) {
         if (v === undefined || v === null || v === '') return null;
         if (typeof v === 'boolean') return v ? 'YES' : 'NO';
-        if (typeof v === 'number') return esc(fmtNum(v, 3));
+        if (typeof v === 'number') return esc(fmtNum(v, Math.abs(v) > 0 && Math.abs(v) < 0.01 ? 4 : 3));
         if (typeof v === 'string') return esc(v);
         if (Array.isArray(v)) return v.length ? esc(v.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(', ')) : null;
         const entries = Object.entries(v).filter(([, x]) => x !== null && x !== undefined && typeof x !== 'object');
@@ -1575,11 +1762,12 @@
     }
 
     function metricsGridHTML(src, defs) {
-        return `<dl class="metric-grid">${defs.map(([label, keys, hint]) => {
+        return `<dl class="metric-grid">${defs.map(([label, keys, def]) => {
             const val = metricValueHTML(deepPick(src, keys));
             return `<div class="metric ${val === null ? 'metric-na' : ''}">
                 <dt>${esc(label)}</dt>
-                <dd>${val === null ? `N/A <span class="na-why">${esc(hint || 'Not returned by the backend validation report.')}</span>` : val}</dd>
+                <dd>${val === null ? `N/A <span class="na-why">Not returned by the backend validation report.</span>` : val}</dd>
+                ${def ? `<div class="metric-def">${esc(def)}</div>` : ''}
             </div>`;
         }).join('')}</dl>`;
     }
@@ -1607,24 +1795,39 @@
 
         $('#trustExploration').innerHTML = ex.status === 'fulfilled'
             ? provenanceRowIf(ex.value) + metricsGridHTML(ex.value, [
-                ['Spatial validation', ['spatial_validation', 'validation_method', 'cv_method', 'validation']],
-                ['ROC-AUC', ['roc_auc', 'auc', 'spatial_roc_auc']],
-                ['PR-AUC', ['pr_auc', 'average_precision', 'spatial_pr_auc']],
-                ['Top-area capture', ['top_area_capture', 'top_area_capture_rate', 'capture_rate']],
-                ['Applicability', ['applicability', 'applicability_method', 'applicability_domain']],
-                ['Uncertainty', ['uncertainty', 'uncertainty_method']],
+                ['Spatial validation', ['spatial_validation', 'validation_method'], 'How held-out data were formed (no random pixel splits).'],
+                ['ROC-AUC (spatial CV)', ['roc_auc'], 'Ranking of held-out MRDS cells vs unlabelled background; 0.5 = no skill.'],
+                ['PR-AUC (spatial CV)', ['pr_auc'], 'Precision-recall area; compare with the prevalence baseline below.'],
+                ['PR-AUC prevalence baseline', ['pr_auc_prevalence_baseline'], 'PR-AUC a random ranking would get.'],
+                ['Top-area capture', ['top_area_capture'], 'Share of held-out occurrences inside the top 5/10/20 % of held-out area.'],
+                ['Region holdout ROC-AUC', ['region_holdout'], 'Train on one half of the belt, test on the other (east/west at 79.8E).'],
+                ['Region holdout method', ['region_holdout_method'], null],
+                ['Observation window', ['observation_window'], 'Fixed reference composite — not real-time imagery.'],
+                ['Effective resolution', ['effective_resolution'], null],
+                ['Subsurface evidence', ['subsurface_evidence'], null],
+                ['Applicability method', ['applicability_method'], 'How out-of-experience inputs are detected.'],
+                ['Uncertainty method', ['uncertainty_method'], 'How rank uncertainty is measured.'],
+                ['Calibration', ['calibration'], null],
             ]) + trustNotes(ex.value)
             : errorHTML('Exploration validation unavailable.', ex.reason, 'model-trust');
 
         $('#trustProduction').innerHTML = pr.status === 'fulfilled'
             ? provenanceRowIf(pr.value) + metricsGridHTML(pr.value, [
-                ['Rolling backtest', ['rolling_backtest', 'backtest', 'validation_method', 'backtest_method']],
-                ['MAE', ['mae', 'MAE']],
-                ['RMSE', ['rmse', 'RMSE']],
-                ['R²', ['r2', 'R2', 'r_squared']],
-                ['Baseline', ['baseline', 'baseline_mae', 'naive_baseline', 'baseline_metrics']],
-                ['Pinball loss', ['pinball_loss', 'quantile_loss']],
-                ['Coverage', ['coverage', 'p10_p90_coverage', 'interval_coverage']],
+                ['Validation method', ['validation_method'], 'Chronological rolling-origin backtest; no shuffling.'],
+                ['Test window', ['test_window'], 'Untouched periods used for every metric below.'],
+                ['P50 MAE (t / 7 days)', ['mae'], 'Mean absolute error of the P50 forecast on the test window.'],
+                ['Best naive baseline MAE', ['baseline_mae'], 'Better of previous-period and 4-period moving average, same periods.'],
+                ['Improvement vs best baseline (%)', ['mae_improvement_vs_best_baseline_pct'], 'Negative would mean the baseline wins.'],
+                ['RMSE (t / 7 days)', ['rmse'], 'Root-mean-square error of P50 on the test window.'],
+                ['R²', ['r2'], 'Share of test-window variance explained by P50.'],
+                ['Observed P10–P90 coverage', ['observed_coverage'], 'Share of test periods whose actual fell inside P10–P90.'],
+                ['Nominal coverage', ['nominal_coverage'], 'What a P10–P90 interval is designed to contain.'],
+                ['Quantiles validated', ['quantiles_validated'], 'Passes the documented coverage + hit-rate rule?'],
+                ['Quantile hit rates', ['quantile_hit_rate'], 'Share of actuals at or below P10 / P50 / P90 (nominal 0.1 / 0.5 / 0.9).'],
+                ['Pinball loss', ['pinball_loss'], 'Quantile loss per level (lower is better).'],
+                ['Calibration window', ['protocol'], null],
+                ['Forecast procedure', ['forecast_procedure'], 'Persistence assumption for unknown future conditions.'],
+                ['Applicability method', ['applicability_method'], null],
             ]) + trustNotes(pr.value)
             : errorHTML('Production validation unavailable.', pr.reason, 'model-trust');
 
@@ -1667,19 +1870,22 @@
             actual: num(pick(x, 'actual_tonnes', 'actual')),
             error: num(pick(x, 'error_tonnes', 'error')),
         }));
-        const mae = num(pick(r, 'rolling_mae', 'rolling_mae_tonnes', 'mae'));
+        const mae = num(pick(r.summary || {}, 'mae') ?? pick(r, 'mae', 'rolling_mae', 'rolling_mae_tonnes'));
+        const sm = r.summary || {};
         const bias = num(pick(r, 'bias', 'bias_tonnes', 'mean_error'));
         const hasActual = rows.some(x => x.actual !== null);
         const status = pick(r, 'status', 'actuals_status');
-        const summary = `<div class="kpi-strip kpi-strip-2">
-            <div class="kpi-tile"><span class="kpi-label">ROLLING MAE</span><div class="kpi-val mono-val">${mae !== null ? esc(fmtT(mae)) : 'N/A'}</div></div>
+        const summary = `<div class="kpi-strip kpi-strip-4">
+            <div class="kpi-tile"><span class="kpi-label">MAE (${esc(sm.periods ?? rows.length)} PERIODS)</span><div class="kpi-val mono-val">${mae !== null ? esc(fmtT(mae)) : 'N/A'}</div></div>
+            <div class="kpi-tile"><span class="kpi-label">OVER / UNDER FORECASTS</span><div class="kpi-val mono-val">${num(sm.over_forecast_count) !== null ? `${esc(sm.over_forecast_count)} / ${esc(sm.under_forecast_count)}` : 'N/A'}</div></div>
+            <div class="kpi-tile"><span class="kpi-label">LATEST ERROR</span><div class="kpi-val mono-val">${num(sm.latest_error_tonnes) !== null ? esc((sm.latest_error_tonnes > 0 ? '+' : '') + fmtT(sm.latest_error_tonnes)) : 'N/A'}</div></div>
             <div class="kpi-tile"><span class="kpi-label">BIAS (forecast − actual)</span><div class="kpi-val mono-val">${bias !== null ? esc((bias > 0 ? '+' : '') + fmtT(bias)) : 'N/A'}</div></div>
         </div>`;
         if (!hasActual) {
             el.innerHTML = `${provenanceRowIf(r)}<div class="empty-state empty-strong">Actual data unavailable${status ? ` (${esc(upperHuman(status))})` : ''}. Forecast accuracy cannot be reconciled until actual production is recorded.</div>${rows.length ? recTable(rows) : ''}`;
             return;
         }
-        el.innerHTML = provenanceRowIf(r) + summary + recTable(rows);
+        el.innerHTML = provenanceRowIf(r) + summary + (r.basis ? `<div class="chart-note">${esc(r.basis)} ${esc(r.error_convention || '')}</div>` : '') + recTable(rows);
     }
 
     function recTable(rows) {
@@ -1761,7 +1967,8 @@
         });
 
         $('#btnEvaluate').addEventListener('click', () => evaluateRecovery());
-        $('#btnFlip').addEventListener('click', () => evaluateRecovery({ flip: true }));
+        $('#btnFlip').addEventListener('click', runFlip);
+        $('#demoSelect').addEventListener('change', e => switchMine(e.target.value));
         $('#btnLogDecision').addEventListener('click', submitDecisionReview);
 
         const bindRange = (id, out, fmt) => {
@@ -1770,7 +1977,7 @@
             el.addEventListener('input', upd);
             upd();
         };
-        bindRange('#flipRainfall', '#flipRainfallVal', v => `${v} mm`);
+        bindRange('#flipRainfall', '#flipRainfallVal', v => `${v} mm / 7 d`);
         bindRange('#flipEquip', '#flipEquipVal', v => `${Math.round(v * 100)}%`);
         bindRange('#flipBlast', '#flipBlastVal', v => `${v.toFixed(1)} h`);
 
@@ -1807,6 +2014,7 @@
         const fromHash = window.location.hash.slice(1);
         const first = SECTIONS[fromHash] ? fromHash : 'supply-command';
         await loadHealth();
+        loadDemoStates();
         showSection(first);
         // Supply baseline feeds the Recovery screen and the data-mode pill.
         if (first !== 'supply-command') loadSupply();

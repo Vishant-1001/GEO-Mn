@@ -47,3 +47,21 @@ def test_decision_review_validation(client):
     assert client.post("/api/decision/review", json={"decision_state": "YOLO"}).status_code == 400
     assert client.post("/api/decision/review", json={"decision_state": "REVIEW_REQUIRED", "action": "NUKE"}).status_code == 400
     assert client.post("/api/decision/review", json={}).status_code == 422
+
+
+def test_ood_perturbation_does_not_produce_confident_recommendation():
+    f = cs.decision_flip("DEMO_F", {}, {"equipment_availability": 0.2, "rainfall_7d_mm": 900.0, "blast_delay_h": 15.0})
+    p = f["perturbed"]
+    assert p["decision_state"] == "REVIEW_REQUIRED"
+    assert p["next_target"] is None
+    assert p["selected_portfolio"] is None or p["selection_status"] == "REVIEW_REQUIRED"
+    assert any(r["code"] == "PRODUCTION_INPUTS_OUT_OF_DISTRIBUTION" for r in p["review_reasons"])
+
+
+def test_flip_uses_frontend_condition_aliases(client):
+    r = client.post("/api/decision/flip", json={
+        "mine_id": "DEMO_F", "scenario": "normal", "actions": ["equipment_recovery", "schedule_adjustment", "blast_delay_reduction"],
+        "baseline_conditions": {}, "perturbed_conditions": {"rainfall_mm": 140, "equipment_availability": 0.74, "blast_delay_hours": 3}})
+    d = r.json()
+    assert r.status_code == 200 and d["flipped"] is True
+    assert {c["input"] for c in d["changed_inputs"]} == {"rainfall_7d_mm", "equipment_availability", "blast_delay_h"}

@@ -215,6 +215,11 @@ def supply_command(mine_id: str = Query("DEMO_MINE"), horizon: Optional[str] = Q
         "risk_state": fc["risk_state"],
         "risk_policy_version": fc["risk_policy_version"],
         "quantiles_validated": fc["quantiles_validated"],
+        "quantile_validation": fc["quantile_validation"],
+        "forecast_method": fc["forecast_method"],
+        "persistence_assumption": fc["persistence_assumption"],
+        "scenario_override_applied": fc["scenario_override_applied"],
+        "forecast_basis": fc["forecast_basis"],
         "primary_drivers": fc["drivers"],
         "model_contributions": fc["model_contributions"],
         "production_applicability": fc["applicability"]["level"],
@@ -222,6 +227,8 @@ def supply_command(mine_id: str = Query("DEMO_MINE"), horizon: Optional[str] = Q
         "action_required": con["action_required"],
         "action_note": con["action_note"],
         "selected_portfolio": con["selected_portfolio"],
+        "selection_status": con["selection_status"],
+        "selection_explanation": con["selection_explanation"],
         "expected_recovery_tonnes": con["best_operational_recovery_tonnes"],
         "expected_residual_gap_tonnes": con["expected_residual_gap_tonnes"],
         "worst_case_residual_gap_tonnes": con["worst_case_residual_gap_tonnes"],
@@ -235,6 +242,7 @@ def supply_command(mine_id: str = Query("DEMO_MINE"), horizon: Optional[str] = Q
         "target_priority": con["target_priority"],
         "selected_target_detail": con["selected_target_detail"],
         "why_target_now": con["why_target_now"],
+        "next_evidence": con["next_evidence"],
         "reason_codes": con["reason_codes"],
         "review_reasons": con["review_reasons"],
         "strategic_requirement": con["strategic_requirement"],
@@ -294,12 +302,6 @@ def exploration_grid(stride: int = Query(5, ge=1, le=50)):
     return {"points": pts, "count": len(pts), "stride_cells": stride,
             "cell_size_deg": 0.01, "value": "prospectivity_rank (relative 0-100, not a probability)",
             "provenance": exploration()._prov("CACHED")}
-
-
-@app.get("/reserve_grid")
-def legacy_reserve_grid():
-    """Legacy alias kept for older clients: coarse sample of the new ~1 km prospectivity grid."""
-    return exploration().grid_points(10)
 
 
 # ---------------------------------------------------------------------------
@@ -377,19 +379,21 @@ def trust_provenance():
 # ---------------------------------------------------------------------------
 
 _FRONTEND = {"index.html": "text/html", "app.js": "text/javascript", "style.css": "text/css"}
+# Revalidate on every load (ETag makes this cheap) so a redeploy never leaves a stale UI in the browser.
+_NO_STALE = {"Cache-Control": "no-cache"}
 
 
 @app.get("/", include_in_schema=False)
 @app.get("/app", include_in_schema=False)
 def serve_index():
-    return FileResponse(ROOT / "index.html", media_type="text/html")
+    return FileResponse(ROOT / "index.html", media_type="text/html", headers=_NO_STALE)
 
 
 @app.get("/{name}", include_in_schema=False)
 def serve_frontend_file(name: str):
     if name not in _FRONTEND:
         raise ApiError(404, "NOT_FOUND", f"/{name} not found")
-    return FileResponse(ROOT / name, media_type=_FRONTEND[name])
+    return FileResponse(ROOT / name, media_type=_FRONTEND[name], headers=_NO_STALE)
 
 
 if __name__ == "__main__":

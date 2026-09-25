@@ -1,6 +1,6 @@
 {
   "_note": "Deterministic demonstration scenarios. Inputs are SYNTHETIC / SIMULATED overrides on the synthetic DEMO_MINE history (not MOIL records). Each scenario lists INPUTS only; the decision is COMPUTED by the forecast, recovery and contingency engines. expected_state is used only by the automated tests to confirm the engines still produce it.",
-  "version": "demo-scenarios-1.0",
+  "version": "demo-scenarios-1.1",
   "scenarios": {
     "DEMO_MINE": {
       "label": "Current synthetic operating state (latest history, planned target)",
@@ -10,40 +10,61 @@
       "target_multiplier": 1.0
     },
     "DEMO_A": {
-      "label": "On track — healthy fleet, dry week, near-term view",
+      "label": "On track \u2014 healthy fleet, dry week, near-term view",
       "demo_state": "ON_TRACK",
       "expected_state": "OPERATIONAL_RESPONSE",
       "horizon": "NEAR_TERM",
-      "state_overrides": {"equipment_availability": 0.9, "truck_count": 20, "drilling_delay_h": 0.6, "blast_delay_h": 0.3,
-                          "haulage_delay_h": 0.3, "rainfall_7d_mm": 2.0, "soil_moisture_m3m3": 0.3},
+      "state_overrides": {
+        "equipment_availability": 0.9,
+        "truck_count": 20,
+        "drilling_delay_h": 0.6,
+        "blast_delay_h": 0.3,
+        "haulage_delay_h": 0.3,
+        "rainfall_7d_mm": 2.0,
+        "soil_moisture_m3m3": 0.3
+      },
       "target_multiplier": 0.9
     },
     "DEMO_B": {
-      "label": "Operationally recoverable — equipment dip and blast delays, near-term view",
+      "label": "Operationally recoverable \u2014 equipment dip and blast delays, near-term view",
       "demo_state": "OPERATIONALLY_RECOVERABLE",
       "expected_state": "OPERATIONAL_RESPONSE",
       "horizon": "NEAR_TERM",
-      "state_overrides": {"equipment_availability": 0.8, "truck_count": 17, "blast_delay_h": 1.2, "drilling_delay_h": 1.2},
+      "state_overrides": {
+        "equipment_availability": 0.8,
+        "truck_count": 17,
+        "blast_delay_h": 1.2,
+        "drilling_delay_h": 1.2
+      },
       "target_multiplier": 1.0
     },
     "DEMO_C": {
-      "label": "Strategic contingency — planned ramp-up the mine cannot sustain under stress",
+      "label": "Strategic contingency \u2014 planned ramp-up the mine cannot sustain under stress",
       "demo_state": "STRATEGIC_CONTINGENCY",
       "expected_state": "OPERATIONAL_AND_EXPLORATION_CONTINGENCY",
       "horizon": "STRATEGIC",
-      "state_overrides": {"equipment_availability": 0.76, "truck_count": 15, "blast_delay_h": 1.2},
+      "state_overrides": {
+        "equipment_availability": 0.76,
+        "truck_count": 15,
+        "blast_delay_h": 1.2
+      },
       "target_multiplier": 1.1
     },
     "DEMO_D": {
-      "label": "Review required — operating state outside the model's experience",
+      "label": "Review required \u2014 operating state outside the model's experience",
       "demo_state": "REVIEW_REQUIRED",
       "expected_state": "REVIEW_REQUIRED",
       "horizon": "STRATEGIC",
-      "state_overrides": {"equipment_availability": 0.3, "rainfall_7d_mm": 650.0, "truck_count": 6, "blast_delay_h": 9.0},
+      "state_overrides": {
+        "equipment_availability": 0.3,
+        "rainfall_7d_mm": 650.0,
+        "truck_count": 6,
+        "blast_delay_h": 9.0
+      },
       "target_multiplier": 1.0
     },
     "DEMO_E": {
-      "label": "Satellite fallback — live imagery query unavailable, cached grid used within the distance limit",
+      "label": "Satellite fallback \u2014 live imagery query unavailable, cached grid used within the distance limit",
       "demo_state": "SATELLITE_FALLBACK",
       "expected_state": "OPERATIONAL_AND_EXPLORATION_CONTINGENCY",
       "horizon": "STRATEGIC",
@@ -53,23 +74,43 @@
         "exploration_query": {
           "description": "Live coordinate query is forced to fail (simulated outage). A point inside the study area falls back to the cached ~1 km grid; a point far outside it returns PREDICTION_UNAVAILABLE instead of a misleading nearest-cell value.",
           "mode": "SIMULATE_LIVE_FAILURE",
-          "points": [{"lat": 21.8161, "lon": 80.1837}, {"lat": 23.9, "lon": 84.5}]
+          "points": [
+            {
+              "lat": 21.8161,
+              "lon": 80.1837
+            },
+            {
+              "lat": 23.9,
+              "lon": 84.5
+            }
+          ]
         }
       }
     },
     "DEMO_F": {
-      "label": "Decision flip — same mine, stressed conditions change the decision",
+      "label": "Decision flip \u2014 same mine in a healthy mid-range state; stressed conditions change the decision",
       "demo_state": "DECISION_FLIP",
       "expected_state": "OPERATIONAL_RESPONSE",
       "expected_flip": "OPERATIONAL_RESPONSE -> OPERATIONAL_AND_EXPLORATION_CONTINGENCY",
       "horizon": "STRATEGIC",
-      "state_overrides": {"equipment_availability": 0.9, "truck_count": 20, "drilling_delay_h": 0.8, "blast_delay_h": 0.4,
-                          "haulage_delay_h": 0.4, "rainfall_7d_mm": 5.0, "soil_moisture_m3m3": 0.32},
-      "target_multiplier": 0.85,
+      "state_overrides": {
+        "equipment_availability": 0.85,
+        "truck_count": 17,
+        "drilling_delay_h": 0.8,
+        "blast_delay_h": 0.4,
+        "haulage_delay_h": 0.4,
+        "rainfall_7d_mm": 5.0,
+        "soil_moisture_m3m3": 0.32
+      },
+      "target_multiplier": 0.8,
       "demo_extras": {
         "decision_flip": {
           "baseline_conditions": {},
-          "perturbed_conditions": {"rainfall_7d_mm": 140.0, "equipment_availability": 0.74, "blast_delay_h": 3.0}
+          "perturbed_conditions": {
+            "rainfall_7d_mm": 140.0,
+            "equipment_availability": 0.74,
+            "blast_delay_h": 3.0
+          }
         }
       }
     }

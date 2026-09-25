@@ -1,8 +1,11 @@
-"""Human decision review log (append-only JSON Lines).
+"""LOCAL DEMO REVIEW LOG — human decision review records (append-only JSON Lines).
+
+This is a file on the server's local disk. On stateless/ephemeral hosting it is lost on
+restart; a production deployment would need durable managed storage for an audit history.
 
 Path: $GEOMN_DECISION_LOG (default data/runtime/decision_log.jsonl, git-ignored).
-Each record stores what the reviewer accepted and the decision the engine
-recomputes for the same mine at review time, so disagreements are visible.
+Each record stores the decision the reviewer saw (as submitted by the client),
+the reviewer's action and the assumptions; it does not re-run the engine.
 """
 
 from __future__ import annotations
@@ -53,7 +56,8 @@ def record(payload: dict) -> dict:
         "assumptions": payload.get("assumptions") or payload.get("conditions") or {},
         "notes": notes,
         "data_mode": "SIMULATED",
-        "note": "Human review record for a simulated decision-support output; not an operational instruction.",
+        "storage": "LOCAL_DEMO_FILE",
+        "note": "Local demo review record for a simulated decision-support output; not an operational instruction or a durable audit trail.",
     }
     p = log_path()
     with _LOCK:
@@ -77,4 +81,6 @@ def history(mine_id: str | None = None, limit: int = 50) -> dict:
         mid = demo_service.resolve(mine_id)["mine_id"]
         rows = [r for r in rows if r.get("mine_id") == mid]
     rows.reverse()
-    return {"history": rows[: max(1, min(int(limit), 500))], "count": len(rows)}
+    return {"history": rows[: max(1, min(int(limit), 500))], "count": len(rows), "storage": "LOCAL_DEMO_FILE",
+            "storage_note": ("Local demo review log (file on the API server's disk). Not a durable audit trail: "
+                             "it is lost when an ephemeral host restarts.")}

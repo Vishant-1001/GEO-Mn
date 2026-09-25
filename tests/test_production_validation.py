@@ -83,3 +83,31 @@ def test_manifest_documents_production_model():
     for k in ("model_version", "model_type", "features", "training_period", "validation_method", "validation_metrics",
               "data_provenance", "uncertainty_method", "applicability_method", "limitations"):
         assert k in man
+
+
+def test_calibration_window_precedes_test_and_offsets_are_frozen(report):
+    from ml.evaluate_production import calibration_offsets
+
+    bt = pd.read_csv(DATA_DIR / "production_backtest_forecasts.csv")
+    cal, test = bt[bt["window"] == "calibration"], bt[bt["window"] == "test"]
+    test_start = pd.Timestamp(report["protocol"]["test_window"][0])
+    # every calibration outcome period ends before the first test origin
+    assert pd.to_datetime(cal["period_end"]).max() < test_start
+    assert report["protocol"]["calibration_uses_test_data"] is False
+    # offsets stored with the model are exactly those recomputed from calibration rows only
+    offs = calibration_offsets(cal["actual"].to_numpy(), cal[["raw_p10", "raw_p50", "raw_p90"]].to_numpy())
+    stored = json.loads((MODELS_DIR / "production_calibration.json").read_text())["offsets_relative_to_raw_p50"]
+    for k in ("p10", "p50", "p90"):
+        assert offs[k] == pytest.approx(stored[k], abs=1e-4)  # CSV stores tonnes to 0.1 t
+    # test predictions = raw + frozen offsets (no re-estimation from test outcomes)
+    raw = test[["raw_p10", "raw_p50", "raw_p90"]].to_numpy()
+    adj = np.sort(np.clip(raw + np.column_stack([stored[k] * raw[:, 1] for k in ("p10", "p50", "p90")]), 0, None), axis=1)
+    assert np.allclose(adj, test[["p10", "p50", "p90"]].to_numpy(), atol=0.11)
+
+
+def test_final_artifact_is_declared_post_evaluation_refit(report):
+    man = json.loads((MODELS_DIR / "model_manifest.json").read_text())["production"]
+    proto = man["validation_protocol"]
+    assert proto["final_artifact_is_post_evaluation_refit"] is True
+    sel, cal, test = proto["selection_window"], proto["calibration_window"], proto["test_window"]
+    assert sel[1] <= cal[0] and cal[1] <= test[0]

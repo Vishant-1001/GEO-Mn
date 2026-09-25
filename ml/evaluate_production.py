@@ -8,8 +8,9 @@ Model
     prediction is multiplied back, so trees do not have to extrapolate a drifting
     production level.
   * Quantile recalibration: additive offsets (relative to the raw P50) chosen so
-    that the empirical quantile of PRIOR out-of-sample errors matches the nominal
-    level (a split-conformal style correction using only past information).
+    that the empirical quantile of out-of-sample errors in a dedicated CALIBRATION
+    window matches the nominal level (split-conformal style). The offsets are then
+    frozen and applied unchanged to the later test window.
 
 Backtest
   * Test origins: non-overlapping 7-day periods aligned to the forecast origin,
@@ -113,46 +114,39 @@ def point_metrics(y, p):
     }
 
 
-def backtest_predictions(frame, test_origins, candidate, monotonic=True, calib_from=None):
-    """Out-of-sample raw + recalibrated predictions for every test origin.
+def backtest_predictions(frame, test_origins, candidate, monotonic=True, offsets=None):
+    """Out-of-sample predictions for every test origin (expanding window, purged by one period).
 
-    Recalibration for a fold uses only out-of-sample errors from origins whose
-    outcome window ended before that fold (none -> zero offsets). If calib_from
-    is given, errors before that date are also eligible (from an earlier run).
+    `offsets` are FIXED quantile offsets estimated beforehand on a separate calibration
+    window; they are never re-estimated from the origins being evaluated. raw_* columns
+    are always the uncalibrated model output.
     """
     idx = frame.set_index("origin")
     test_origins = test_origins[test_origins.isin(idx.index)]
     folds = [test_origins[i:i + FOLD_PERIODS] for i in range(0, len(test_origins), FOLD_PERIODS)]
     rows = []
-    history = calib_from.copy() if calib_from is not None else pd.DataFrame()
     for k, fold in enumerate(folds):
         cutoff = fold[0] - pd.Timedelta(days=PERIOD_DAYS)
         train = frame[frame["origin"] <= cutoff]
-        model = QuantileForecaster(candidate["ratio"], candidate["params"], monotonic).fit(training_matrix(train), train["y"])
-        te = idx.loc[fold]
-        raw = model.predict_raw(te.reset_index())  # persistence inputs: origin-known only
-        oracle = model.predict_raw(training_matrix(te.reset_index()))  # diagnostic: true period conditions
-        prior = history[pd.to_datetime(history["origin"]) <= cutoff] if len(history) else history
-        if len(prior) >= 13:
-            model.offsets = calibration_offsets(prior["actual"].to_numpy(), prior[["raw_p10", "raw_p50", "raw_p90"]].to_numpy())
-        P = model.predict(te.reset_index())
-        fold_rows = []
+        model = QuantileForecaster(candidate["ratio"], candidate["params"], monotonic, offsets).fit(training_matrix(train), train["y"])
+        te = idx.loc[fold].reset_index()
+        raw = model.predict_raw(te)  # persistence inputs: origin-known only
+        P = model.predict(te)
+        oracle = model.predict_raw(training_matrix(te))  # diagnostic: true period conditions
         for j, o in enumerate(fold):
-            r = te.loc[o]
-            fold_rows.append({
+            r = te.iloc[j]
+            rows.append({
                 "fold": k, "origin": o.strftime("%Y-%m-%d"),
                 "period_end": (o + pd.Timedelta(days=PERIOD_DAYS - 1)).strftime("%Y-%m-%d"),
-                "train_rows": len(train), "actual": r["y"], "target": r["period_target"],
+                "train_rows": len(train), "train_last_origin": train["origin"].max().strftime("%Y-%m-%d"),
+                "actual": r["y"], "target": r["period_target"],
                 "raw_p10": raw[j, 0], "raw_p50": raw[j, 1], "raw_p90": raw[j, 2],
                 "p10": P[j, 0], "p50": P[j, 1], "p90": P[j, 2],
                 "oracle_p50": oracle[j, 1],
                 "naive": r["prod_lag1"], "ma4": r["prod_roll_mean_4"],
-                "calibrated": len(prior) >= 13,
+                "calibrated": offsets is not None,
             })
-        fold_rows = pd.DataFrame(fold_rows)
-        history = pd.concat([history, fold_rows], ignore_index=True)
-        rows.append(fold_rows)
-    return pd.concat(rows, ignore_index=True), len(folds)
+    return pd.DataFrame(rows), len(folds)
 
 
 def summarise(bt, shortfall_tol, method, n_folds):
@@ -194,7 +188,7 @@ def quantiles_validated(res, cov_tol=0.08, hit_tol=0.08):
     hits = res["quantile_hit_rate"]
     hit_ok = all(abs(hits[k] - q) <= hit_tol for k, q in zip(QKEYS, QUANTILES))
     return bool(cov_ok and hit_ok), {
-        "rule": f"|P10-P90 coverage - 0.80| <= {cov_tol} and every quantile hit rate within +/-{hit_tol} of nominal on the untouched test window",
+        "rule": f"|P10-P90 coverage - 0.80| <= {cov_tol} and every quantile hit rate within +/-{hit_tol} of nominal on the untouched test window (calibration offsets frozen before the test window)",
         "coverage_ok": bool(cov_ok),
         "hit_rates_ok": bool(hit_ok),
     }

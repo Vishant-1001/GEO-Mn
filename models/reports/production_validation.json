@@ -1,47 +1,69 @@
 {
   "model_version": "production-qgbm-1.0",
   "selected_configuration": "level_default",
+  "protocol": {
+    "training_window": {
+      "first_origin": "2021-03-26",
+      "rule": "expanding; each backtest fold trains only on origins whose outcome ends before the fold"
+    },
+    "selection_window": [
+      "2022-07-01",
+      "2023-07-01"
+    ],
+    "calibration_window": [
+      "2023-07-01",
+      "2024-07-01"
+    ],
+    "test_window": [
+      "2024-07-05",
+      "2026-09-24"
+    ],
+    "calibration_source": "out-of-sample raw quantile errors of the selected configuration on 52 calibration periods",
+    "calibration_uses_test_data": false,
+    "final_artifact": "POST-EVALUATION REFIT: selected configuration refit on all complete origins (through 2026-09-18) with the frozen calibration offsets. Reported test metrics come from the backtest, not from this refit.",
+    "final_artifact_is_post_evaluation_refit": true
+  },
   "selection_window": {
-    "start": "2023-07-01",
-    "end": "2024-07-01",
+    "start": "2022-07-01",
+    "end": "2023-07-01",
     "candidates": {
       "level_default": {
-        "p50_mae_raw": 867.3093651025598,
-        "baseline_previous_period_mae": 825.3596153846154,
-        "baseline_moving_average_4_mae": 902.306730769231,
-        "p10_p90_coverage_raw": 0.3076923076923077
+        "p50_mae_raw": 1029.17308095236,
+        "baseline_previous_period_mae": 1156.8169811320754,
+        "baseline_moving_average_4_mae": 1129.6490566037735,
+        "p10_p90_coverage_raw": 0.20754716981132076
       },
       "ratio_default": {
-        "p50_mae_raw": 924.2471242988746,
-        "baseline_previous_period_mae": 825.3596153846154,
-        "baseline_moving_average_4_mae": 902.306730769231,
-        "p10_p90_coverage_raw": 0.34615384615384615
+        "p50_mae_raw": 1073.7208911889825,
+        "baseline_previous_period_mae": 1156.8169811320754,
+        "baseline_moving_average_4_mae": 1129.6490566037735,
+        "p10_p90_coverage_raw": 0.24528301886792453
       },
       "ratio_regularised": {
-        "p50_mae_raw": 918.9292439028735,
-        "baseline_previous_period_mae": 825.3596153846154,
-        "baseline_moving_average_4_mae": 902.306730769231,
-        "p10_p90_coverage_raw": 0.46153846153846156
+        "p50_mae_raw": 1041.824411015998,
+        "baseline_previous_period_mae": 1156.8169811320754,
+        "baseline_moving_average_4_mae": 1129.6490566037735,
+        "p10_p90_coverage_raw": 0.41509433962264153
       },
       "ratio_strongly_regularised": {
-        "p50_mae_raw": 1004.7471727829795,
-        "baseline_previous_period_mae": 825.3596153846154,
-        "baseline_moving_average_4_mae": 902.306730769231,
-        "p10_p90_coverage_raw": 0.5769230769230769
+        "p50_mae_raw": 1102.8873251499897,
+        "baseline_previous_period_mae": 1156.8169811320754,
+        "baseline_moving_average_4_mae": 1129.6490566037735,
+        "p10_p90_coverage_raw": 0.49056603773584906
       }
     }
   },
   "backtest": {
-    "method": "rolling-origin expanding-window backtest, 13-period folds, purged by one period; configuration selected on 2023-07-01..2024-07-01 origins, metrics reported on origins >= 2024-07-01",
+    "method": "rolling-origin expanding-window backtest, 13-period folds, purged by one period; configuration selected on 2022-07-01..2023-07-01, quantile offsets calibrated on 2023-07-01..2024-07-01 and frozen, metrics reported on origins >= 2024-07-01",
     "test_start": "2024-07-05",
     "test_end": "2026-09-24",
     "n_folds": 9,
     "n_test_periods": 116,
     "model_p50": {
-      "mae": 838.7763995893728,
-      "rmse": 1142.1140027714648,
-      "r2": 0.5655480848664312,
-      "mape_pct": 9.876746936196335
+      "mae": 843.6158442882396,
+      "rmse": 1145.3802443963932,
+      "r2": 0.5630596222358244,
+      "mape_pct": 9.832026770668142
     },
     "baseline_previous_period": {
       "mae": 891.805172413793,
@@ -63,41 +85,41 @@
       "note": "NOT a forecast skill: uses the true period conditions. Shows how much of the error comes from unknown future conditions."
     },
     "pinball_loss": {
-      "p10": 236.87119922292013,
-      "p50": 419.3881997946864,
-      "p90": 230.06686470894218
+      "p10": 233.77282295515195,
+      "p50": 421.8079221441198,
+      "p90": 230.01318955112276
     },
     "quantile_hit_rate": {
-      "p10": 0.13793103448275862,
-      "p50": 0.5172413793103449,
-      "p90": 0.8879310344827587
+      "p10": 0.12931034482758622,
+      "p50": 0.39655172413793105,
+      "p90": 0.9051724137931034
     },
-    "p10_p90_coverage": 0.75,
+    "p10_p90_coverage": 0.7758620689655172,
     "p10_p90_coverage_before_recalibration": 0.27586206896551724,
     "p10_p90_nominal": 0.8,
-    "mean_interval_width_tonnes": 2500.2714327499516,
+    "mean_interval_width_tonnes": 2710.067333995104,
     "mean_actual_tonnes": 9607.90775862069,
     "shortfall_classification": {
       "definition": "shortfall event = actual < target x (1 - 0.05); predicted when P50 < target x (1 - 0.05)",
-      "precision": 0.847457627118644,
-      "recall": 0.8064516129032258,
-      "f1": 0.8264462809917354,
+      "precision": 0.8181818181818182,
+      "recall": 0.8709677419354839,
+      "f1": 0.84375,
       "events": 62,
-      "predicted_events": 59
+      "predicted_events": 66
     },
     "model_beats_best_baseline_mae": true,
-    "mae_improvement_vs_best_baseline_pct": 5.946228443695901
+    "mae_improvement_vs_best_baseline_pct": 5.403571275004201
   },
   "recalibration_offsets": {
-    "p10": -0.15197663824753624,
-    "p50": -0.029920375540436195,
-    "p90": 0.06964263774264427
+    "p10": -0.13470073200522367,
+    "p50": -0.042261453609118226,
+    "p90": 0.07213279818127272
   },
-  "quantiles_validated": true,
+  "quantiles_validated": false,
   "quantile_validation_rule": {
-    "rule": "|P10-P90 coverage - 0.80| <= 0.08 and every quantile hit rate within +/-0.08 of nominal on the untouched test window",
+    "rule": "|P10-P90 coverage - 0.80| <= 0.08 and every quantile hit rate within +/-0.08 of nominal on the untouched test window (calibration offsets frozen before the test window)",
     "coverage_ok": true,
-    "hit_rates_ok": true
+    "hit_rates_ok": false
   },
   "shap_supported": true,
   "data_mode": "SYNTHETIC",

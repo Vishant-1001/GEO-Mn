@@ -2,14 +2,18 @@
 
 Steps
   1. Build origin-level features from data/production_history.csv (daily).
-  2. Model SELECTION on an early window only (origins 2023-07-01 .. 2024-06-30):
-     rolling-origin backtest of each candidate configuration; lowest P50 MAE wins.
-  3. Model EVALUATION on the later, untouched window (origins >= 2024-07-01):
-     the selected configuration only, with quantile recalibration offsets that
-     use prior out-of-sample errors exclusively. Baselines on the same origins.
-  4. Quantile validity check (coverage / hit rates) on the untouched window.
-  5. Refit on every complete origin, recalibrate from all backtest errors, and
-     save models, feature schema, applicability reference and reports.
+  Windows are fixed in advance (origins, 7-day periods):
+     TRAIN        first origin .. (expanding; each fold trains only on earlier origins)
+     SELECTION    2022-07-01 .. 2023-06-30  choose the configuration (lowest raw P50 MAE)
+     CALIBRATION  2023-07-01 .. 2024-06-30  estimate quantile offsets once, then FREEZE them
+     TEST         2024-07-01 .. end         untouched evaluation with the frozen offsets
+  2. Rolling-origin backtest of each candidate on SELECTION only.
+  3. Out-of-sample predictions of the selected configuration on CALIBRATION -> offsets.
+  4. TEST evaluation with those frozen offsets; baselines on the same origins;
+     quantile validity check (coverage / hit rates).
+  5. Deployable artifact = POST-EVALUATION REFIT of the selected configuration on
+     every complete origin, carrying the frozen calibration offsets. The reported
+     metrics describe the backtest procedure, not this refit.
 
 Run:  python -m ml.train_production
 """
@@ -33,7 +37,8 @@ from ml.production_features import (
     build_training_frame, load_daily, training_matrix, weekly_origins,
 )
 
-SELECTION_START = "2023-07-01"
+SELECTION_START = "2022-07-01"
+CALIBRATION_START = "2023-07-01"
 TEST_START = "2024-07-01"
 MODEL_VERSION = "production-qgbm-1.0"
 
@@ -48,13 +53,14 @@ def main():
     tol = policy["shortfall_event_tolerance"]
     print(f"training frame: {len(frame)} origins, {frame['origin'].min().date()} .. {frame['origin'].max().date()}")
 
-    sel_origins = origins[(origins >= pd.Timestamp(SELECTION_START)) & (origins < pd.Timestamp(TEST_START))]
+    sel_origins = origins[(origins >= pd.Timestamp(SELECTION_START)) & (origins < pd.Timestamp(CALIBRATION_START))]
+    cal_origins = origins[(origins >= pd.Timestamp(CALIBRATION_START)) & (origins < pd.Timestamp(TEST_START))]
     test_origins = origins[origins >= pd.Timestamp(TEST_START)]
-    method = ("rolling-origin expanding-window backtest, 13-period folds, purged by one period; "
-              f"configuration selected on {SELECTION_START}..{TEST_START} origins, metrics reported on origins >= {TEST_START}")
+    method = ("rolling-origin expanding-window backtest, 13-period folds, purged by one period; configuration selected on "
+              f"{SELECTION_START}..{CALIBRATION_START}, quantile offsets calibrated on {CALIBRATION_START}..{TEST_START} "
+              f"and frozen, metrics reported on origins >= {TEST_START}")
 
     selection = {}
-    sel_rows = {}
     for name, cand in CANDIDATES.items():
         bt, nf = backtest_predictions(frame, sel_origins, cand)
         res = summarise(bt, tol, "selection window", nf)
@@ -62,31 +68,47 @@ def main():
                            "baseline_previous_period_mae": res["baseline_previous_period"]["mae"],
                            "baseline_moving_average_4_mae": res["baseline_moving_average_4"]["mae"],
                            "p10_p90_coverage_raw": res["p10_p90_coverage_before_recalibration"]}
-        sel_rows[name] = bt
         print(f"[selection:{name}] raw P50 MAE {selection[name]['p50_mae_raw']:.0f}  naive "
               f"{selection[name]['baseline_previous_period_mae']:.0f}  raw coverage {selection[name]['p10_p90_coverage_raw']:.2f}")
     selected = min(selection, key=lambda k: selection[k]["p50_mae_raw"])
     cand = CANDIDATES[selected]
     print(f"selected: {selected}")
 
-    bt_test, nf = backtest_predictions(frame, test_origins, cand, calib_from=sel_rows[selected])
+    bt_cal, _ = backtest_predictions(frame, cal_origins, cand)
+    offsets = calibration_offsets(bt_cal["actual"].to_numpy(), bt_cal[["raw_p10", "raw_p50", "raw_p90"]].to_numpy())
+    print(f"calibration offsets (from {len(bt_cal)} periods): {offsets}")
+
+    bt_test, nf = backtest_predictions(frame, test_origins, cand, offsets=offsets)
     res = summarise(bt_test, tol, method, nf)
     validated, rule = quantiles_validated(res)
     print(f"[test] P50 MAE {res['model_p50']['mae']:.0f}  naive {res['baseline_previous_period']['mae']:.0f}  "
           f"MA4 {res['baseline_moving_average_4']['mae']:.0f}  coverage {res['p10_p90_coverage']:.2f} "
           f"(raw {res['p10_p90_coverage_before_recalibration']:.2f})  hits {res['quantile_hit_rate']}  validated {validated}")
 
-    all_bt = pd.concat([sel_rows[selected].assign(window="selection"), bt_test.assign(window="test")], ignore_index=True)
+    all_bt = pd.concat([bt_cal.assign(window="calibration"), bt_test.assign(window="test")], ignore_index=True)
     model = QuantileForecaster(cand["ratio"], cand["params"], True).fit(training_matrix(frame), frame["y"])
-    offsets = calibration_offsets(all_bt["actual"].to_numpy(), all_bt[["raw_p10", "raw_p50", "raw_p90"]].to_numpy())
     for k in QKEYS:
         joblib.dump(model.models[k], MODELS_DIR / f"production_{k}.pkl")
     joblib.dump(list(FEATURE_COLUMNS), MODELS_DIR / "production_feature_columns.pkl")
+    protocol = {
+        "training_window": {"first_origin": str(frame["origin"].min().date()),
+                            "rule": "expanding; each backtest fold trains only on origins whose outcome ends before the fold"},
+        "selection_window": [SELECTION_START, CALIBRATION_START],
+        "calibration_window": [CALIBRATION_START, TEST_START],
+        "test_window": [res["test_start"], res["test_end"]],
+        "calibration_source": f"out-of-sample raw quantile errors of the selected configuration on {len(bt_cal)} calibration periods",
+        "calibration_uses_test_data": False,
+        "final_artifact": ("POST-EVALUATION REFIT: selected configuration refit on all complete origins "
+                           f"(through {frame['origin'].max().date()}) with the frozen calibration offsets. "
+                           "Reported test metrics come from the backtest, not from this refit."),
+        "final_artifact_is_post_evaluation_refit": True,
+    }
     save_json(MODELS_DIR / "production_calibration.json", {
         "model_version": MODEL_VERSION, "configuration": selected, "ratio_target": cand["ratio"],
         "ratio_base_feature": "prod_roll_mean_4" if cand["ratio"] else None, "params": cand["params"],
         "offsets_relative_to_raw_p50": offsets,
-        "offsets_estimated_from": f"{len(all_bt)} out-of-sample backtest periods",
+        "offsets_estimated_from": protocol["calibration_source"],
+        "calibration_window": protocol["calibration_window"],
     })
     mono, bt = True, all_bt
 
@@ -116,7 +138,8 @@ def main():
     report = {
         "model_version": MODEL_VERSION,
         "selected_configuration": selected,
-        "selection_window": {"start": SELECTION_START, "end": TEST_START, "candidates": selection},
+        "protocol": protocol,
+        "selection_window": {"start": SELECTION_START, "end": CALIBRATION_START, "candidates": selection},
         "backtest": res,
         "recalibration_offsets": offsets,
         "quantiles_validated": validated,
@@ -148,6 +171,7 @@ def main():
         "missing_value_rule": "forecast refused (HTTP 503/400) if fewer than 84 days of history precede the origin; no imputation",
         "training_period": {"first_origin": str(frame["origin"].min().date()), "last_origin": str(frame["origin"].max().date()),
                             "origins": int(len(frame))},
+        "validation_protocol": protocol,
         "validation_method": res["method"],
         "validation_metrics": {
             "p50": res["model_p50"],
@@ -164,9 +188,9 @@ def main():
             "n_test_periods": res["n_test_periods"],
         },
         "quantiles_validated": validated,
-        "uncertainty_method": ("direct quantile regression (P10/P50/P90) + additive recalibration offsets (relative to P50) "
-                               "estimated from out-of-sample backtest errors; crossing repaired by sorting; "
-                               "calibration checked on the untouched test window"),
+        "uncertainty_method": ("direct quantile regression (P10/P50/P90) + additive offsets (relative to P50) estimated once on "
+                               "the calibration window and frozen; crossing repaired by sorting; coverage checked on the "
+                               "untouched test window"),
         "applicability_method": "IsolationForest on training operating-state + weather features, thresholds at training 1st/5th score percentiles, plus per-feature range checks",
         "explanation_method": "SHAP TreeExplainer on the P50 model (model contributions in tonnes; associative, not causal)" if shap_ok else "unavailable",
         "data_provenance": {

@@ -1,6 +1,6 @@
 {
   "_note": "PROJECT DEFAULT scenario and action definitions for simulation. Effects are applied to the model's operating-state inputs; the production response is a MODEL ESTIMATE, not a guaranteed recovery. Lost hours are always re-derived from availability (lost = scheduled_hours x (1 - availability)) and split between downtime and maintenance in their existing proportion, matching the operating records.",
-  "version": "recovery-1.0",
+  "version": "recovery-1.1",
   "disruptions": {
     "NORMAL": {
       "description": "Current operating state, no additional disruption.",
@@ -76,5 +76,13 @@
     "blast_delay_h": 0.0,
     "haulage_delay_h": 0.0,
     "truck_count": 0.0
+  },
+  "intervention_burden": {
+    "_note": "PROJECT DECISION-POLICY WEIGHTS, not industry cost data. Equal weights: each intervention counts as one unit of planning/crew/coordination effort. Used only as a tie-break after residual-gap objectives are equivalent within tolerance.",
+    "weights": {
+      "EQUIPMENT_RECOVERY": 1.0,
+      "SCHEDULE_ADJUSTMENT": 1.0,
+      "BLAST_DRILL_DELAY_REDUCTION": 1.0
+    }
   }
 }

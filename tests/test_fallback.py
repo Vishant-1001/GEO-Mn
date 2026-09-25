@@ -87,3 +87,29 @@ def test_demo_e_supply_command(client):
     res = d["satellite_fallback_demo"]["results"]
     assert res[0]["source_mode"] == "CACHED" and res[0]["fallback_used"] is True
     assert res[1]["error"] == "PREDICTION_UNAVAILABLE"
+
+
+def test_fallback_distance_fields(exploration_svc):
+    d = exploration_svc.predict(*INSIDE)
+    assert d["fallback_used"] is True
+    assert d["fallback_distance_km"] == d["cache_distance_km"]
+    assert d["max_supported_fallback_distance_km"] == exploration_svc.cfg["cache_max_distance_km"]
+
+
+def test_fallback_exactly_at_threshold_is_allowed(exploration_svc, monkeypatch):
+    lat, lon = 20.75 - 0.012, 79.505   # just south of the grid edge
+    _, dist = exploration_svc.nearest_cell(lat, lon)
+    monkeypatch.setitem(exploration_svc.cfg, "cache_max_distance_km", dist)
+    d = exploration_svc.predict(lat, lon)
+    assert d["source_mode"] == "CACHED" and d["fallback_distance_km"] == pytest.approx(dist, abs=1e-3)
+    monkeypatch.setitem(exploration_svc.cfg, "cache_max_distance_km", dist - 0.01)
+    with pytest.raises(ApiError) as e:
+        exploration_svc.predict(lat, lon)
+    assert e.value.code == "PREDICTION_UNAVAILABLE"
+
+
+def test_invalid_coordinates(exploration_svc):
+    for lat, lon in ((91, 80), (21, 181), (float("nan"), 80)):
+        with pytest.raises(ApiError) as e:
+            exploration_svc.predict(lat, lon)
+        assert e.value.status == 400

@@ -11,9 +11,13 @@
     "l2_regularization": 1.0
   },
   "offsets_relative_to_raw_p50": {
-    "p10": -0.15197663824753624,
-    "p50": -0.029920375540436195,
-    "p90": 0.06964263774264427
+    "p10": -0.13470073200522367,
+    "p50": -0.042261453609118226,
+    "p90": 0.07213279818127272
   },
-  "offsets_estimated_from": "168 out-of-sample backtest periods"
+  "offsets_estimated_from": "out-of-sample raw quantile errors of the selected configuration on 52 calibration periods",
+  "calibration_window": [
+    "2023-07-01",
+    "2024-07-01"
+  ]
 }

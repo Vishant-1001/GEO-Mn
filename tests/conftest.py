@@ -19,7 +19,10 @@ def client(tmp_path_factory):
 
     import main
 
-    return TestClient(main.app)
+    # Context manager => the client's portal/event-loop thread is shut down after the session,
+    # so the full pytest process exits cleanly.
+    with TestClient(main.app) as c:
+        yield c
 
 
 @pytest.fixture
