@@ -1,0 +1,31 @@
+{
+  "mrds": {
+    "retrieved_utc": "2026-09-25T16:51:07+00:00",
+    "url": "https://mrdata.usgs.gov/services/wfs/mrds?service=WFS&version=1.1.0&request=GetFeature&typeName=mrds&bbox=78.5,20.75,81.0,22.75&maxFeatures=5000",
+    "mrds_records_in_query_bbox": 89,
+    "mn_records": 80,
+    "mn_records_in_study_area": 80,
+    "positives_used": 73,
+    "excluded": {
+      "POSITIVE": 73,
+      "EXCLUDED_DUPLICATE_LOCATION": 4,
+      "EXCLUDED_REGIONAL_RECORD": 3
+    }
+  },
+  "grid": {
+    "retrieved_utc": "2026-09-25T16:51:14+00:00",
+    "cells": 50000,
+    "cells_complete": 49922,
+    "extraction_seconds": 259.6
+  },
+  "geology": {
+    "retrieved_utc": "2026-09-25T17:06:19+00:00",
+    "api": "https://macrostrat.org/api/v2/geologic_units/map (scale=tiny)",
+    "underlying_map": "Chorlton, L.B. (2007) Generalized geology of the world, Geological Survey of Canada Open File 5529, doi:10.4095/223767",
+    "license": "CC-BY 4.0",
+    "lattice_step_deg": 0.1,
+    "cells": 500,
+    "cells_with_unit": 500,
+    "note": "Small-scale (world) map: unit boundaries are uncertain by kilometres to tens of kilometres. Used only as geological context for evidence levels, not as a model feature."
+  }
+}

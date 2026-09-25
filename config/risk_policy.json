@@ -1,0 +1,20 @@
+{
+  "_note": "DEMONSTRATION POLICY. Thresholds are project defaults chosen for the GEO-MN prototype. They are configurable and are NOT industry standards.",
+  "version": "risk-policy-1.0",
+  "risk_basis": "P50 shortfall as a percentage of the period target",
+  "risk_bands": [
+    {"state": "LOW", "max_gap_pct": 2.0},
+    {"state": "MODERATE", "max_gap_pct": 8.0},
+    {"state": "HIGH", "max_gap_pct": 20.0},
+    {"state": "CRITICAL", "max_gap_pct": null}
+  ],
+  "escalate_one_band_if_p10_gap_pct_above": 25.0,
+  "shortfall_event_tolerance": 0.05,
+  "decision": {
+    "materiality_gap_pct": 2.0,
+    "strategic_worst_case_tolerance_pct": 8.0,
+    "tie_tolerance_pct_of_target": 0.5,
+    "strategic_periods": 13,
+    "min_target_applicability": "MODERATE"
+  }
+}

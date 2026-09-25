@@ -1,0 +1,29 @@
+{
+  "_note": "Deterministic demonstration configuration. DEMO_MINE is a SYNTHETIC mine: its operational records are generated (seed 42) and are NOT MOIL data. Only its weather inputs are real public reanalysis for the stated coordinate.",
+  "version": "demo-1.0",
+  "seed": 42,
+  "history_start": "2021-01-01",
+  "history_end": "2026-09-24",
+  "forecast_origin": "2026-09-25",
+  "period_days": 7,
+  "mines": {
+    "DEMO_MINE": {
+      "display_name": "Demonstration mine (synthetic operations)",
+      "lat": 21.7,
+      "lon": 79.95,
+      "data_mode": "SYNTHETIC",
+      "default_horizon": "STRATEGIC",
+      "fleet_max_trucks": 24,
+      "max_equipment_availability": 0.95,
+      "scheduled_hours_per_day": 20.0
+    }
+  },
+  "synthetic_generator": {
+    "base_capacity_tpd": 1850.0,
+    "capacity_trend_per_year": -0.012,
+    "base_target_tpd": 1500.0,
+    "target_growth_per_year": 0.015,
+    "monsoon_target_factor": 0.9,
+    "noise_sd": 0.06
+  }
+}

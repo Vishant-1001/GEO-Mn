@@ -1,12 +1,18 @@
 services:
   - type: web
-    name: manganese-ai-platform
+    name: geo-mn
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      - key: GEE_KEY_JSON
-        sync: false  # Set manually in Render dashboard
+      - key: OMP_NUM_THREADS
+        value: "2"
+      # Same-origin frontend needs no CORS. Set explicit origins only if another site calls the API.
+      - key: GEOMN_CORS_ORIGINS
+        value: ""
+      # 1 = live Planetary Computer coordinate queries (slow, ~20-40 s); 0 = cached grid only.
+      - key: GEOMN_LIVE_EO
+        value: "1"
     plan: free

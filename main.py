@@ -1,641 +1,398 @@
-"""
-FastAPI backend for SIH26009 — Manganese Reserve & Production Shortfall Prediction
+"""GEO-MN API — uncertainty-aware manganese supply-continuity decision support (SIH 2026, PS 26009).
+
+Modular monolith: routes here, logic in services/, training pipeline in ml/.
+
+Decision loop: forecast -> uncertainty -> model contributions -> robust recovery ->
+residual gap -> horizon gate -> (strategic) exploration contingency -> target
+priority -> why this target now -> decision flip -> reconciliation.
+
+Environment
+  PORT                 server port (default 8000)
+  GEOMN_CORS_ORIGINS   comma-separated allowed origins for cross-origin use
+                       (default: none — the frontend is served same-origin)
+  GEOMN_LIVE_EO        1/0 enable live coordinate feature extraction (default 1)
+  GEOMN_DECISION_LOG   path of the decision review log (JSON Lines)
 """
 
-import os
+from __future__ import annotations
+
 import json
-import glob
-import joblib
-import numpy as np
-import pandas as pd
-from fastapi import FastAPI, HTTPException
+import logging
+import os
+from functools import lru_cache
+from typing import Any, Optional
+
+from fastapi import FastAPI, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from typing import Literal
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from pydantic import BaseModel, Field
+from services import contingency_service, decision_service, demo_service, recovery_service, trust_service
+from services.common import API_VERSION, ROOT, ApiError, load_manifest
+from services.exploration_service import get_service as exploration
+from services.health_service import health as health_status
+from services.production_service import get_service as production
 
-# Defensive SHAP import — if this fails to install or import, the rest of the
-# app (reserve prediction, shortfall prediction, recommendations) must still work.
-try:
-    import shap
-    SHAP_AVAILABLE = True
-except ImportError:
-    SHAP_AVAILABLE = False
-    print("WARNING: shap not installed — root cause analysis will be disabled.")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("geomn")
 
-# Defensive Earth Engine import + init — live satellite lookups are a bonus feature.
-# Credentials are accepted two ways, checked in order:
-#   1. GEE_KEY_JSON  env var  -> paste the ENTIRE service-account JSON as the value
-#   2. a key file             -> GEE_KEY_PATH, else Render's /etc/secrets/gee_key.json
-# The env var route avoids every filesystem/mount failure mode. The service
-# account email is read FROM the key, so it can never mismatch a hardcoded string.
-EE_AVAILABLE = False
-EE_ERROR = None
-SERVICE_ACCOUNT_EMAIL = None
-EE_KEY_PATH = os.environ.get("GEE_KEY_PATH", "/etc/secrets/gee_key.json")
-
-try:
-    import ee
-
-    _key_json = os.environ.get("GEE_KEY_JSON")
-    _source = "GEE_KEY_JSON env var"
-
-    if not _key_json and os.path.exists(EE_KEY_PATH):
-        with open(EE_KEY_PATH) as _fh:
-            _key_json = _fh.read()
-        _source = EE_KEY_PATH
-
-    if not _key_json:
-        EE_ERROR = (
-            f"No credentials found. GEE_KEY_JSON is unset and {EE_KEY_PATH} does not exist. "
-            f"/etc/secrets currently contains: {glob.glob('/etc/secrets/*')}"
-        )
-        print("WARNING:", EE_ERROR)
-    else:
-        _info = json.loads(_key_json)
-        SERVICE_ACCOUNT_EMAIL = _info["client_email"]
-        _ee_credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT_EMAIL, key_data=_key_json)
-        ee.Initialize(_ee_credentials)
-        EE_AVAILABLE = True
-        print(f"Earth Engine initialized as {SERVICE_ACCOUNT_EMAIL} (via {_source}) — live satellite lookups enabled.")
-
-except Exception as e:
-    EE_AVAILABLE = False
-    EE_ERROR = f"{type(e).__name__}: {e}"
-    print(f"WARNING: Earth Engine init failed: {EE_ERROR}")
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-app = FastAPI(title="Manganese Reserve & Shortfall API", version="1.1")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = FastAPI(
+    title="GEO-MN Supply-Continuity Decision Support API",
+    version=API_VERSION,
+    description="Relative manganese prospectivity, production-risk forecasting, robust recovery and "
+                "exploration-contingency decisions. Operational data are SYNTHETIC; see /api/trust/provenance.",
 )
 
-# ---------------------------------------------------------------------------
-# Load artifacts once at startup
-# ---------------------------------------------------------------------------
+_origins = [o.strip() for o in os.environ.get("GEOMN_CORS_ORIGINS", "").split(",") if o.strip()]
+if _origins:
+    app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["GET", "POST"],
+                       allow_headers=["Content-Type"], allow_credentials=False)
 
-try:
-    reserve_cache = pd.read_csv(os.path.join(BASE_DIR, "reserve_cache.csv"))
-except FileNotFoundError:
-    reserve_cache = None
-    print("WARNING: reserve_cache.csv not found — /predict_reserve will fail.")
 
 # ---------------------------------------------------------------------------
-# Relative prospectivity ranking
-#
-# The exploration classifier's absolute probabilities are not well calibrated:
-# its negatives were sampled across a far wider terrain envelope than central
-# India, so it partly separates "plateau terrain" rather than "manganese".
-# Its ORDERING still carries the spectral signal, so we surface a percentile
-# rank against the analyzed belt instead of an absolute probability. This is
-# also how prospectivity maps are normally presented in exploration practice:
-# ranked drill targets, not calibrated likelihoods.
+# Error handling — structured bodies, never stack traces
 # ---------------------------------------------------------------------------
 
-_RANK_REF = (
-    np.sort(reserve_cache["probability"].values)
-    if reserve_cache is not None and len(reserve_cache) > 0
-    else None
-)
+@app.exception_handler(ApiError)
+async def _api_error(_: Request, exc: ApiError):
+    return JSONResponse(status_code=exc.status, content={"error": exc.code, "message": exc.message, **exc.extra})
 
 
-def prospectivity_rank(p):
-    """Percentile (0-100) of p within the analyzed Central Indian belt."""
-    if _RANK_REF is None or p is None:
-        return None
-    return round(100.0 * float(np.searchsorted(_RANK_REF, p, side="right")) / len(_RANK_REF), 1)
+@app.exception_handler(RequestValidationError)
+async def _validation_error(_: Request, exc: RequestValidationError):
+    details = [{"field": ".".join(str(p) for p in e.get("loc", []) if p != "body"), "message": e.get("msg")}
+               for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"error": "VALIDATION_ERROR",
+                                                  "message": "Request body or parameters failed validation.",
+                                                  "details": details})
 
 
-def rank_tier(r):
-    if r is None:
-        return "RANK UNAVAILABLE"
-    if r >= 90:
-        return "PRIORITY 1 // TOP DECILE DRILL TARGET"
-    if r >= 75:
-        return "PRIORITY 2 // HIGH RANK"
-    if r >= 50:
-        return "PRIORITY 3 // MODERATE RANK"
-    if r >= 25:
-        return "LOW RANK // DEPRIORITIZE"
-    return "VERY LOW RANK // NOT RECOMMENDED"
+@app.exception_handler(StarletteHTTPException)
+async def _http_error(_: Request, exc: StarletteHTTPException):
+    code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}.get(exc.status_code, "HTTP_ERROR")
+    return JSONResponse(status_code=exc.status_code, content={"error": code, "message": str(exc.detail)})
 
 
-try:
-    production_model = joblib.load(os.path.join(BASE_DIR, "production_model.pkl"))
-    prod_feature_cols = joblib.load(os.path.join(BASE_DIR, "prod_feature_columns.pkl"))
-except FileNotFoundError:
-    production_model = None
-    prod_feature_cols = None
-    print("WARNING: production_model.pkl or prod_feature_columns.pkl not found — /predict_shortfall will fail.")
+@app.exception_handler(Exception)
+async def _unhandled(_: Request, exc: Exception):
+    log.exception("unhandled error: %s", type(exc).__name__)
+    return JSONResponse(status_code=500, content={"error": "INTERNAL_ERROR", "message": "Unexpected server error."})
 
-try:
-    manganese_model = joblib.load(os.path.join(BASE_DIR, "manganese_model.pkl"))
-    reserve_feature_cols = joblib.load(os.path.join(BASE_DIR, "feature_columns.pkl"))
-    X_train_reserve = joblib.load(os.path.join(BASE_DIR, "X_train.pkl"))
-    X_train_means = X_train_reserve.mean()
-except FileNotFoundError:
-    manganese_model = None
-    reserve_feature_cols = None
-    X_train_means = None
-    print("WARNING: manganese_model.pkl / feature_columns.pkl / X_train.pkl not found — live reserve scoring disabled.")
-
-# Build the SHAP explainer once at startup (expensive to rebuild per-request)
-shap_explainer = None
-if SHAP_AVAILABLE and production_model is not None:
-    try:
-        shap_explainer = shap.TreeExplainer(production_model)
-    except Exception as e:
-        print(f"WARNING: failed to build SHAP explainer — root cause analysis disabled: {e}")
-        shap_explainer = None
 
 # ---------------------------------------------------------------------------
-# Request schemas
+# Request schemas (unknown fields are ignored so the frontend can evolve)
 # ---------------------------------------------------------------------------
 
-class ReserveRequest(BaseModel):
-    lat: float = Field(..., description="Latitude, e.g. 21.81")
-    lon: float = Field(..., description="Longitude, e.g. 80.23")
-
-class ShortfallRequest(BaseModel):
-    """Operating state for one shift.
-
-    Only constraint is non-negativity, and only where a negative value is
-    physically meaningless (you cannot have -3 trucks or -5 mm of rain).
-    Temperature is unbounded because it can legitimately go below zero.
-    No upper bounds: this is a risk predictor, and capping inputs would stop
-    it forecasting exactly the extreme scenarios it exists to warn about.
-    """
-    equipment_availability: float = Field(..., ge=0)
-    equipment_downtime: float = Field(..., ge=0)
-    maintenance_hours: float = Field(..., ge=0)
-    drilling_delay: float = Field(..., ge=0)
-    blast_delay: float = Field(..., ge=0)
-    rainfall: float = Field(..., ge=0)
-    soil_moisture: float = Field(..., ge=0)
-    temperature: float
-    truck_count: int = Field(..., ge=0)
-    haulage_delay: float = Field(..., ge=0)
-    target_production: float = Field(..., ge=0)
+class _Loose(BaseModel):
+    model_config = ConfigDict(extra="ignore")
 
 
-class SimulateRequest(BaseModel):
-    """Two full operating states.
+class PredictRequest(_Loose):
+    lat: float = Field(..., description="Latitude in decimal degrees")
+    lon: float = Field(..., description="Longitude in decimal degrees")
+    mode: Optional[str] = Field("AUTO", description="AUTO | LIVE_ONLY | CACHED_ONLY | SIMULATE_LIVE_FAILURE")
 
-    There is no mode field. All three framings — what-if, optimisation and
-    stress test — are returned together, because they were never separate
-    calculations: the same model scores both sides regardless. Making the user
-    pick one just hid two thirds of the reading.
-    """
-    baseline: ShortfallRequest
-    scenario: ShortfallRequest
+
+class ForecastRequest(_Loose):
+    mine_id: str = "DEMO_MINE"
+    forecast_origin: Optional[str] = None
+    horizon_days: Optional[int] = 7
+    target_tonnes: Optional[float] = None
+    base_state: Optional[dict[str, Any]] = None
+    conditions: Optional[dict[str, Any]] = None
+
+
+class ScenarioRequest(_Loose):
+    """Shared by recovery / contingency. Accepts both the documented contract and the
+    compact frontend form ({scenario, actions, conditions})."""
+    mine_id: str = "DEMO_MINE"
+    target_tonnes: Optional[float] = None
+    forecast_origin: Optional[str] = None
+    base_state: Optional[dict[str, Any]] = None
+    conditions: Optional[dict[str, Any]] = None
+    disruption_scenarios: Optional[list[str]] = None
+    action_portfolios: Optional[list[Any]] = None
+    actions: Optional[list[str]] = None
+    scenario: Optional[str] = None
+    horizon: Optional[str] = None
+    decision_horizon: Optional[str] = None
+    forecast: Optional[dict[str, Any]] = None
+    recovery: Optional[dict[str, Any]] = None
+
+
+class FlipRequest(_Loose):
+    mine_id: str = "DEMO_MINE"
+    horizon: Optional[str] = None
+    scenario: Optional[str] = None
+    perturbed_scenario: Optional[str] = None
+    actions: Optional[list[str]] = None
+    target_tonnes: Optional[float] = None
+    baseline_conditions: Optional[dict[str, Any]] = None
+    perturbed_conditions: Optional[dict[str, Any]] = None
+
+
+class ReviewRequest(_Loose):
+    mine_id: str = "DEMO_MINE"
+    decision_state: str
+    action: Optional[str] = "ACCEPT"
+    target_id: Optional[str] = None
+    next_target: Optional[str] = None
+    decision_horizon: Optional[str] = None
+    selected_portfolio: Optional[str] = None
+    scenario: Optional[str] = None
+    assumptions: Optional[dict[str, Any]] = None
+    conditions: Optional[dict[str, Any]] = None
+    notes: Optional[str] = None
+
+
+def _scenario_kwargs(r: ScenarioRequest) -> dict:
+    return dict(target_tonnes=r.target_tonnes, base_state=r.base_state, conditions=r.conditions,
+                forecast_origin=r.forecast_origin, disruption_scenarios=r.disruption_scenarios,
+                action_portfolios=r.action_portfolios, actions=r.actions, scenario=r.scenario)
+
 
 # ---------------------------------------------------------------------------
-# AI/ML Helper Logic
+# Cached deterministic computations (same inputs -> same outputs)
 # ---------------------------------------------------------------------------
 
-# Thresholds are calibrated to what this model can actually output.
-# Measured range on the production regressor: best case 7.9% shortfall
-# (efficiency ceiling 0.9213), worst case 61.4%. The previous 5/15 cut-offs
-# made LOW mathematically unreachable and lumped everything above 15% into
-# HIGH, so a 16% shift and a 61% shift looked identical.
-RISK_BANDS = [
-    (10.0, "LOW"),
-    (18.0, "MEDIUM"),
-    (30.0, "HIGH"),
-]
-RISK_CRITICAL = "CRITICAL"
+@lru_cache(maxsize=64)
+def _contingency_cached(mine_id: str, horizon: Optional[str]) -> str:
+    return json.dumps(contingency_service.evaluate(mine_id, horizon))
 
 
-def classify_risk(shortfall_percentage):
-    """Assigns risk tier based on shortfall percentage."""
-    for ceiling, tier in RISK_BANDS:
-        if shortfall_percentage <= ceiling:
-            return tier
-    return RISK_CRITICAL
-
-def get_live_satellite_features(lat, lon):
-    """
-    Live Earth Engine extraction for a single coordinate. Mirrors the exact
-    feature set the exploration model was trained on: NDVI, iron oxide index,
-    clay hydroxyl index, elevation, slope, and MODIS land surface temperature.
-    Raises on any failure — caller is responsible for falling back.
-    """
-    point = ee.Geometry.Point([lon, lat])
-
-    s2 = (
-        ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-        .filterBounds(point)
-        .filterDate("2024-01-01", "2024-12-31")
-        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 30))
-        .median()
-    )
-    ndvi = s2.normalizedDifference(["B8", "B4"]).rename("NDVI")
-    iron_oxide = s2.select("B4").divide(s2.select("B2")).rename("Iron_Oxide_Index")
-    clay_index = s2.select("B11").divide(s2.select("B12")).rename("Clay_Hydroxyl_Index")
-
-    dem = ee.Image("USGS/SRTMGL1_003")
-    elevation = dem.rename("elevation")
-    slope = ee.Terrain.slope(dem).rename("slope")
-
-    lst = (
-        ee.ImageCollection("MODIS/061/MOD11A2")
-        .filterDate("2024-01-01", "2024-12-31")
-        .select("LST_Day_1km")
-        .mean()
-    )
-
-    combined = ndvi.addBands(iron_oxide).addBands(clay_index).addBands(elevation).addBands(slope).addBands(lst)
-    result = combined.reduceRegion(reducer=ee.Reducer.first(), geometry=point, scale=100).getInfo()
-    return result
-
-def score_reserve_live(lat, lon):
-    """
-    Runs a real, live satellite extraction + model scoring for an arbitrary
-    coordinate. Raises on any failure (missing bands, no cloud-free image,
-    EE quota, etc.) so the caller can fall back to the cached grid.
-    """
-    feats = get_live_satellite_features(lat, lon)
-    # reindex (not [cols]) so bands EE omitted entirely become NaN instead of
-    # raising KeyError. A tile with no cloud-free 2024 pass returns no NDVI /
-    # Iron_Oxide / Clay keys at all; subscripting would throw before fillna ran.
-    input_row = pd.DataFrame([feats]).reindex(columns=reserve_feature_cols)
-    # Fill any missing bands (e.g. no cloud-free Sentinel-2 pass for this tile)
-    # with the training set's mean for that feature, same as during training.
-    input_row = input_row.fillna(X_train_means)
-    prob = float(manganese_model.predict_proba(input_row)[0][1])
-    return prob
-
-def get_root_causes(input_row_df, top_n=4):
-    """SHAP breakdown to explain why production fell short. Fails safe."""
-    if not SHAP_AVAILABLE or shap_explainer is None:
-        return {"Status": "Root cause analysis unavailable on this deployment."}
-    try:
-        shap_values = shap_explainer.shap_values(input_row_df)
-        values = shap_values[0] if isinstance(shap_values, list) else shap_values[0]
-        feature_names = input_row_df.columns
-
-        negative_impacts = {}
-        for feat, val in zip(feature_names, values):
-            if val < 0:
-                negative_impacts[feat] = abs(val)
-
-        total_loss = sum(negative_impacts.values())
-        if total_loss == 0:
-            return {"Status": "No major negative drivers identified."}
-
-        breakdown = {
-            feat: round((impact / total_loss) * 100, 1)
-            for feat, impact in sorted(negative_impacts.items(), key=lambda x: x[1], reverse=True)[:top_n]
-        }
-        return breakdown
-    except Exception as e:
-        return {"Status": f"Root cause calculation failed: {str(e)}"}
-
-# A shift is assumed to be 8 hours. Availability is the fraction of that time
-# the fleet is actually productive, so it cannot exceed the time left after
-# downtime and maintenance are subtracted. We warn rather than reject: the
-# figures are operator estimates and may legitimately be rough.
-SHIFT_HOURS = 8.0
+def _contingency_default(mine_id: str, horizon: Optional[str] = None) -> dict:
+    sc = demo_service.resolve(mine_id)
+    h = demo_service.normalise_horizon(horizon, sc.get("horizon", "STRATEGIC"))
+    return json.loads(_contingency_cached(sc["mine_id"], h))
 
 
-def check_equipment_consistency(req):
-    """Flags physically contradictory equipment inputs. Never blocks."""
-    warnings = []
-    lost = req.equipment_downtime + req.maintenance_hours
+# ---------------------------------------------------------------------------
+# Health / meta
+# ---------------------------------------------------------------------------
 
-    if lost > SHIFT_HOURS:
-        warnings.append(
-            f"Downtime ({req.equipment_downtime:g} h) plus maintenance "
-            f"({req.maintenance_hours:g} h) is {lost:g} h, longer than the "
-            f"{SHIFT_HOURS:g} h shift."
-        )
-    else:
-        implied = round(1.0 - lost / SHIFT_HOURS, 3)
-        if req.equipment_availability > implied + 0.01:
-            warnings.append(
-                f"Availability of {req.equipment_availability:.0%} is not possible with "
-                f"{lost:g} h lost in an {SHIFT_HOURS:g} h shift — the most it could be "
-                f"is {implied:.0%}."
-            )
-    return warnings
+@app.get("/api/health")
+def api_health():
+    return health_status()
 
 
-NO_RISK_MESSAGE = "No significant risk factors detected — production on track."
+@app.get("/api/model/manifest")
+def model_manifest():
+    return load_manifest()
 
 
-def build_recommendations(req: ShortfallRequest, shortfall_pct: float):
-    """Returns ONLY genuinely triggered risk conditions — may be empty.
-
-    The 'all clear' message is deliberately NOT added here. Callers append it
-    for display, so that len() of this list is the true count of triggered
-    conditions. Previously the fallback message was inside the list, which made
-    risk_flags report 1 even when nothing was wrong.
-    """
-    recommendations = []
-    if req.equipment_availability < 0.75:
-        recommendations.append("Equipment availability is low — schedule preventive maintenance.")
-    if req.rainfall > 20:
-        recommendations.append("High rainfall detected — consider reinforcing drainage.")
-    if (req.drilling_delay + req.blast_delay) > 3:
-        recommendations.append("Drilling/blasting delays are significant — review supply chain.")
-    if req.truck_count < 10:
-        recommendations.append("Truck count is low — consider reallocating haulage vehicles.")
-    if req.haulage_delay > 1.0:
-        recommendations.append("Haulage delay is elevated — inspect haul road conditions and dispatch routing.")
-    if shortfall_pct > 30:
-        recommendations.append("Projected shortfall exceeds 30% — CRITICAL: halt schedule and escalate to mine manager.")
-    elif shortfall_pct > 18:
-        recommendations.append("Projected shortfall exceeds 18% — escalate to site supervisor.")
-    return recommendations
+@app.get("/api/demo/scenarios")
+def demo_scenarios():
+    s = demo_service.scenarios()
+    return {"note": s["_note"], "version": s["version"],
+            "scenarios": [{"mine_id": k, **{kk: vv for kk, vv in v.items() if kk != "expected_state"}}
+                          for k, v in s["scenarios"].items()]}
 
 
-def evaluate_scenario(req: ShortfallRequest):
-    """Single source of truth for scoring one operating state.
+# ---------------------------------------------------------------------------
+# Supply command (one-screen summary of the whole decision loop)
+# ---------------------------------------------------------------------------
 
-    Used by /predict_shortfall and twice by /simulate, so the baseline and the
-    scenario can never drift apart through duplicated arithmetic.
-    """
-    # target_production is excluded from the model row — the model predicts an
-    # efficiency ratio from operational conditions only.
-    row = pd.DataFrame([req.model_dump()])[prod_feature_cols]
-    efficiency = max(0.0, float(production_model.predict(row)[0]))
-    produced = efficiency * req.target_production
-    shortfall = max(0.0, req.target_production - produced)
-
-    # With no target there is no shortfall to measure. Reporting 0% / LOW here
-    # would be false reassurance — the risk is undefined, not low.
-    has_target = req.target_production > 0
-    shortfall_pct = round((shortfall / req.target_production) * 100, 2) if has_target else 0.0
-
-    flags = build_recommendations(req, shortfall_pct)
-
-    return {
-        "predicted_efficiency": round(efficiency, 4),
-        "predicted_production": round(produced, 2),
-        "target_production": req.target_production,
-        "shortfall_tonnes": round(shortfall, 2),
-        "shortfall_pct": shortfall_pct,
-        "risk_tier": classify_risk(shortfall_pct) if has_target else "NO TARGET",
-        "root_causes": get_root_causes(row),
-        "risk_flags": len(flags),
-        "recommendations": flags or [NO_RISK_MESSAGE],
-        "input_warnings": check_equipment_consistency(req),
-        "inputs": req.model_dump(),
+@app.get("/api/supply-command")
+def supply_command(mine_id: str = Query("DEMO_MINE"), horizon: Optional[str] = Query(None)):
+    sc = demo_service.resolve(mine_id)
+    con = _contingency_default(mine_id, horizon)
+    fc = production().forecast(sc["mine_id"], explain=True)
+    out = {
+        "mine_id": sc["mine_id"],
+        "demo_state": sc.get("demo_state"),
+        "scenario_label": sc.get("label"),
+        "forecast_origin": fc["forecast_origin"],
+        "forecast_horizon": "next_period",
+        "forecast_period": {"start": fc["period_start"], "end": fc["period_end"], "days": fc["horizon_days"]},
+        "target_tonnes": fc["target_tonnes"],
+        "p10_tonnes": fc["p10_tonnes"],
+        "p50_tonnes": fc["p50_tonnes"],
+        "p90_tonnes": fc["p90_tonnes"],
+        "gap_p50_tonnes": fc["gap_p50_tonnes"],
+        "gap_pct": fc["gap_pct"],
+        "risk_state": fc["risk_state"],
+        "risk_policy_version": fc["risk_policy_version"],
+        "quantiles_validated": fc["quantiles_validated"],
+        "primary_drivers": fc["drivers"],
+        "model_contributions": fc["model_contributions"],
+        "production_applicability": fc["applicability"]["level"],
+        "best_operational_action": con["best_operational_action"],
+        "action_required": con["action_required"],
+        "action_note": con["action_note"],
+        "selected_portfolio": con["selected_portfolio"],
+        "expected_recovery_tonnes": con["best_operational_recovery_tonnes"],
+        "expected_residual_gap_tonnes": con["expected_residual_gap_tonnes"],
+        "worst_case_residual_gap_tonnes": con["worst_case_residual_gap_tonnes"],
+        "worst_case_scenario": con["worst_case_scenario"],
+        "can_operations_close": con["can_operations_close"],
+        "decision_state": con["decision_state"],
+        "decision_horizon": con["decision_horizon"],
+        "supply_status": con["supply_status"],
+        "decision_summary": con["decision_summary"],
+        "next_target": con["next_target"],
+        "target_priority": con["target_priority"],
+        "selected_target_detail": con["selected_target_detail"],
+        "why_target_now": con["why_target_now"],
+        "reason_codes": con["reason_codes"],
+        "review_reasons": con["review_reasons"],
+        "strategic_requirement": con["strategic_requirement"],
+        "status": con["status"],
+        "human_review_required": True,
+        "provenance": {**fc["provenance"], "decision": con["provenance"]},
     }
+    demo_extra = sc.get("demo_extras") or {}
+    if "exploration_query" in demo_extra:
+        q = demo_extra["exploration_query"]
+        results = []
+        for p in q["points"]:
+            try:
+                results.append(exploration().predict(p["lat"], p["lon"], q.get("mode", "SIMULATE_LIVE_FAILURE")))
+            except ApiError as e:
+                results.append({"query_lat": p["lat"], "query_lon": p["lon"], "error": e.code, "message": e.message, **e.extra})
+        out["satellite_fallback_demo"] = {"description": q.get("description"), "results": results}
+    if "decision_flip" in demo_extra:
+        f = demo_extra["decision_flip"]
+        out["decision_flip"] = contingency_service.decision_flip(
+            sc["mine_id"], f.get("baseline_conditions"), f.get("perturbed_conditions"), horizon,
+            f.get("scenario"), f.get("perturbed_scenario"))
+    return out
 
-
-def build_simulation_summary(mode, base, scen, delta):
-    """Plain-English one-liner describing what the scenario changed."""
-    lead = {
-        "what_if": "Under this scenario",
-        "optimization": "With these optimisations applied",
-        "stress_test": "Under this stress test",
-    }.get(mode, "Under this scenario")
-
-    prod = delta["production_change_tonnes"]
-    short = delta["shortfall_change_tonnes"]
-    eff_pp = delta["efficiency_change_pct_points"]
-
-    if abs(prod) < 0.05:
-        core = (f"output is effectively unchanged at {scen['predicted_production']:.1f} T "
-                f"against a {scen['target_production']:.0f} T target")
-    else:
-        verb = "rises" if prod > 0 else "falls"
-        core = (f"output {verb} by {abs(prod):.1f} T to {scen['predicted_production']:.1f} T "
-                f"({eff_pp:+.1f} pp efficiency)")
-        # Shortfall can be flat even when output moves — e.g. both scenarios
-        # already clear their target, or the targets themselves differ. Saying
-        # "the shortfall grows by 0.0 T" in that case is simply wrong.
-        if abs(short) < 0.05:
-            if scen["shortfall_tonnes"] < 0.05:
-                core += ", and the target is still met in full"
-            else:
-                core += f", while the shortfall holds at {scen['shortfall_tonnes']:.1f} T"
-        else:
-            core += (f", and the shortfall {'shrinks' if short < 0 else 'grows'} "
-                     f"by {abs(short):.1f} T to {scen['shortfall_tonnes']:.1f} T")
-
-    tail = ""
-    if base["risk_tier"] != scen["risk_tier"]:
-        tail = f" Risk tier moves from {base['risk_tier']} to {scen['risk_tier']}."
-    elif delta["risk_flags_change"] != 0:
-        n = delta["risk_flags_change"]
-        tail = f" {abs(n)} risk flag{'s' if abs(n) != 1 else ''} {'added' if n > 0 else 'cleared'}."
-
-    # Mode-specific verdict: did the scenario do what the mode implies?
-    verdict = ""
-    if mode == "optimization":
-        verdict = (" This qualifies as an improvement."
-                   if prod > 0.05 else
-                   " Note: this scenario does NOT improve on the baseline.")
-    elif mode == "stress_test":
-        if prod < -0.05:
-            margin = scen["predicted_production"] - (0.85 * base["predicted_production"])
-            verdict = (f" Output holds above 85% of baseline (margin {margin:+.1f} T)."
-                       if margin >= 0 else
-                       f" Output falls below 85% of baseline (margin {margin:+.1f} T) — resilience gap.")
-        else:
-            verdict = " Note: these conditions are not harsher than the baseline."
-
-    if base["target_production"] != scen["target_production"]:
-        tail += (f" Targets differ ({base['target_production']:.0f} T vs "
-                 f"{scen['target_production']:.0f} T), so compare efficiency rather than tonnage.")
-
-    return f"{lead}, {core}.{tail}{verdict}"
 
 # ---------------------------------------------------------------------------
-# Routes
+# Exploration
 # ---------------------------------------------------------------------------
 
-@app.get("/")
-def health_check():
-    return {
-        "status": "ok",
-        "reserve_cache_loaded": reserve_cache is not None,
-        "production_model_loaded": production_model is not None,
-        "shap_available": SHAP_AVAILABLE and shap_explainer is not None,
-        "live_satellite_available": EE_AVAILABLE and manganese_model is not None,
-    }
-
-@app.get("/debug_ee")
-def debug_ee():
-    """Temporary diagnostic — REMOVE BEFORE THE DEMO. Reports exactly why
-    Earth Engine did or did not initialize, without digging through logs."""
-    return {
-        "ee_available": EE_AVAILABLE,
-        "ee_error": EE_ERROR,
-        "service_account": SERVICE_ACCOUNT_EMAIL,
-        "gee_key_json_env_set": bool(os.environ.get("GEE_KEY_JSON")),
-        "key_path_checked": EE_KEY_PATH,
-        "key_path_exists": os.path.exists(EE_KEY_PATH),
-        "secrets_dir_contents": glob.glob("/etc/secrets/*"),
-        "manganese_model_loaded": manganese_model is not None,
-        "feature_cols_loaded": reserve_feature_cols is not None,
-    }
+@app.get("/api/exploration/targets")
+def exploration_targets(mine_id: str = Query("DEMO_MINE"), horizon: Optional[str] = Query(None)):
+    con = _contingency_default(mine_id, horizon)
+    out = exploration().list_targets(con["strategic_requirement"])
+    out["mine_id"] = con["mine_id"]
+    out["decision_state"] = con["decision_state"]
+    out["selected_target"] = con["selected_target"]
+    return out
 
 
-# The exploration model was trained on central-Indian spectral signatures only.
-# Outside this envelope its output is extrapolation, and the API should say so
-# rather than return a confident-looking rank for Paris.
-TRAINED_BOUNDS = {"lat_min": 18.0, "lat_max": 24.0, "lon_min": 76.0, "lon_max": 84.0}
+@app.get("/api/exploration/targets/{target_id}")
+def exploration_target(target_id: str, mine_id: str = Query("DEMO_MINE"), horizon: Optional[str] = Query(None)):
+    con = _contingency_default(mine_id, horizon)
+    out = exploration().target_detail(target_id, con["strategic_requirement"])
+    out["is_selected_target"] = con["selected_target"] == out["target_id"]
+    out["decision_state"] = con["decision_state"]
+    return out
 
 
-def coverage_note(lat, lon):
-    b = TRAINED_BOUNDS
-    if b["lat_min"] <= lat <= b["lat_max"] and b["lon_min"] <= lon <= b["lon_max"]:
-        return None
-    return (
-        f"Coordinate is outside the model's trained region "
-        f"({b['lat_min']}-{b['lat_max']}\u00b0N, {b['lon_min']}-{b['lon_max']}\u00b0E). "
-        f"This rank is an extrapolation and should not be relied on."
-    )
+@app.post("/api/exploration/predict")
+def exploration_predict(req: PredictRequest):
+    return exploration().predict(req.lat, req.lon, req.mode)
 
 
-@app.post("/predict_reserve")
-def predict_reserve(req: ReserveRequest):
-    if reserve_cache is None:
-        raise HTTPException(status_code=503, detail="Reserve cache not loaded on server.")
+@app.get("/api/exploration/grid")
+def exploration_grid(stride: int = Query(5, ge=1, le=50)):
+    pts = exploration().grid_points(stride)
+    return {"points": pts, "count": len(pts), "stride_cells": stride,
+            "cell_size_deg": 0.01, "value": "prospectivity_rank (relative 0-100, not a probability)",
+            "provenance": exploration()._prov("CACHED")}
 
-    # --- Attempt 1: live satellite extraction for the EXACT requested coordinate ---
-    if EE_AVAILABLE and manganese_model is not None:
-        try:
-            probability = score_reserve_live(req.lat, req.lon)
-            rank = prospectivity_rank(probability)
-            return {
-                "query_lat": req.lat,
-                "query_lon": req.lon,
-                "probability": round(probability, 4),
-                "rank": rank,
-                "tier": rank_tier(rank),
-                "coverage_warning": coverage_note(req.lat, req.lon),
-                "source": "live_satellite",
-                "note": "Computed from a real-time Sentinel-2 / MODIS / SRTM extraction at these exact coordinates.",
-            }
-        except Exception as e:
-            # Cloud cover, no image for this tile/date range, EE quota, etc.
-            # Fall through to the cached-grid fallback below rather than failing the request.
-            print(f"Live satellite extraction failed for ({req.lat}, {req.lon}): {e}")
-
-    # --- Attempt 2 (or default, if EE isn't configured): nearest analyzed coordinate ---
-    diffs = (reserve_cache["lat"] - req.lat) ** 2 + (reserve_cache["lon"] - req.lon) ** 2
-    nearest_idx = diffs.idxmin()
-    nearest = reserve_cache.loc[nearest_idx]
-    distance_deg = float(np.sqrt(diffs.loc[nearest_idx]))
-
-    probability = float(nearest["probability"])
-    rank = prospectivity_rank(probability)
-
-    return {
-        "query_lat": req.lat,
-        "query_lon": req.lon,
-        "nearest_grid_lat": float(nearest["lat"]),
-        "nearest_grid_lon": float(nearest["lon"]),
-        "probability": probability,
-        "rank": rank,
-        "tier": rank_tier(rank),
-        "coverage_warning": coverage_note(req.lat, req.lon),
-        "grid_distance_degrees": round(distance_deg, 4),
-        "source": "cached_fallback",
-        "note": "Live satellite extraction was unavailable for this coordinate — showing the nearest already-analyzed grid point instead.",
-    }
 
 @app.get("/reserve_grid")
-def reserve_grid():
-    """Returns the full precomputed reserve probability grid for map rendering."""
-    if reserve_cache is None:
-        raise HTTPException(status_code=503, detail="Reserve cache not loaded on server.")
-    grid = reserve_cache.copy()
-    grid["rank"] = [prospectivity_rank(p) for p in grid["probability"]]
-    return grid.to_dict(orient="records")
+def legacy_reserve_grid():
+    """Legacy alias kept for older clients: coarse sample of the new ~1 km prospectivity grid."""
+    return exploration().grid_points(10)
 
-@app.post("/predict_shortfall")
-def predict_shortfall(req: ShortfallRequest):
-    if production_model is None or prod_feature_cols is None:
-        raise HTTPException(status_code=503, detail="Production model not loaded.")
-
-    # risk_flags now counts only genuinely triggered conditions — 0 when clear.
-    return evaluate_scenario(req)
-
-@app.post("/simulate")
-def simulate_scenario(req: SimulateRequest):
-    """Scores TWO operating states and returns both plus the delta between them.
-
-    Breaking change: this endpoint no longer accepts a bare ShortfallRequest.
-    The body must be {mode, baseline: {...}, scenario: {...}}. For a single
-    operating state with no comparison, use /predict_shortfall instead.
-    """
-    if production_model is None or prod_feature_cols is None:
-        raise HTTPException(status_code=503, detail="Production model not loaded.")
-
-    base = evaluate_scenario(req.baseline)
-    scen = evaluate_scenario(req.scenario)
-
-    delta = {
-        "efficiency_change": round(scen["predicted_efficiency"] - base["predicted_efficiency"], 4),
-        "efficiency_change_pct_points": round(
-            (scen["predicted_efficiency"] - base["predicted_efficiency"]) * 100, 2
-        ),
-        "production_change_tonnes": round(
-            scen["predicted_production"] - base["predicted_production"], 2
-        ),
-        "shortfall_change_tonnes": round(
-            scen["shortfall_tonnes"] - base["shortfall_tonnes"], 2
-        ),
-        "shortfall_change_pct_points": round(
-            scen["shortfall_pct"] - base["shortfall_pct"], 2
-        ),
-        "risk_tier_change": f"{base['risk_tier']} \u2192 {scen['risk_tier']}",
-        "risk_tier_changed": base["risk_tier"] != scen["risk_tier"],
-        "risk_flags_change": scen["risk_flags"] - base["risk_flags"],
-    }
-
-    # The baseline and scenario come from two INDEPENDENT forms, so a user who
-    # edits two fields can unknowingly change nine. Report exactly what differs
-    # so the comparison can never be silently contaminated.
-    b_in, s_in = req.baseline.model_dump(), req.scenario.model_dump()
-    changed = [
-        {"field": k, "baseline": b_in[k], "scenario": s_in[k]}
-        for k in b_in if b_in[k] != s_in[k]
-    ]
-
-    summaries = {
-        m: build_simulation_summary(m, base, scen, delta)
-        for m in ("what_if", "optimization", "stress_test")
-    }
-
-    return {
-        "summaries": summaries,
-        "summary": summaries["what_if"],   # kept for older clients
-        "baseline": base,
-        "scenario": scen,
-        "delta": delta,
-        "changed_fields": changed,
-    }
 
 # ---------------------------------------------------------------------------
-# Serve frontend static files
+# Production
 # ---------------------------------------------------------------------------
 
-@app.get("/app")
-def serve_frontend():
-    """Serve the single-page frontend."""
-    return FileResponse(os.path.join(BASE_DIR, "index.html"), media_type="text/html")
+@app.post("/api/production/forecast")
+def production_forecast(req: ForecastRequest):
+    return production().forecast(req.mine_id, req.forecast_origin, req.horizon_days, req.target_tonnes,
+                                 {**(req.base_state or {}), **(req.conditions or {})})
 
-# Mount static files (CSS, JS) — must be AFTER all API routes
-app.mount("/", StaticFiles(directory=BASE_DIR), name="static")
+
+@app.get("/api/production/history")
+def production_history(mine_id: str = Query("DEMO_MINE"), days: int = Query(90)):
+    return production().history(mine_id, days)
+
+
+@app.get("/api/production/reconciliation")
+def production_reconciliation(mine_id: str = Query("DEMO_MINE"), periods: int = Query(26, ge=1, le=200)):
+    return production().reconciliation(mine_id, periods)
+
 
 # ---------------------------------------------------------------------------
-# Entry point
+# Recovery / contingency / decisions
 # ---------------------------------------------------------------------------
+
+@app.post("/api/recovery/evaluate")
+def recovery_evaluate(req: ScenarioRequest):
+    return recovery_service.evaluate(req.mine_id, **_scenario_kwargs(req))
+
+
+@app.post("/api/contingency/evaluate")
+def contingency_evaluate(req: ScenarioRequest):
+    return contingency_service.evaluate(req.mine_id, req.horizon or req.decision_horizon, **_scenario_kwargs(req),
+                                        client_supplied=bool(req.forecast or req.recovery))
+
+
+@app.post("/api/decision/flip")
+def decision_flip(req: FlipRequest):
+    return contingency_service.decision_flip(req.mine_id, req.baseline_conditions, req.perturbed_conditions, req.horizon,
+                                             req.scenario, req.perturbed_scenario, req.actions, req.target_tonnes)
+
+
+@app.post("/api/decision/review")
+def decision_review(req: ReviewRequest):
+    return decision_service.record(req.model_dump())
+
+
+@app.get("/api/decision/history")
+def decision_history(mine_id: Optional[str] = Query(None), limit: int = Query(50, ge=1, le=500)):
+    return decision_service.history(mine_id, limit)
+
+
+# ---------------------------------------------------------------------------
+# Trust
+# ---------------------------------------------------------------------------
+
+@app.get("/api/trust/exploration")
+def trust_exploration():
+    return trust_service.exploration()
+
+
+@app.get("/api/trust/production")
+def trust_production():
+    return trust_service.production()
+
+
+@app.get("/api/trust/provenance")
+def trust_provenance():
+    return trust_service.provenance_catalogue()
+
+
+# ---------------------------------------------------------------------------
+# Frontend — only the three frontend-owned files are served (never the repo tree)
+# ---------------------------------------------------------------------------
+
+_FRONTEND = {"index.html": "text/html", "app.js": "text/javascript", "style.css": "text/css"}
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/app", include_in_schema=False)
+def serve_index():
+    return FileResponse(ROOT / "index.html", media_type="text/html")
+
+
+@app.get("/{name}", include_in_schema=False)
+def serve_frontend_file(name: str):
+    if name not in _FRONTEND:
+        raise ApiError(404, "NOT_FOUND", f"/{name} not found")
+    return FileResponse(ROOT / name, media_type=_FRONTEND[name])
+
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))

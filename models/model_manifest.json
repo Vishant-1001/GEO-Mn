@@ -1,0 +1,301 @@
+{
+  "production": {
+    "model_version": "production-qgbm-1.0",
+    "model_type": "3 x sklearn HistGradientBoostingRegressor(loss='quantile') for q = 0.10, 0.50, 0.90 with monotonic constraints",
+    "configuration": "level_default",
+    "hyperparameters": {
+      "max_iter": 400,
+      "learning_rate": 0.04,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 25,
+      "l2_regularization": 1.0
+    },
+    "monotonic_constraints": {
+      "equipment_availability": 1,
+      "equipment_downtime_h": -1,
+      "drilling_delay_h": -1,
+      "blast_delay_h": -1,
+      "truck_count": 1,
+      "haulage_delay_h": -1,
+      "rainfall_7d_mm": -1
+    },
+    "target": "total tonnes produced in the 7-day period starting at the forecast origin",
+    "forecast_procedure": "conditional model of period production given period operating conditions + origin-known lags; forecasts assume the trailing 7-day state persists (persistence assumption) unless a SIMULATED scenario overrides it; backtests use exactly these persistence inputs",
+    "forecast_horizon": "next production period (7 days)",
+    "temporal_granularity": {
+      "inputs": "daily records aggregated to 7-day periods / trailing 7-day windows",
+      "forecast": "7-day period total"
+    },
+    "features": [
+      {
+        "name": "prod_lag1",
+        "unit": "t/period",
+        "definition": "actual tonnes in the period immediately before the origin"
+      },
+      {
+        "name": "prod_lag2",
+        "unit": "t/period",
+        "definition": "actual tonnes 2 periods before the origin"
+      },
+      {
+        "name": "prod_lag3",
+        "unit": "t/period",
+        "definition": "actual tonnes 3 periods before the origin"
+      },
+      {
+        "name": "prod_lag4",
+        "unit": "t/period",
+        "definition": "actual tonnes 4 periods before the origin"
+      },
+      {
+        "name": "prod_roll_mean_4",
+        "unit": "t/period",
+        "definition": "mean of the last 4 period totals"
+      },
+      {
+        "name": "prod_roll_mean_12",
+        "unit": "t/period",
+        "definition": "mean of the last 12 period totals"
+      },
+      {
+        "name": "prod_trend_4",
+        "unit": "t/period per period",
+        "definition": "(lag1 - lag4) / 3"
+      },
+      {
+        "name": "attainment_lag1",
+        "unit": "ratio",
+        "definition": "actual / target in the previous period"
+      },
+      {
+        "name": "attainment_roll_4",
+        "unit": "ratio",
+        "definition": "sum actual / sum target over the last 4 periods"
+      },
+      {
+        "name": "equipment_availability",
+        "unit": "fraction 0-1",
+        "definition": "mean fleet availability in the period (forecast: trailing 7-day value, persistence)"
+      },
+      {
+        "name": "equipment_downtime_h",
+        "unit": "h/day",
+        "definition": "mean unplanned downtime in the period (forecast: trailing 7-day, persistence)"
+      },
+      {
+        "name": "maintenance_hours",
+        "unit": "h/day",
+        "definition": "mean maintenance hours in the period (forecast: trailing 7-day, persistence)"
+      },
+      {
+        "name": "drilling_delay_h",
+        "unit": "h/day",
+        "definition": "mean drilling delay in the period (forecast: trailing 7-day, persistence)"
+      },
+      {
+        "name": "blast_delay_h",
+        "unit": "h/day",
+        "definition": "mean blasting delay in the period (forecast: trailing 7-day, persistence)"
+      },
+      {
+        "name": "truck_count",
+        "unit": "trucks",
+        "definition": "mean trucks deployed in the period (forecast: trailing 7-day, persistence)"
+      },
+      {
+        "name": "haulage_delay_h",
+        "unit": "h/day",
+        "definition": "mean haulage delay in the period (forecast: trailing 7-day, persistence)"
+      },
+      {
+        "name": "rainfall_7d_mm",
+        "unit": "mm/7 days",
+        "definition": "rainfall total in the period, ERA5 (forecast: trailing 7-day total, persistence)"
+      },
+      {
+        "name": "soil_moisture_m3m3",
+        "unit": "m3/m3",
+        "definition": "mean 0-7 cm soil moisture in the period, ERA5-Land (forecast: trailing 7-day, persistence)"
+      },
+      {
+        "name": "temperature_max_c",
+        "unit": "deg C",
+        "definition": "mean daily max 2 m temperature in the period, ERA5 (forecast: trailing 7-day, persistence)"
+      },
+      {
+        "name": "woy_sin",
+        "unit": "-",
+        "definition": "sin(2*pi*day_of_year/365.25) at the origin"
+      },
+      {
+        "name": "woy_cos",
+        "unit": "-",
+        "definition": "cos(2*pi*day_of_year/365.25) at the origin"
+      }
+    ],
+    "missing_value_rule": "forecast refused (HTTP 503/400) if fewer than 84 days of history precede the origin; no imputation",
+    "training_period": {
+      "first_origin": "2021-03-26",
+      "last_origin": "2026-09-18",
+      "origins": 2003
+    },
+    "validation_method": "rolling-origin expanding-window backtest, 13-period folds, purged by one period; configuration selected on 2023-07-01..2024-07-01 origins, metrics reported on origins >= 2024-07-01",
+    "validation_metrics": {
+      "p50": {
+        "mae": 838.7763995893728,
+        "rmse": 1142.1140027714648,
+        "r2": 0.5655480848664312,
+        "mape_pct": 9.876746936196335
+      },
+      "baseline_previous_period": {
+        "mae": 891.805172413793,
+        "rmse": 1200.663400604734,
+        "r2": 0.5198628078174741,
+        "mape_pct": 10.352792808467811
+      },
+      "baseline_moving_average_4": {
+        "mae": 953.4280172413795,
+        "rmse": 1295.7536226680318,
+        "r2": 0.44079935064271314,
+        "mape_pct": 11.028859106344026
+      },
+      "pinball_loss": {
+        "p10": 236.87119922292013,
+        "p50": 419.3881997946864,
+        "p90": 230.06686470894218
+      },
+      "p10_p90_coverage": 0.75,
+      "p10_p90_coverage_before_recalibration": 0.27586206896551724,
+      "model_beats_best_baseline_mae": true,
+      "mae_improvement_vs_best_baseline_pct": 5.946228443695901,
+      "quantile_hit_rate": {
+        "p10": 0.13793103448275862,
+        "p50": 0.5172413793103449,
+        "p90": 0.8879310344827587
+      },
+      "shortfall_classification": {
+        "definition": "shortfall event = actual < target x (1 - 0.05); predicted when P50 < target x (1 - 0.05)",
+        "precision": 0.847457627118644,
+        "recall": 0.8064516129032258,
+        "f1": 0.8264462809917354,
+        "events": 62,
+        "predicted_events": 59
+      },
+      "test_window": [
+        "2024-07-05",
+        "2026-09-24"
+      ],
+      "n_test_periods": 116
+    },
+    "quantiles_validated": true,
+    "uncertainty_method": "direct quantile regression (P10/P50/P90) + additive recalibration offsets (relative to P50) estimated from out-of-sample backtest errors; crossing repaired by sorting; calibration checked on the untouched test window",
+    "applicability_method": "IsolationForest on training operating-state + weather features, thresholds at training 1st/5th score percentiles, plus per-feature range checks",
+    "explanation_method": "SHAP TreeExplainer on the P50 model (model contributions in tonnes; associative, not causal)",
+    "data_provenance": {
+      "operations": "SYNTHETIC \u2014 generated by ml/generate_operations.py (seed 42); not MOIL data",
+      "weather": "REAL_PUBLIC \u2014 ERA5/ERA5-Land reanalysis via Open-Meteo for the demo mine coordinate"
+    },
+    "limitations": [
+      "Operational history is synthetic; real accuracy at a MOIL mine is unknown until trained on real records.",
+      "Model contributions and simulated interventions reflect learned associations in the data, not proven causal effects.",
+      "Only a 7-day horizon is supported; longer horizons are treated as persistence scenarios by the contingency engine."
+    ]
+  },
+  "exploration": {
+    "model_version": "exploration-pu-ensemble-1.0",
+    "model_type": "PU-bagging ensemble of 15 HistGradientBoostingClassifier members; output = percentile rank of the mean member score over the study-area grid",
+    "output_semantics": "prospectivity_rank 0-100 = relative rank within the study area. It is NOT a probability of a deposit, reserve or tonnage.",
+    "features": [
+      "NDVI",
+      "Iron_Oxide_Index",
+      "Clay_Hydroxyl_Index",
+      "LST_Day_K",
+      "elevation",
+      "slope"
+    ],
+    "feature_recipe": {
+      "grid_res_deg": 0.01,
+      "observation_window": "2024-01-01/2024-12-31",
+      "sentinel2": {
+        "collection": "sentinel-2-l2a",
+        "max_tile_cloud_pct": 20.0,
+        "scenes_per_tile": 12,
+        "read_resolution_m": 200.0,
+        "scl_valid_classes": [
+          4,
+          5,
+          7
+        ],
+        "min_valid_scenes_per_pixel": 3,
+        "offset_correction": "subtract 1000 DN for processing baseline >= 04.00",
+        "composite": "per-pixel temporal median, indices computed on the composite",
+        "indices": {
+          "NDVI": "(B08-B04)/(B08+B04)",
+          "Iron_Oxide_Index": "B04/B02",
+          "Clay_Hydroxyl_Index": "B11/B12"
+        }
+      },
+      "modis_lst": {
+        "collection": "modis-11A2-061 (MOD11A2 Terra only)",
+        "band": "LST_Day_1km",
+        "scale": 0.02,
+        "unit": "K",
+        "qc_rule": "QC_Day bits0-1 == 0, or bits0-1 == 1 and bits6-7 <= 1 (error <= 2 K)",
+        "temporal_reduction": "mean of valid 8-day composites",
+        "spatial_sampling": "nearest MODIS pixel to the cell centre"
+      },
+      "dem": {
+        "collection": "nasadem",
+        "slope": "degrees, finite differences in metres"
+      },
+      "cell_aggregation": "Sentinel-2 and NASADEM: mean of pixels whose centre falls in the 0.01 degree cell; MODIS LST: nearest 1 km pixel to the cell centre"
+    },
+    "study_area": {
+      "name": "Central India manganese belt (Balaghat - Nagpur - Bhandara)",
+      "lat_min": 20.75,
+      "lat_max": 22.75,
+      "lon_min": 78.5,
+      "lon_max": 81.0
+    },
+    "effective_resolution": "0.01 degree cells (~1.1 km x 1.0 km)",
+    "observation_window": "2024-01-01/2024-12-31",
+    "training_labels": {
+      "positive_cells": 72,
+      "positive_records": 73,
+      "eligible_background_cells": 48736,
+      "background_per_member": 4000,
+      "negative_construction": "Positive-unlabelled: background cells are drawn at random from the study area >3.0 km from any MRDS Mn record. They are unlabelled, not proven barren; unknown != barren."
+    },
+    "validation_method": "spatial block CV (0.25 degree blocks, 5 folds) + east/west region holdout at 79.8E",
+    "validation_metrics": {
+      "spatial_cv_roc_auc": 0.6881377899978114,
+      "spatial_cv_pr_auc": 0.01176812059305623,
+      "spatial_cv_pr_auc_prevalence_baseline": 0.0014751680052450418,
+      "spatial_cv_top_area_capture": {
+        "top_5pct_area": 0.16666666666666666,
+        "top_10pct_area": 0.2222222222222222,
+        "top_20pct_area": 0.3472222222222222
+      },
+      "spatial_cv_success_rate_auc": 0.6540277777777778,
+      "region_holdout_roc_auc": 0.6756446010706209,
+      "region_holdout_top_area_capture": {
+        "top_5pct_area": 0.25,
+        "top_10pct_area": 0.2916666666666667,
+        "top_20pct_area": 0.3333333333333333
+      }
+    },
+    "uncertainty_method": "std-dev of member percentile ranks across 15 PU-bagging members; LOW < 5.0, HIGH > 10.0 rank points (project thresholds)",
+    "applicability_method": "geographic envelope + IsolationForest on study-area feature space; MODERATE below the 5% and LOW below the 1% training score quantile",
+    "data_provenance": {
+      "labels": "REAL_PUBLIC \u2014 USGS MRDS manganese records (mrdata.usgs.gov)",
+      "features": "REAL_PUBLIC \u2014 Sentinel-2 L2A, MODIS MOD11A2, NASADEM via Microsoft Planetary Computer"
+    },
+    "limitations": [
+      "Positive labels are MRDS point records of mixed location precision; they cluster in two belts.",
+      "Background is unlabelled, not barren, so ROC/PR values are indicative lower-bound style comparisons.",
+      "Surface spectra and terrain cannot see subsurface ore; no drilling, assay or geophysics is used.",
+      "Ranks are relative to this study area only and are not transferable as absolute scores.",
+      "Observation window is the fixed 2024 composite, not real-time imagery."
+    ]
+  }
+}

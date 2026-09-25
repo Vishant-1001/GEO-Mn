@@ -2,8 +2,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.env
+.env
 .venv
 env/
 venv/
 .DS_Store
+.pytest_cache/
+# credentials must never be committed
 gee_key.json
+*service-account*.json
+# runtime decision log (human review records)
+data/runtime/

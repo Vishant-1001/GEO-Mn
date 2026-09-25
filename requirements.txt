@@ -1,9 +1,14 @@
+# Runtime (API). Versions are the ones the models were trained and tested with.
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 pandas==2.2.3
 numpy==2.1.3
+scipy==1.17.1
 scikit-learn==1.6.1
 joblib==1.4.2
 pydantic==2.9.2
 shap==0.46.0
-earthengine-api==1.1.2
+# Live coordinate queries (optional at runtime: without them the API falls back to the cached grid)
+pystac-client==0.9.0
+planetary-computer==1.0.0
+rasterio==1.4.4

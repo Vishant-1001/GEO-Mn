@@ -1,0 +1,501 @@
+lat,lon,unit_name,lith,age_top_ma,age_bottom_ma,interval,source_id,precambrian
+20.8,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.8,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.8,78.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.8,78.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.8,78.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.8,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.8,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.8,79.25,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.8,79.35,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.8,79.45,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.8,79.55,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.8,79.65,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.8,79.75,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.8,79.85,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.8,79.95,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.8,80.05,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.8,80.15,Mesoproterozoic intrusive rocks,intrusive igneous rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.8,80.25,Mesoproterozoic intrusive rocks,intrusive igneous rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.8,80.35,Mesoproterozoic intrusive rocks,intrusive igneous rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.8,80.45,Mesoproterozoic intrusive rocks,intrusive igneous rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.8,80.55,Mesoproterozoic intrusive rocks,intrusive igneous rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.8,80.65,Mesoproterozoic intrusive rocks,intrusive igneous rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.8,80.75,Mesoproterozoic intrusive rocks,intrusive igneous rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.8,80.85,Mesoproterozoic intrusive rocks,intrusive igneous rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.8,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+20.9,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.9,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.9,78.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.9,78.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.9,78.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.9,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.9,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+20.9,79.25,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.9,79.35,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.9,79.45,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.9,79.55,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.9,79.65,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.9,79.75,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.9,79.85,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.9,79.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+20.9,80.05,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.9,80.15,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+20.9,80.25,Mesoproterozoic intrusive rocks,intrusive igneous rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.9,80.35,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.9,80.45,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.9,80.55,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.9,80.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.9,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+20.9,80.85,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+20.9,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.0,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.0,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.0,78.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.0,78.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.0,78.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.0,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.0,79.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.0,79.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.0,79.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.0,79.45,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.0,79.55,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.0,79.65,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.0,79.75,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.0,79.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.0,79.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.0,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.0,80.15,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.0,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.0,80.35,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.0,80.45,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.0,80.55,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.0,80.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.0,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.0,80.85,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.0,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.1,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.1,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.1,78.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.1,78.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.1,78.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.1,79.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,79.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,79.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,79.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,79.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,79.55,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.1,79.65,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.1,79.75,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.1,79.85,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.1,79.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.1,80.45,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.1,80.55,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.1,80.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.1,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.1,80.85,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.1,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.2,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.2,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.2,78.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.2,78.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.2,78.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,79.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,79.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,79.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,79.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,79.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,79.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,79.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,79.75,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.2,79.85,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.2,79.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.2,80.55,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.2,80.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.2,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.2,80.85,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.2,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.3,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.3,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.3,78.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.3,78.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,78.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,79.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,79.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,79.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,79.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,79.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,79.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,79.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,79.75,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,79.85,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.3,79.95,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.3,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,80.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.3,80.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.3,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.3,80.85,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.3,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.4,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.4,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.4,78.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.4,78.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,78.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,79.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,79.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,79.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,79.35,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.4,79.45,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.4,79.55,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.4,79.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,79.75,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,79.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,79.95,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.4,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,80.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,80.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.4,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.4,80.85,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.4,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.5,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.5,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.5,78.75,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,78.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,78.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,79.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,79.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,79.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,79.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,79.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,79.55,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.5,79.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.5,79.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.5,79.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,79.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,80.05,Paleoproterozoic sedimentary rocks,sedimentary rocks,1600.0,2500.0,Paleoproterozoic,154,True
+21.5,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,80.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,80.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.5,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.5,80.85,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.5,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.6,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.6,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.6,78.75,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,78.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,78.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,79.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,79.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,79.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,79.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,79.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,79.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,79.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.6,79.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.6,79.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.6,79.95,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.6,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,80.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,80.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.6,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.6,80.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.6,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.7,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.7,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.7,78.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.7,78.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,78.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,79.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+21.7,79.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,79.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,79.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,79.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,79.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.7,79.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.7,79.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.7,79.95,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.7,80.05,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.7,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,80.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,80.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,80.75,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.7,80.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.7,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.8,78.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.8,78.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks; basalt,23.03,145.0,Phanerozoic,154,False
+21.8,78.75,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+21.8,78.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,78.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+21.8,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+21.8,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+21.8,79.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,79.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,79.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,79.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,79.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.8,79.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.8,79.95,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.8,80.05,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.8,80.15,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.8,80.25,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.8,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,80.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,80.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.8,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.8,80.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.8,80.95,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+21.9,78.55,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+21.9,78.65,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+21.9,78.75,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+21.9,78.85,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+21.9,78.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+21.9,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+21.9,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+21.9,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+21.9,79.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+21.9,79.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.9,79.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.9,79.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.9,79.75,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.9,79.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.9,79.95,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.9,80.05,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.9,80.15,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.9,80.25,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.9,80.35,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.9,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.9,80.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+21.9,80.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.9,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.9,80.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+21.9,80.95,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.0,78.55,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+22.0,78.65,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+22.0,78.75,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+22.0,78.85,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+22.0,78.95,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+22.0,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.0,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.0,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.0,79.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.0,79.45,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.0,79.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.0,79.65,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.0,79.75,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.0,79.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.0,79.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.0,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.0,80.15,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.0,80.25,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.0,80.35,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.0,80.45,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.0,80.55,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.0,80.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.0,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.0,80.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.0,80.95,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.1,78.55,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.1,78.65,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.1,78.75,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.1,78.85,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+22.1,78.95,Proterozoic intrusive rocks,intrusive igneous rocks,541.0,2500.0,Proterozoic,154,True
+22.1,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.1,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.1,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.1,79.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.1,79.45,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.1,79.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.1,79.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.1,79.75,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.1,79.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.1,79.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.1,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.1,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.1,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.1,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.1,80.45,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.1,80.55,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.1,80.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.1,80.75,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.1,80.85,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.1,80.95,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.2,78.55,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.2,78.65,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.2,78.75,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.2,78.85,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.2,78.95,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.2,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,79.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,79.45,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,79.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,79.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,79.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,79.85,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.2,79.95,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.2,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.2,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.2,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.2,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.2,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.2,80.55,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.2,80.65,Mesoproterozoic sedimentary and volcanic rocks,sedimentary and volcanic rocks,1000.0,1600.0,Mesoproterozoic,154,True
+22.2,80.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,80.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.2,80.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,78.55,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.3,78.65,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.3,78.75,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.3,78.85,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.3,78.95,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.3,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,79.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,79.45,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,79.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,79.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,79.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,79.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,79.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,80.05,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.3,80.15,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.3,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.3,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.3,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.3,80.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.3,80.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,80.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,80.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.3,80.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,78.55,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.4,78.65,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.4,78.75,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.4,78.85,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.4,78.95,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.4,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,79.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,79.45,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,79.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,79.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,79.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,79.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,79.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,80.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,80.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,80.25,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.4,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.4,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.4,80.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,80.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,80.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,80.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.4,80.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,78.55,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.5,78.65,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.5,78.75,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.5,78.85,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.5,78.95,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.5,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,79.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,79.45,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,79.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,79.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,79.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,79.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,79.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,80.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,80.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,80.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.5,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.5,80.55,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.5,80.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,80.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,80.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.5,80.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,78.55,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+22.6,78.65,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.6,78.75,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.6,78.85,Paleozoic sedimentary rocks,sedimentary rocks,251.902,358.9,Paleozoic,154,False
+22.6,78.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.45,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,79.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,80.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,80.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,80.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,80.35,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.6,80.45,Archean crystalline metamorphic rocks,crystalline metamorphic rocks,2500.0,4000.0,Archean,154,True
+22.6,80.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,80.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,80.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,80.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.6,80.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,78.55,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+22.7,78.65,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+22.7,78.75,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+22.7,78.85,Neoproterozoic sedimentary rocks,sedimentary rocks,541.0,1000.0,Neoproterozoic,154,True
+22.7,78.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.45,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,79.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.05,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.15,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.25,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.35,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.45,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.55,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.65,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.75,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.85,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False
+22.7,80.95,Mesozoic-Cenozoic volcanic rocks,flood basalt(s); mafic volcanic rocks,23.03,145.0,Phanerozoic,154,False

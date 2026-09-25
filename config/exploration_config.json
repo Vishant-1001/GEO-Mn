@@ -1,0 +1,65 @@
+{
+  "_note": "PROJECT DEFAULTS for the GEO-MN demonstration. These values are configurable design choices, not mining-industry standards.",
+  "version": "exploration-policy-1.0",
+  "study_area": {
+    "name": "Central India manganese belt (Balaghat - Nagpur - Bhandara)",
+    "lat_min": 20.75,
+    "lat_max": 22.75,
+    "lon_min": 78.5,
+    "lon_max": 81.0
+  },
+  "grid_res_deg": 0.01,
+  "cache_max_distance_km": 2.0,
+  "live_query_timeout_s": 40,
+  "positive_labels": {
+    "source": "USGS Mineral Resources Data System (MRDS), commodity code MN",
+    "exclude_name_patterns": ["Area", "State"],
+    "dedupe_precision_deg": 0.005
+  },
+  "background": {
+    "exclusion_buffer_km": 3.0,
+    "n_background": 4000,
+    "seed": 42
+  },
+  "spatial_cv": {
+    "block_size_deg": 0.25,
+    "n_folds": 5,
+    "seed": 42
+  },
+  "ensemble": {
+    "n_members": 15,
+    "seed": 42
+  },
+  "uncertainty_thresholds_rank_sd": {
+    "low_below": 5.0,
+    "high_above": 10.0
+  },
+  "applicability": {
+    "method": "IsolationForest on the training feature space, score thresholds from training-set quantiles",
+    "moderate_below_train_quantile": 0.05,
+    "low_below_train_quantile": 0.01
+  },
+  "targets": {
+    "min_rank": 95.0,
+    "min_cells": 4,
+    "max_cells_per_target": 50,
+    "connectivity": 8,
+    "max_targets": 40
+  },
+  "priority_weights": {
+    "prospectivity": 0.45,
+    "evidence_applicability": 0.25,
+    "strategic_relevance": 0.20,
+    "development_readiness": 0.10
+  },
+  "strategic_relevance": {
+    "distance_decay_km": 40.0,
+    "severity_full_scale_pct": 10.0,
+    "high_at_or_above": 0.6,
+    "moderate_at_or_above": 0.3
+  },
+  "development_readiness": {
+    "proxy": "distance to nearest documented producing / past-producing Mn site (MRDS) as a proxy for existing access and infrastructure",
+    "distance_decay_km": 15.0
+  }
+}

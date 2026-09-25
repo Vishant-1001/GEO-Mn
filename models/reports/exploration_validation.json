@@ -1,0 +1,548 @@
+{
+  "model_version": "exploration-pu-ensemble-1.0",
+  "labels": {
+    "positive_cells": 72,
+    "positive_records": 73,
+    "eligible_background_cells": 48736,
+    "background_per_member": 4000,
+    "negative_construction": "Positive-unlabelled: background cells are drawn at random from the study area >3.0 km from any MRDS Mn record. They are unlabelled, not proven barren; unknown != barren."
+  },
+  "ablation_spatial_cv": {
+    "hgb:spectral_only": {
+      "per_fold": [
+        {
+          "fold": 0,
+          "cells": 10619,
+          "positives": 31,
+          "roc_auc": 0.4479279399013968,
+          "pr_auc": 0.003132988525924147,
+          "pr_auc_prevalence_baseline": 0.0030317848410757946
+        },
+        {
+          "fold": 1,
+          "cells": 10606,
+          "positives": 21,
+          "roc_auc": 0.5649012775842044,
+          "pr_auc": 0.003240876469037518,
+          "pr_auc_prevalence_baseline": 0.0020445915684938177
+        },
+        {
+          "fold": 2,
+          "cells": 9970,
+          "positives": 12,
+          "roc_auc": 0.6244511337518439,
+          "pr_auc": 0.0018967424467740074,
+          "pr_auc_prevalence_baseline": 0.0012334258402713536
+        },
+        {
+          "fold": 3,
+          "cells": 9366,
+          "positives": 4,
+          "roc_auc": 0.897985565011311,
+          "pr_auc": 0.006016867597399282,
+          "pr_auc_prevalence_baseline": 0.0004307095940562076
+        },
+        {
+          "fold": 4,
+          "cells": 9361,
+          "positives": 4,
+          "roc_auc": 0.7858103745157125,
+          "pr_auc": 0.00414803752081625,
+          "pr_auc_prevalence_baseline": 0.0004302925989672978
+        }
+      ],
+      "positives_evaluated": 72,
+      "roc_auc": 0.5573934052856204,
+      "pr_auc": 0.0020340012656897568,
+      "pr_auc_prevalence_baseline": 0.0014751680052450418,
+      "top_area_capture": {
+        "top_5pct_area": 0.1111111111111111,
+        "top_10pct_area": 0.1527777777777778,
+        "top_20pct_area": 0.3055555555555556
+      },
+      "success_rate_curve": [
+        {
+          "area_fraction": 0.01,
+          "captured_fraction": 0.013888888888888888
+        },
+        {
+          "area_fraction": 0.02,
+          "captured_fraction": 0.041666666666666664
+        },
+        {
+          "area_fraction": 0.05,
+          "captured_fraction": 0.1111111111111111
+        },
+        {
+          "area_fraction": 0.1,
+          "captured_fraction": 0.1527777777777778
+        },
+        {
+          "area_fraction": 0.2,
+          "captured_fraction": 0.3055555555555556
+        },
+        {
+          "area_fraction": 0.3,
+          "captured_fraction": 0.3611111111111111
+        },
+        {
+          "area_fraction": 0.5,
+          "captured_fraction": 0.5
+        },
+        {
+          "area_fraction": 1.0,
+          "captured_fraction": 1.0
+        }
+      ],
+      "success_rate_auc": 0.5265972222222223
+    },
+    "hgb:thermal_terrain_only": {
+      "per_fold": [
+        {
+          "fold": 0,
+          "cells": 10619,
+          "positives": 31,
+          "roc_auc": 0.5069015929674002,
+          "pr_auc": 0.0378214383912014,
+          "pr_auc_prevalence_baseline": 0.0030317848410757946
+        },
+        {
+          "fold": 1,
+          "cells": 10606,
+          "positives": 21,
+          "roc_auc": 0.8219953542392566,
+          "pr_auc": 0.009564959550982117,
+          "pr_auc_prevalence_baseline": 0.0020445915684938177
+        },
+        {
+          "fold": 2,
+          "cells": 9970,
+          "positives": 12,
+          "roc_auc": 0.7430233954238277,
+          "pr_auc": 0.0035206348786139038,
+          "pr_auc_prevalence_baseline": 0.0012334258402713536
+        },
+        {
+          "fold": 3,
+          "cells": 9366,
+          "positives": 4,
+          "roc_auc": 0.798017882150167,
+          "pr_auc": 0.001479656297109712,
+          "pr_auc_prevalence_baseline": 0.0004307095940562076
+        },
+        {
+          "fold": 4,
+          "cells": 9361,
+          "positives": 4,
+          "roc_auc": 0.9735256134309083,
+          "pr_auc": 0.0250409358456726,
+          "pr_auc_prevalence_baseline": 0.0004302925989672978
+        }
+      ],
+      "positives_evaluated": 72,
+      "roc_auc": 0.6815589776209237,
+      "pr_auc": 0.006891326562645862,
+      "pr_auc_prevalence_baseline": 0.0014751680052450418,
+      "top_area_capture": {
+        "top_5pct_area": 0.16666666666666666,
+        "top_10pct_area": 0.2361111111111111,
+        "top_20pct_area": 0.4027777777777778
+      },
+      "success_rate_curve": [
+        {
+          "area_fraction": 0.01,
+          "captured_fraction": 0.09722222222222222
+        },
+        {
+          "area_fraction": 0.02,
+          "captured_fraction": 0.1111111111111111
+        },
+        {
+          "area_fraction": 0.05,
+          "captured_fraction": 0.16666666666666666
+        },
+        {
+          "area_fraction": 0.1,
+          "captured_fraction": 0.2361111111111111
+        },
+        {
+          "area_fraction": 0.2,
+          "captured_fraction": 0.4027777777777778
+        },
+        {
+          "area_fraction": 0.3,
+          "captured_fraction": 0.5138888888888888
+        },
+        {
+          "area_fraction": 0.5,
+          "captured_fraction": 0.7222222222222222
+        },
+        {
+          "area_fraction": 1.0,
+          "captured_fraction": 1.0
+        }
+      ],
+      "success_rate_auc": 0.6477083333333333
+    },
+    "hgb:all_six": {
+      "per_fold": [
+        {
+          "fold": 0,
+          "cells": 10619,
+          "positives": 31,
+          "roc_auc": 0.5510562823166063,
+          "pr_auc": 0.026843156000450532,
+          "pr_auc_prevalence_baseline": 0.0030317848410757946
+        },
+        {
+          "fold": 1,
+          "cells": 10606,
+          "positives": 21,
+          "roc_auc": 0.778527293844367,
+          "pr_auc": 0.014765034930597304,
+          "pr_auc_prevalence_baseline": 0.0020445915684938177
+        },
+        {
+          "fold": 2,
+          "cells": 9970,
+          "positives": 12,
+          "roc_auc": 0.7291859627457035,
+          "pr_auc": 0.004274874140920562,
+          "pr_auc_prevalence_baseline": 0.0012334258402713536
+        },
+        {
+          "fold": 3,
+          "cells": 9366,
+          "positives": 4,
+          "roc_auc": 0.8809113433157384,
+          "pr_auc": 0.002301989358983093,
+          "pr_auc_prevalence_baseline": 0.0004307095940562076
+        },
+        {
+          "fold": 4,
+          "cells": 9361,
+          "positives": 4,
+          "roc_auc": 0.963651528196298,
+          "pr_auc": 0.29762285594022936,
+          "pr_auc_prevalence_baseline": 0.0004302925989672978
+        }
+      ],
+      "positives_evaluated": 72,
+      "roc_auc": 0.6881377899978114,
+      "pr_auc": 0.01176812059305623,
+      "pr_auc_prevalence_baseline": 0.0014751680052450418,
+      "top_area_capture": {
+        "top_5pct_area": 0.16666666666666666,
+        "top_10pct_area": 0.2222222222222222,
+        "top_20pct_area": 0.3472222222222222
+      },
+      "success_rate_curve": [
+        {
+          "area_fraction": 0.01,
+          "captured_fraction": 0.1111111111111111
+        },
+        {
+          "area_fraction": 0.02,
+          "captured_fraction": 0.125
+        },
+        {
+          "area_fraction": 0.05,
+          "captured_fraction": 0.16666666666666666
+        },
+        {
+          "area_fraction": 0.1,
+          "captured_fraction": 0.2222222222222222
+        },
+        {
+          "area_fraction": 0.2,
+          "captured_fraction": 0.3472222222222222
+        },
+        {
+          "area_fraction": 0.3,
+          "captured_fraction": 0.5
+        },
+        {
+          "area_fraction": 0.5,
+          "captured_fraction": 0.7638888888888888
+        },
+        {
+          "area_fraction": 1.0,
+          "captured_fraction": 1.0
+        }
+      ],
+      "success_rate_auc": 0.6540277777777778
+    },
+    "rf:all_six": {
+      "per_fold": [
+        {
+          "fold": 0,
+          "cells": 10619,
+          "positives": 31,
+          "roc_auc": 0.39343826539330534,
+          "pr_auc": 0.013692423664224303,
+          "pr_auc_prevalence_baseline": 0.0030317848410757946
+        },
+        {
+          "fold": 1,
+          "cells": 10606,
+          "positives": 21,
+          "roc_auc": 0.8216353077816493,
+          "pr_auc": 0.012042696823780171,
+          "pr_auc_prevalence_baseline": 0.0020445915684938177
+        },
+        {
+          "fold": 2,
+          "cells": 9970,
+          "positives": 12,
+          "roc_auc": 0.650921066172687,
+          "pr_auc": 0.006401684767580166,
+          "pr_auc_prevalence_baseline": 0.0012334258402713536
+        },
+        {
+          "fold": 3,
+          "cells": 9366,
+          "positives": 4,
+          "roc_auc": 0.9004362813745557,
+          "pr_auc": 0.0026362676480768082,
+          "pr_auc_prevalence_baseline": 0.0004307095940562076
+        },
+        {
+          "fold": 4,
+          "cells": 9361,
+          "positives": 4,
+          "roc_auc": 0.972234179939733,
+          "pr_auc": 0.02761013074943558,
+          "pr_auc_prevalence_baseline": 0.0004302925989672978
+        }
+      ],
+      "positives_evaluated": 72,
+      "roc_auc": 0.6611260441745094,
+      "pr_auc": 0.005873854229156216,
+      "pr_auc_prevalence_baseline": 0.0014751680052450418,
+      "top_area_capture": {
+        "top_5pct_area": 0.2222222222222222,
+        "top_10pct_area": 0.3055555555555556,
+        "top_20pct_area": 0.4305555555555556
+      },
+      "success_rate_curve": [
+        {
+          "area_fraction": 0.01,
+          "captured_fraction": 0.09722222222222222
+        },
+        {
+          "area_fraction": 0.02,
+          "captured_fraction": 0.1388888888888889
+        },
+        {
+          "area_fraction": 0.05,
+          "captured_fraction": 0.2222222222222222
+        },
+        {
+          "area_fraction": 0.1,
+          "captured_fraction": 0.3055555555555556
+        },
+        {
+          "area_fraction": 0.2,
+          "captured_fraction": 0.4305555555555556
+        },
+        {
+          "area_fraction": 0.3,
+          "captured_fraction": 0.4722222222222222
+        },
+        {
+          "area_fraction": 0.5,
+          "captured_fraction": 0.6111111111111112
+        },
+        {
+          "area_fraction": 1.0,
+          "captured_fraction": 1.0
+        }
+      ],
+      "success_rate_auc": 0.6133333333333334
+    }
+  },
+  "selected": "hgb:all_six",
+  "spatial_block_cv": {
+    "per_fold": [
+      {
+        "fold": 0,
+        "cells": 10619,
+        "positives": 31,
+        "roc_auc": 0.5510562823166063,
+        "pr_auc": 0.026843156000450532,
+        "pr_auc_prevalence_baseline": 0.0030317848410757946
+      },
+      {
+        "fold": 1,
+        "cells": 10606,
+        "positives": 21,
+        "roc_auc": 0.778527293844367,
+        "pr_auc": 0.014765034930597304,
+        "pr_auc_prevalence_baseline": 0.0020445915684938177
+      },
+      {
+        "fold": 2,
+        "cells": 9970,
+        "positives": 12,
+        "roc_auc": 0.7291859627457035,
+        "pr_auc": 0.004274874140920562,
+        "pr_auc_prevalence_baseline": 0.0012334258402713536
+      },
+      {
+        "fold": 3,
+        "cells": 9366,
+        "positives": 4,
+        "roc_auc": 0.8809113433157384,
+        "pr_auc": 0.002301989358983093,
+        "pr_auc_prevalence_baseline": 0.0004307095940562076
+      },
+      {
+        "fold": 4,
+        "cells": 9361,
+        "positives": 4,
+        "roc_auc": 0.963651528196298,
+        "pr_auc": 0.29762285594022936,
+        "pr_auc_prevalence_baseline": 0.0004302925989672978
+      }
+    ],
+    "positives_evaluated": 72,
+    "roc_auc": 0.6881377899978114,
+    "pr_auc": 0.01176812059305623,
+    "pr_auc_prevalence_baseline": 0.0014751680052450418,
+    "top_area_capture": {
+      "top_5pct_area": 0.16666666666666666,
+      "top_10pct_area": 0.2222222222222222,
+      "top_20pct_area": 0.3472222222222222
+    },
+    "success_rate_curve": [
+      {
+        "area_fraction": 0.01,
+        "captured_fraction": 0.1111111111111111
+      },
+      {
+        "area_fraction": 0.02,
+        "captured_fraction": 0.125
+      },
+      {
+        "area_fraction": 0.05,
+        "captured_fraction": 0.16666666666666666
+      },
+      {
+        "area_fraction": 0.1,
+        "captured_fraction": 0.2222222222222222
+      },
+      {
+        "area_fraction": 0.2,
+        "captured_fraction": 0.3472222222222222
+      },
+      {
+        "area_fraction": 0.3,
+        "captured_fraction": 0.5
+      },
+      {
+        "area_fraction": 0.5,
+        "captured_fraction": 0.7638888888888888
+      },
+      {
+        "area_fraction": 1.0,
+        "captured_fraction": 1.0
+      }
+    ],
+    "success_rate_auc": 0.6540277777777778
+  },
+  "region_holdout": {
+    "train_west_test_east": {
+      "cells": 23987,
+      "positives": 57,
+      "roc_auc": 0.6652156108880369,
+      "pr_auc": 0.03068835356805134,
+      "pr_auc_prevalence_baseline": 0.002457744049672301
+    },
+    "train_east_test_west": {
+      "cells": 25935,
+      "positives": 15,
+      "roc_auc": 0.717662070492038,
+      "pr_auc": 0.0022443768246118026,
+      "pr_auc_prevalence_baseline": 0.0005855715178013742
+    },
+    "pooled": {
+      "positives_evaluated": 72,
+      "roc_auc": 0.6756446010706209,
+      "pr_auc": 0.012104572933263918,
+      "pr_auc_prevalence_baseline": 0.0014751680052450418,
+      "top_area_capture": {
+        "top_5pct_area": 0.25,
+        "top_10pct_area": 0.2916666666666667,
+        "top_20pct_area": 0.3333333333333333
+      },
+      "success_rate_curve": [
+        {
+          "area_fraction": 0.01,
+          "captured_fraction": 0.09722222222222222
+        },
+        {
+          "area_fraction": 0.02,
+          "captured_fraction": 0.125
+        },
+        {
+          "area_fraction": 0.05,
+          "captured_fraction": 0.25
+        },
+        {
+          "area_fraction": 0.1,
+          "captured_fraction": 0.2916666666666667
+        },
+        {
+          "area_fraction": 0.2,
+          "captured_fraction": 0.3333333333333333
+        },
+        {
+          "area_fraction": 0.3,
+          "captured_fraction": 0.4722222222222222
+        },
+        {
+          "area_fraction": 0.5,
+          "captured_fraction": 0.75
+        },
+        {
+          "area_fraction": 1.0,
+          "captured_fraction": 1.0
+        }
+      ],
+      "success_rate_auc": 0.6520138888888889
+    }
+  },
+  "legacy_model_check": {
+    "cells": 49922,
+    "positives": 72,
+    "roc_auc": 0.7221308854508646,
+    "pr_auc": 0.003850972047005627,
+    "pr_auc_prevalence_baseline": 0.0014751680052450418,
+    "top_area_capture": {
+      "top_5pct_area": 0.16666666666666666,
+      "top_10pct_area": 0.2916666666666667,
+      "top_20pct_area": 0.4166666666666667
+    },
+    "status": "EVALUATED",
+    "caveat": "Legacy training data (X_train.pkl) carry no labels or coordinates, so it is unknown whether these MRDS locations were in its training set; this is NOT a clean holdout and is likely optimistic. It also used SRTM (not NASADEM) and a different Sentinel-2 compositing recipe."
+  },
+  "grid_summary": {
+    "cells": 50000,
+    "scored": 49922,
+    "uncertainty_counts": {
+      "HIGH": 37728,
+      "MODERATE": 9891,
+      "LOW": 2303
+    },
+    "applicability_counts": {
+      "HIGH": 47361,
+      "MODERATE": 2011,
+      "LOW": 550
+    },
+    "rank_sd_quantiles": {
+      "0.1": 7.023021706639239,
+      "0.5": 13.486003698438473,
+      "0.9": 19.20427788956157
+    }
+  }
+}

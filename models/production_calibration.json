@@ -1,0 +1,19 @@
+{
+  "model_version": "production-qgbm-1.0",
+  "configuration": "level_default",
+  "ratio_target": false,
+  "ratio_base_feature": null,
+  "params": {
+    "max_iter": 400,
+    "learning_rate": 0.04,
+    "max_leaf_nodes": 15,
+    "min_samples_leaf": 25,
+    "l2_regularization": 1.0
+  },
+  "offsets_relative_to_raw_p50": {
+    "p10": -0.15197663824753624,
+    "p50": -0.029920375540436195,
+    "p90": 0.06964263774264427
+  },
+  "offsets_estimated_from": "168 out-of-sample backtest periods"
+}

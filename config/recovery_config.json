@@ -1,0 +1,80 @@
+{
+  "_note": "PROJECT DEFAULT scenario and action definitions for simulation. Effects are applied to the model's operating-state inputs; the production response is a MODEL ESTIMATE, not a guaranteed recovery. Lost hours are always re-derived from availability (lost = scheduled_hours x (1 - availability)) and split between downtime and maintenance in their existing proportion, matching the operating records.",
+  "version": "recovery-1.0",
+  "disruptions": {
+    "NORMAL": {
+      "description": "Current operating state, no additional disruption.",
+      "set_min": {},
+      "add": {}
+    },
+    "HEAVY_RAIN": {
+      "description": "Monsoon-type week: >=150 mm rain, wet ground, slower haulage.",
+      "set_min": {
+        "rainfall_7d_mm": 150.0,
+        "soil_moisture_m3m3": 0.46
+      },
+      "add": {
+        "haulage_delay_h": 1.0
+      }
+    },
+    "EQUIPMENT_DEGRADATION": {
+      "description": "Fleet availability falls 12 points (unplanned downtime rises accordingly).",
+      "set_min": {},
+      "add": {
+        "equipment_availability": -0.12
+      }
+    },
+    "BLAST_DELAY": {
+      "description": "Explosive supply / blast-clearance delays.",
+      "set_min": {},
+      "add": {
+        "blast_delay_h": 2.0,
+        "drilling_delay_h": 1.0
+      }
+    },
+    "COMBINED_DISRUPTION": {
+      "description": "Heavy rain, equipment degradation and blast delay together.",
+      "combine": [
+        "HEAVY_RAIN",
+        "EQUIPMENT_DEGRADATION",
+        "BLAST_DELAY"
+      ]
+    }
+  },
+  "actions": {
+    "EQUIPMENT_RECOVERY": {
+      "code": "A1",
+      "label": "Equipment recovery (corrective maintenance / standby units): +8 points availability",
+      "add": {
+        "equipment_availability": 0.08
+      }
+    },
+    "SCHEDULE_ADJUSTMENT": {
+      "code": "A2",
+      "label": "Schedule adjustment (re-sequence benches, redeploy haul trucks)",
+      "add": {
+        "truck_count": 3.0
+      },
+      "scale": {
+        "haulage_delay_h": 0.7
+      }
+    },
+    "BLAST_DRILL_DELAY_REDUCTION": {
+      "code": "A3",
+      "label": "Blast / drill delay reduction (pre-positioned explosives, drill scheduling)",
+      "scale": {
+        "blast_delay_h": 0.5,
+        "drilling_delay_h": 0.6
+      }
+    }
+  },
+  "floors": {
+    "equipment_availability": 0.0,
+    "equipment_downtime_h": 0.0,
+    "maintenance_hours": 0.0,
+    "drilling_delay_h": 0.0,
+    "blast_delay_h": 0.0,
+    "haulage_delay_h": 0.0,
+    "truck_count": 0.0
+  }
+}

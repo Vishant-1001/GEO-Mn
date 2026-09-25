@@ -1,0 +1,13 @@
+{
+  "source": "Open-Meteo historical weather API (ERA5 / ERA5-Land reanalysis, ECMWF Copernicus)",
+  "url": "https://archive-api.open-meteo.com/v1/archive?latitude=21.7&longitude=79.95&start_date=2021-01-01&end_date=2026-09-24&daily=precipitation_sum,temperature_2m_max,soil_moisture_0_to_7cm_mean&timezone=Asia%2FKolkata",
+  "retrieved_utc": "2026-09-25T16:52:58+00:00",
+  "location": {
+    "lat": 21.7,
+    "lon": 79.95
+  },
+  "rows": 2093,
+  "rows_with_missing_values": 0,
+  "data_mode": "REAL_PUBLIC",
+  "note": "Reanalysis values for a ~10 km grid cell; not a mine-site rain gauge."
+}

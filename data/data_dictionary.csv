@@ -1,0 +1,43 @@
+file,column,unit,description,data_mode
+production_history.csv,date,YYYY-MM-DD,calendar day (daily granularity),SYNTHETIC
+production_history.csv,mine_id,-,synthetic demonstration mine id,SYNTHETIC
+production_history.csv,target_tonnes,t/day,planned daily production (synthetic plan rule: FY growth x monsoon x Sunday factors),SYNTHETIC
+production_history.csv,actual_tonnes,t/day,generated daily production (seed 42 data-generating process),SYNTHETIC
+production_history.csv,equipment_availability,fraction 0-1,share of scheduled hours the fleet is productive,SYNTHETIC
+production_history.csv,equipment_downtime_h,h/day,unplanned downtime (lost hours minus maintenance),SYNTHETIC
+production_history.csv,maintenance_hours,h/day,planned + corrective maintenance hours,SYNTHETIC
+production_history.csv,drilling_delay_h,h/day,drilling delay hours,SYNTHETIC
+production_history.csv,blast_delay_h,h/day,blasting delay hours,SYNTHETIC
+production_history.csv,truck_count,trucks,haul trucks deployed,SYNTHETIC
+production_history.csv,haulage_delay_h,h/day,haulage delay hours,SYNTHETIC
+production_history.csv,rainfall_mm,mm/day,daily precipitation (ERA5 via Open-Meteo) at the demo mine coordinate,REAL_PUBLIC
+production_history.csv,soil_moisture_m3m3,m3/m3,daily mean 0-7 cm soil moisture (ERA5-Land),REAL_PUBLIC
+production_history.csv,temperature_max_c,deg C,daily maximum 2 m air temperature (ERA5),REAL_PUBLIC
+weather_daily.csv,*,see production_history.csv,raw daily weather used by the generator and features,REAL_PUBLIC
+production_backtest_forecasts.csv,origin / period_end,YYYY-MM-DD,7-day forecast period,DERIVED
+production_backtest_forecasts.csv,p10 / p50 / p90,t/period,out-of-sample recalibrated quantile forecasts from the rolling backtest,DERIVED (SYNTHETIC)
+production_backtest_forecasts.csv,raw_p10 / raw_p50 / raw_p90,t/period,quantile forecasts before recalibration,DERIVED (SYNTHETIC)
+production_backtest_forecasts.csv,oracle_p50,t/period,diagnostic only: prediction using the true period conditions (not forecast skill),DERIVED (SYNTHETIC)
+production_backtest_forecasts.csv,naive / ma4,t/period,previous-period and 4-period moving-average baselines,DERIVED (SYNTHETIC)
+production_backtest_forecasts.csv,window,-,selection (model choice) or test (reported metrics),DERIVED
+mrds_mn_occurrences.csv,dep_id / site_name / dev_stat / lat / lon / url,-,USGS MRDS manganese records in the study area,REAL_PUBLIC
+mrds_mn_occurrences.csv,label_use,-,POSITIVE / EXCLUDED_DUPLICATE_LOCATION / EXCLUDED_REGIONAL_RECORD,DERIVED
+exploration_grid_features.csv.gz,lat / lon,degrees,centre of the 0.01 degree cell,DERIVED
+exploration_grid_features.csv.gz,NDVI,-,(B08-B04)/(B08+B04) of the 2024 Sentinel-2 L2A median composite,REAL_PUBLIC
+exploration_grid_features.csv.gz,Iron_Oxide_Index,ratio,B04/B02 of the composite,REAL_PUBLIC
+exploration_grid_features.csv.gz,Clay_Hydroxyl_Index,ratio,B11/B12 of the composite,REAL_PUBLIC
+exploration_grid_features.csv.gz,LST_Day_K,K,2024 mean QC-filtered MODIS MOD11A2 daytime LST (x0.02 scale),REAL_PUBLIC
+exploration_grid_features.csv.gz,elevation,m,mean NASADEM elevation in the cell,REAL_PUBLIC
+exploration_grid_features.csv.gz,slope,degrees,mean NASADEM slope in the cell,REAL_PUBLIC
+exploration_grid_features.csv.gz,s2_valid_scenes,count,mean valid (cloud/shadow-free) Sentinel-2 scenes per 200 m pixel,QUALITY
+exploration_grid_features.csv.gz,s2_pixels / dem_pixels,count,pixels aggregated into the cell,QUALITY
+exploration_grid_features.csv.gz,lst_valid_composites,count,valid 8-day LST composites at the nearest MODIS pixel,QUALITY
+exploration_grid.csv,prospectivity_rank,0-100,relative rank within the study area (NOT a probability of a deposit),DERIVED
+exploration_grid.csv,rank_sd,rank points,std-dev of ensemble member ranks (uncertainty),DERIVED
+exploration_grid.csv,uncertainty / applicability,LOW/MODERATE/HIGH,ensemble disagreement / IsolationForest feature-space applicability,DERIVED
+exploration_grid.csv,data_status,-,OK or INSUFFICIENT_DATA (missing features are never imputed),DERIVED
+exploration_grid.csv,known_mn_record_in_cell,0/1,cell contains an MRDS training label,DERIVED
+exploration_targets.json,targets[],-,clustered exploration targets with evidence and priority inputs,DERIVED
+geology_lattice.csv,unit_name / interval / age_bottom_ma / precambrian,-,Macrostrat (GSC world geology) unit at 0.1 degree lattice points,REAL_PUBLIC
+subsurface_evidence.csv,target_id / source_type / source_id / depth_m / evidence_strength / evidence_status / source_mode,-,schema only: no legitimate subsurface data are available,UNAVAILABLE
+demo_scenarios.json,scenarios,-,deterministic demo inputs (overrides); outcomes are computed,SIMULATED
