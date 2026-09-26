@@ -36,7 +36,7 @@ did not help (F < D).
 | A | MRDS | baseline six | 0.624 ± 0.018 | 0.697 ± 0.016 | 0.0021 | 25 % |
 | B | MRDS + NMET (3 cells) | baseline six | 0.687 ± 0.015 | 0.701 ± 0.037 | 0.0022 | 30 % |
 | **C (deployed)** | MRDS + NMET | D | 0.733 ± 0.016 | **0.803 ± 0.030** | **0.0128** | **43 %** |
-| D | real + synthetic | — | not run (circular: simulated subsurface is generated from model targets) | | | |
+| D | real + synthetic | — | not run: no synthetic exploration data exist (fabricated subsurface evidence is not generated) | | | |
 
 Single-seed run of C on the test region: precision / recall / F1 in the top 10 % of area are
 0.003 / 0.53 / 0.007, and top-50-cell precision is 0.04 (2 of 50). NMET cells rank 43.6 under A and

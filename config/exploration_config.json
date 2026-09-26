@@ -50,10 +50,9 @@
     "max_targets": 40
   },
   "priority_weights": {
-    "prospectivity": 0.45,
-    "evidence_applicability": 0.25,
-    "strategic_relevance": 0.2,
-    "development_readiness": 0.1
+    "prospectivity": 0.5,
+    "evidence_applicability": 0.3,
+    "strategic_relevance": 0.2
   },
   "strategic_relevance": {
     "distance_decay_km": 40.0,
@@ -63,10 +62,11 @@
   },
   "development_readiness": {
     "proxy": "distance to nearest documented producing / past-producing Mn site (MRDS) as a proxy for existing access and infrastructure",
-    "distance_decay_km": 15.0
+    "distance_decay_km": 15.0,
+    "_note": "Context only: distance to a documented producer is shown as information and is NOT part of the priority score (no defensible development data)."
   },
   "subsurface_fusion": {
-    "_note": "PROJECT-CONFIGURED rules for how SIMULATED subsurface evidence would change a target. Not an industry standard; simulated evidence never produces a reserve or tonnage.",
+    "_note": "PROJECT-CONFIGURED rules: how a target's evidence maturity, uncertainty and investigation priority WOULD change for each possible outcome of the next investigation. Hypothetical outcomes only: no borehole, assay or geophysical record is generated, and no reserve or tonnage is ever derived. Not an industry standard.",
     "POSITIVE_DRILLING_INTERSECTION": {
       "min_level": 3,
       "uncertainty_shift": -1,
@@ -103,5 +103,11 @@
       "prospectivity_factor": 1.0,
       "next": "Geological mapping and soil / stream-sediment geochemistry over the footprint."
     }
+  },
+  "priority_gates": {
+    "_note": "Hard gates applied BEFORE scoring for contingency selection (project policy).",
+    "require_in_study_area": true,
+    "min_applicability": "MODERATE",
+    "min_evidence_level": 1
   }
 }

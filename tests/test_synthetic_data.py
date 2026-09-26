@@ -9,7 +9,6 @@ import pytest
 import yaml
 
 from ml.synthetic_ops import SCENARIOS, check_day, counterfactual_week, simulate
-from ml.synthetic_subsurface import SCENARIOS as SUB_SCENARIOS, apparent_thickness, check_subsurface, generate_target, ibm_grade_class
 from services.common import DATA_DIR
 
 SYN = DATA_DIR / "synthetic"
@@ -101,46 +100,13 @@ def test_action_outcomes_arithmetic():
     assert np.allclose(a["recovery_t"], a["production_after_t"] - a["production_before_t"], atol=0.11)
 
 
-# ---------------------------------------------------------------- subsurface (SIMULATED)
+# ---------------------------------------------------------------- no fabricated subsurface
 
-@pytest.fixture(scope="module")
-def sub():
-    return {n: pd.read_csv(SYN / "subsurface" / f"synthetic_{n}.csv")
-            for n in ("boreholes", "borehole_intervals", "geochemistry", "geophysics", "subsurface_targets")}
-
-
-def test_subsurface_all_simulated_and_consistent(sub):
-    for n, df in sub.items():
-        assert set(df["provenance"]) == {"SIMULATED"}, n
-    check_subsurface(sub["boreholes"], sub["borehole_intervals"])
-    assert set(sub["subsurface_targets"]["scenario"]) == set(SUB_SCENARIOS)
-    assert sub["boreholes"]["borehole_id"].str.startswith("SIM_").all()
-
-
-def test_subsurface_scenarios_behave_as_named(sub):
-    iv = sub["borehole_intervals"]
-    neg = iv[iv["scenario"] == "NEGATIVE_DRILLING_RESULT"]
-    assert not neg["manganese_presence"].any()
-    pos = iv[iv["scenario"] == "POSITIVE_DRILLING_INTERSECTION"]
-    assert pos.groupby("borehole_id")["manganese_presence"].any().mean() > 0.8
-    none = sub["subsurface_targets"][sub["subsurface_targets"]["scenario"] == "NO_SUBSURFACE_EVIDENCE"]
-    assert (none[["n_boreholes", "n_geochem", "n_geophys"]] == 0).all(axis=None)
-    gp = sub["geophysics"].groupby("scenario")["anomaly_strength"].median()
-    assert gp["POSITIVE_GEOPHYSICAL_SUPPORT"] > gp["NEGATIVE_DRILLING_RESULT"]
-
-
-def test_subsurface_geology_rules():
-    assert ibm_grade_class(47) != ibm_grade_class(20)
-    assert apparent_thickness(2.0, 60.0) > 2.0 * 0.99      # oblique hole through dipping bed never thinner than true
-    c = json.loads((DATA_DIR / "processed" / "subsurface" / "geological_constraints.json").read_text())
-    cfg = yaml.safe_load((SYN / "subsurface" / "subsurface_generation_config.yaml").read_text())
-    t = {"target_id": "TX", "lat": 21.7, "lon": 80.0, "prospectivity_rank": 90.0, "nmet_block_id": None}
-    a = generate_target(t, "POSITIVE_DRILLING_INTERSECTION", c, cfg, np.random.default_rng(1))
-    b = generate_target(t, "POSITIVE_DRILLING_INTERSECTION", c, cfg, np.random.default_rng(1))
-    assert a == b                                            # seed reproducible
-    for iv in a[1]:
-        assert iv["depth_to_m"] <= max(c["proposed_borehole_depths_m"]) + 0.05
-        assert 0 <= iv["mn_grade_pct"] <= 60
+def test_no_fabricated_subsurface_records_exist():
+    """Boreholes, assays and geophysics are never generated (they would be fabricated evidence)."""
+    assert not (SYN / "subsurface").exists()
+    import importlib.util
+    assert importlib.util.find_spec("ml.synthetic_subsurface") is None
 
 
 # ---------------------------------------------------------------- manifests
@@ -149,7 +115,6 @@ def test_subsurface_geology_rules():
     ("synthetic/recovery/recovery_generation_manifest.json", {"synthetic_disruption_scenarios.csv": "synthetic/production",
                                                               "synthetic_action_outcomes.csv": "synthetic/recovery",
                                                               "recovery_scenario_matrix.csv": "synthetic/recovery"}),
-    ("synthetic/subsurface/subsurface_generation_manifest.json", None),
 ])
 def test_manifest_checksums_match_files(manifest, base):
     m = json.loads((DATA_DIR / manifest).read_text())

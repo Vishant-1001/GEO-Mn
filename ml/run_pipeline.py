@@ -5,7 +5,7 @@
 
 Offline steps are deterministic (seeds in config / yaml): re-running them reproduces the
 committed artifacts. Fetch steps depend on the upstream archives (see docs/DATA_SOURCE_AUDIT.md).
-Order: real data -> synthetic operations -> models -> simulated recovery -> targets -> simulated subsurface.
+Order: real data -> synthetic operations -> models -> simulated recovery -> targets.
 """
 
 from __future__ import annotations
@@ -39,7 +39,6 @@ OFFLINE = [
     ["ml.train_exploration"],
     [f"{S}/synthetic/generate_recovery.py"],                         # SIMULATED recovery matrix
     ["ml.target_engine"],
-    [f"{S}/synthetic/generate_subsurface.py"],                       # SIMULATED subsurface scenarios
 ]
 
 

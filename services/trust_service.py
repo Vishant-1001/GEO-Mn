@@ -60,7 +60,7 @@ def exploration() -> dict:
         "observation_window": man.get("observation_window"),
         "effective_resolution": man.get("effective_resolution"),
         "subsurface_evidence": ("Observed: REPORTED_BLOCK_LEVEL for targets overlapping official NMET blocks (REAL_GOVERNMENT); "
-                                "no public collars, logs or assays. Simulated subsurface is what-if only and never used in training."),
+                                "no public collars, logs or assays; every other target is UNAVAILABLE. No subsurface record is simulated."),
         "experiments": _experiments(),
         "region_holdout": {"roc_auc": _r(ho["roc_auc"]), "pr_auc": _r(ho["pr_auc"], 4),
                            "top_area_capture": {k: _r(v) for k, v in ho["top_area_capture"].items()},
@@ -88,6 +88,36 @@ def exploration() -> dict:
                                  labels_mode="REAL_PUBLIC", features_mode="REAL_DERIVED",
                                  geology_features_mode="REAL_GOVERNMENT" if any(
                                      f.startswith("geom_") for f in man.get("features", [])) else None),
+    }
+
+
+def recovery(mine_id: str = "DEMO_MINE") -> dict:
+    """Recovery diagnostics for the current state (no 'accuracy': effects are simulator counterfactuals)."""
+    from services import recovery_service
+
+    d = recovery_service.evaluate(mine_id)
+    ports = d["evaluated_portfolios"]
+    sel = next((p for p in ports if p["selected"]), None)
+    return {
+        "mine_id": d["mine_id"],
+        "scenarios_tested": d["disruption_scenarios"],
+        "portfolios_evaluated": len(ports),
+        "eligible_portfolios": [p["portfolio_id"] for p in ports if p["eligible"]],
+        "applicability_blocked_portfolios": [{"portfolio": p["portfolio_id"], "scenarios": p["low_applicability_scenarios"]}
+                                             for p in ports if p["low_applicability_scenarios"]],
+        "feasibility_blocked_portfolios": [p["portfolio_id"] for p in ports
+                                           if p["modelled_feasibility"] not in (recovery_service.FEASIBLE, recovery_service.CONSTRAINED)],
+        "constraint_notes": {p["portfolio_id"]: p["constraint_notes"] for p in ports if p["constraint_notes"]},
+        "baseline_worst_case_residual_gap_tonnes": d["no_action_worst_case_gap_tonnes"],
+        "selected_portfolio": d["selected_portfolio"],
+        "selection_status": d["selection_status"],
+        "selected_worst_case_residual_gap_tonnes": sel["worst_case_residual_gap_tonnes"] if sel else None,
+        "selected_intervention_burden": sel["intervention_burden"] if sel else None,
+        "selection_rule": d["selection_rule"],
+        "applicability_policy": d["applicability_policy"],
+        "note": ("No recovery 'accuracy' is reported: action effects are simulator counterfactuals scored by the "
+                 "production model, not historical interventions."),
+        "provenance": d["provenance"],
     }
 
 
@@ -170,7 +200,6 @@ def provenance_catalogue() -> dict:
     nmet = _manifest("manifests/real_subsurface_nmet.json")
     syn_ops = _manifest("synthetic/production/synthetic_generation_manifest.json")
     syn_rec = _manifest("synthetic/recovery/recovery_generation_manifest.json")
-    syn_sub = _manifest("synthetic/subsurface/subsurface_generation_manifest.json")
     man = load_manifest()
     demo = load_config("demo_config.json")
     exm = man.get("exploration", {})
@@ -216,8 +245,8 @@ def provenance_catalogue() -> dict:
                                    "note": "Action effects are simulator counterfactuals, not historical MOIL interventions."},
             "subsurface_observed": {"mode": "REAL_GOVERNMENT", "description": "Reported NMET / DGM / MECL block findings attached to overlapping targets",
                                     "note": "REPORTED_BLOCK_LEVEL only where a target overlaps an official block; otherwise UNAVAILABLE."},
-            "subsurface_scenarios": {"mode": "SIMULATED", "description": syn_sub.get("dataset_name"), "seed": syn_sub.get("seed"),
-                                     "note": "SIMULATED — NOT OBSERVED. Used only for what-if evidence fusion."},
+            "next_evidence_sensitivity": {"mode": "SIMULATED", "description": "Rule-based what-if: how a target's priority would change for each possible outcome of the next investigation",
+                                          "note": "No boreholes, assays or geophysical values are generated."},
             "demo_states": {"mode": "SIMULATED", "description": "Deterministic demo states DEMO_A..DEMO_F"},
             "reserves": {"mode": "UNAVAILABLE", "description": "No reserve/resource tonnage is produced or implied by GEO-MN"},
         },

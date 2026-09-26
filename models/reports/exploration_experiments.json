@@ -440,7 +440,7 @@
     },
     "D_real_plus_synthetic": {
       "status": "NOT_RUN",
-      "reason": "The only synthetic exploration-side data are simulated subsurface scenarios generated FROM this model's targets; using them as labels or features would be circular leakage. No synthetic augmentation is used for exploration."
+      "reason": "No synthetic exploration data exist: fabricated boreholes, assays or geophysics would be invented evidence, and synthetic labels drawn from this model's own targets would be circular. No synthetic augmentation is used for exploration."
     }
   },
   "seed_robustness": {

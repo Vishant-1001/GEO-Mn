@@ -17,12 +17,13 @@ Trust**. Every number shown comes from the backend, with a provenance badge.
 |---|---|
 | IMD gridded rainfall and Tmax (2012–2025) | Demo-mine operations: equipment-level simulator, seed 42. **Not MOIL telemetry.** |
 | MOIL public production disclosures → 54 company quarters | Disruption and recovery-action effects (simulator counterfactuals) |
-| NRSC Bhuvan 1:50k geomorphology and lineaments | Subsurface what-if scenarios ("SIMULATED — NOT OBSERVED") |
+| NRSC Bhuvan 1:50k geomorphology and lineaments | Next-evidence priority sensitivity (rule-based; no records generated) |
 | NMET / DGM / MECL exploration-block records (block level) | Demo states DEMO_A–F (documented input overrides) |
 | USGS MRDS Mn records; Sentinel-2 / MODIS / NASADEM features; ERA5 | — |
 
-GEO-MN never produces a reserve, resource or tonnage estimate, and never presents simulated
-drilling as observed. Prospectivity is a relative rank, not a probability.
+GEO-MN never produces a reserve, resource or tonnage estimate, and never fabricates subsurface
+evidence (boreholes, assays, geophysics). Where no official record exists, subsurface evidence is
+UNAVAILABLE. Prospectivity is a relative rank, not a probability.
 
 ## Headline results (honest version)
 
@@ -56,7 +57,7 @@ Environment variables: `GEOMN_LIVE_EO` (1 = live Planetary Computer coordinate q
 | Baseline before this work | `docs/CURRENT_DATA_MODEL_BASELINE.md` |
 | Source audit (Indian government portals, access barriers) | `docs/DATA_SOURCE_AUDIT.md` |
 | Real-data integration | `docs/REAL_DATA_IMPLEMENTATION_REPORT.md` |
-| Synthetic data (what, why, how) | `docs/SYNTHETIC_DATA_README.md`, `docs/SYNTHETIC_GENERATION_METHOD.md`, `docs/SYNTHETIC_SUBSURFACE_METHOD.md`, `docs/SYNTHETIC_DATA_IMPLEMENTATION_REPORT.md` |
+| Synthetic data (what, why, how) | `docs/SYNTHETIC_DATA_README.md`, `docs/SYNTHETIC_GENERATION_METHOD.md`, `docs/SYNTHETIC_DATA_IMPLEMENTATION_REPORT.md` |
 | Provenance modes | `docs/DATA_PROVENANCE.md` |
 | Columns | `docs/DATA_DICTIONARY.md` |
 | Model comparison and experiments | `docs/MODEL_COMPARISON_REPORT.md` |

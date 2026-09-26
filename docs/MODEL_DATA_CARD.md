@@ -27,13 +27,21 @@ Targets are clusters of cells with rank ≥ 95 (40 targets). Evidence levels:
   Nagardhan; no public logs or assays).
 * **L4**: never reached.
 
-Simulated subsurface never changes these levels.
+## Next-evidence sensitivity (rule-based)
 
-## Subsurface scenario engine (SIMULATED)
+For each possible outcome of the recommended next investigation, the project-configured rules
+(`config/exploration_config.json → subsurface_fusion`) show how a copy of the target's maturity,
+uncertainty and investigation priority would change. No subsurface records are generated, and
+observed evidence levels are never changed.
 
-It applies project-configured fusion rules (`config/exploration_config.json → subsurface_fusion`) to
-a copy of a target and re-scores its priority. It is what-if only. See
-`SYNTHETIC_SUBSURFACE_METHOD.md`.
+## Target priority
+
+Hard gates come first: study area → applicability ≥ MODERATE → evidence ≥ L1. Then:
+
+* Contingency OFF: prospectivity + evidence/applicability.
+* Strategic contingency ON: strategic relevance is added.
+
+No development-readiness proxy is scored.
 
 ## Weekly production forecast — `production-qgbm-1.0` (SYNTHETIC operations)
 

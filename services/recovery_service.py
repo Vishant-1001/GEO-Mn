@@ -300,6 +300,7 @@ def evaluate(mine_id="DEMO_MINE", target_tonnes=None, base_state=None, condition
             "low_applicability_scenarios": r["extrapolated"],
             "eligible": blocked is None,
             "selection_blocked_reason": blocked,
+            "human_review_required": blocked is not None,
             "estimate_confidence": ("LOW — outside model experience" if sel_appl == "LOW"
                                     else "REDUCED — moderate applicability" if sel_appl == "MODERATE" else "NORMAL"),
             "constraint_notes": r["notes"],

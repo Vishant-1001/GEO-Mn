@@ -16,30 +16,37 @@ def _first_target(client):
     return client.get("/api/exploration/targets").json()["targets"][0]["target_id"]
 
 
-def test_subsurface_scenarios_endpoint(client):
+def test_subsurface_endpoint_observed_vs_sensitivity(client):
     tid = _first_target(client)
     r = client.get(f"/api/exploration/targets/{tid}/subsurface-scenarios")
     assert r.status_code == 200
     d = r.json()
-    assert PROVENANCE_KEYS <= set(d["provenance"]) and d["provenance"]["data_mode"] == "SIMULATED"
-    sims = d["simulated_scenarios"]
-    assert {s["scenario"] for s in sims} == set(load_config("exploration_config.json")["subsurface_fusion"]) - {"_note"}
-    for s in sims:
-        assert s["label"] == "SIMULATED — NOT OBSERVED"
-        assert s["simulated_evidence_level"] <= 3 and "No reserve" in s["not_claimed"]
-        assert all(b["provenance"] == "SIMULATED" for b in s["boreholes"])
+    assert PROVENANCE_KEYS <= set(d["provenance"]) and d["provenance"]["observed_mode"] == "REAL_GOVERNMENT"
+    assert d["reserve_confirmed"] is False and d["next_required_evidence"]
+    sens = d["next_evidence_sensitivity"]
+    assert {s["scenario"] for s in sens} == set(load_config("exploration_config.json")["subsurface_fusion"]) - {"_note"}
+    for s in sens:
+        assert s["label"] == "HYPOTHETICAL OUTCOME — NOT OBSERVED" and s["hypothetical_evidence_level"] <= 3
+        assert not {"boreholes", "intervals", "assays", "geophysics"} & set(s)      # no generated records
     text = json.dumps(d).lower()
     assert not any(f in text for f in FORBIDDEN)
+
+
+def test_unavailable_subsurface_statement(client):
+    t = next(x for x in client.get("/api/exploration/targets").json()["targets"] if x["subsurface_status"] == "UNAVAILABLE")
+    d = client.get(f"/api/exploration/targets/{t['target_id']}/subsurface-scenarios").json()
+    assert d["observed_evidence"]["subsurface_status"] == "UNAVAILABLE"
+    assert "requires additional ground/subsurface validation" in d["observed_evidence"]["statement"]
 
 
 def test_negative_drilling_lowers_priority_and_positive_does_not(client):
     tid = _first_target(client)
     d = client.get(f"/api/exploration/targets/{tid}/subsurface-scenarios").json()
-    by = {s["scenario"]: s for s in d["simulated_scenarios"]}
+    by = {s["scenario"]: s for s in d["next_evidence_sensitivity"]}
     assert by["NEGATIVE_DRILLING_RESULT"]["priority_change"] < 0
     assert by["POSITIVE_DRILLING_INTERSECTION"]["priority_change"] >= 0
     assert by["NO_SUBSURFACE_EVIDENCE"]["priority_change"] == 0
-    assert by["AMBIGUOUS_DRILLING_RESULT"]["simulated_uncertainty"] == "HIGH"
+    assert by["AMBIGUOUS_DRILLING_RESULT"]["hypothetical_uncertainty"] == "HIGH"
 
 
 def test_simulation_never_modifies_observed_targets(client):
@@ -69,7 +76,7 @@ def test_subsurface_errors(client, path, code):
 def test_single_scenario_filter(client):
     tid = _first_target(client)
     d = client.get(f"/api/exploration/targets/{tid}/subsurface-scenarios?scenario=positive_geochemical_support").json()
-    assert [s["scenario"] for s in d["simulated_scenarios"]] == ["POSITIVE_GEOCHEMICAL_SUPPORT"]
+    assert [s["scenario"] for s in d["next_evidence_sensitivity"]] == ["POSITIVE_GEOCHEMICAL_SUPPORT"]
 
 
 def test_real_quarterly_endpoint(client):

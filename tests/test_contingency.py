@@ -118,3 +118,27 @@ def test_why_now_only_with_strategic_gap():
     assert near["why_target_now"] == [] and near["next_target"] is None
     strat = cs.evaluate("DEMO_MINE", "STRATEGIC")
     assert strat["why_target_now"] and strat["strategic_requirement"]["active"] is True
+
+
+def test_near_term_residual_wording_never_claims_exploration_recovery():
+    d = cs.evaluate("DEMO_MINE", "NEAR_TERM")
+    if d["decision_state"] == "REVIEW_REQUIRED" and any(r["code"] == "NEAR_TERM_RESIDUAL_GAP" for r in d["review_reasons"]):
+        text = " ".join(r["text"] for r in d["review_reasons"])
+        assert "not treated as an immediate production-recovery action" in text
+    assert d["selected_target"] is None
+
+
+def test_strategic_summary_explains_contingency():
+    d = cs.evaluate("DEMO_C", "STRATEGIC")
+    assert d["decision_state"] == "OPERATIONAL_AND_EXPLORATION_CONTINGENCY"
+    assert "does not fully resolve the projected strategic supply requirement" in d["decision_summary"]
+    assert any(w["code"] == "RESERVE_NOT_CONFIRMED" for w in d["why_target_now"])
+    t = d["selected_target_detail"]
+    assert t["applicability"] != "LOW" and t["evidence_level"] >= 1          # passed the hard gates
+
+
+def test_forecast_applicability_is_exposed(client):
+    d = client.get("/api/supply-command?mine_id=DEMO_D").json()
+    assert d["forecast_applicability"] == "LOW"            # OOD state is surfaced, not hidden behind a validated band
+    assert d["decision_state"] == "REVIEW_REQUIRED"
+    assert cs.evaluate("DEMO_A")["forecast"]["applicability"] in ("HIGH", "MODERATE")

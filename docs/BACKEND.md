@@ -28,7 +28,7 @@ Full audit: `docs/DATA_SOURCE_AUDIT.md`. Mode definitions: `docs/DATA_PROVENANCE
 | Weather in production data | REAL_GOVERNMENT | IMD gridded rainfall / Tmax (2021–2025); ERA5-Land soil moisture; ERA5 for 2026 |
 | Demo-mine operations | **SYNTHETIC** | equipment-level simulator `ml/synthetic_ops.py`, seed 42 — **not MOIL data** |
 | Disruptions, actions, demo states | SIMULATED | simulator counterfactuals (`recovery_scenario_matrix.csv`), `data/demo_scenarios.json` |
-| What-if subsurface | SIMULATED | `data/synthetic/subsurface/*` — "SIMULATED — NOT OBSERVED" |
+| Subsurface where no official record exists | UNAVAILABLE | nothing is fabricated; next-evidence sensitivity is rule-based only |
 | Reserve / resource tonnage | UNAVAILABLE | never produced or implied |
 
 Satellite composites use the **2024-01-01/2024-12-31** observation window. Nothing is real-time.
@@ -40,7 +40,7 @@ main.py                     FastAPI routes only (thin)
 services/                   runtime logic
   production_service.py     history, P10/P50/P90 forecast, risk policy, SHAP contributions, reconciliation
   recovery_service.py       scenario x portfolio evaluation from the simulator matrix, feasibility, robust selection
-  subsurface_service.py     observed vs SIMULATED subsurface scenarios, evidence fusion, priority re-scoring
+  subsurface_service.py     observed subsurface/ground evidence + rule-based next-evidence priority sensitivity
   real_production_service.py  REAL MOIL quarterly series, validated forecast and baselines
   contingency_service.py    horizon gate, 3 decision states, target selection, decision flip
   exploration_service.py    live/cached point query, cache-distance guard, target priority, why-now
@@ -50,7 +50,7 @@ services/                   runtime logic
 ml/                         offline pipeline (python -m ml.run_pipeline [--fetch])
   eo_features.py            the ONE feature recipe used for training, grid and live queries
   build_exploration_dataset.py, train_exploration.py, target_engine.py, ood.py, uncertainty.py
-  fetch_weather.py, generate_operations.py, synthetic_ops.py, synthetic_subsurface.py,
+  fetch_weather.py, generate_operations.py, synthetic_ops.py,
   production_features.py, train_production.py, evaluate_production.py, train_real_production.py,
   exploration_experiments.py
 scripts/                    data_acquisition/ (IMD, MOIL, Bhuvan), data_processing/, synthetic/ (generate_all.py)
@@ -93,13 +93,21 @@ tests/                      pytest suite (network-free)
 
   Targets overlapping any training label (MRDS or NMET) are flagged `CAUTION_TRAINING_LABEL_OVERLAP`
   (in-sample rank).
-* **Subsurface what-if:** `/api/exploration/targets/{id}/subsurface-scenarios` applies six SIMULATED
-  scenarios to a copy of the target (`docs/SYNTHETIC_SUBSURFACE_METHOD.md`). Observed records are
-  never changed.
-* **Priority (project defaults):** 45 % prospectivity, 25 % evidence/applicability/certainty, 20 %
-  strategic relevance (gap severity × distance decay to the supply point, **0 when no strategic gap**),
-  10 % development-readiness proxy (distance to a documented producer). Missing components are dropped
-  and weights re-normalised.
+* **Subsurface / ground evidence:** `/api/exploration/targets/{id}/subsurface-scenarios` returns the
+  observed record (REAL_GOVERNMENT block evidence, or `UNAVAILABLE` with "requires additional
+  ground/subsurface validation"), the next required evidence, and a rule-based **next-evidence
+  sensitivity**: how the investigation priority *would* change for each possible outcome of the next
+  investigation (`config/exploration_config.json → subsurface_fusion`). No boreholes, assays or
+  geophysical values are generated, and observed records are never changed.
+* **Priority (project defaults):**
+  * Hard gates first, applied before scoring: inside the study area → applicability ≥ MODERATE →
+    evidence ≥ L1. Gated targets rank after eligible ones, and only gated-in targets can be selected
+    for contingency.
+  * Contingency OFF: 50 % prospectivity + 30 % evidence/applicability/certainty, renormalised.
+  * Strategic contingency ON: adds 20 % strategic relevance (gap severity × distance decay to the
+    supply point).
+  * No development-readiness proxy is scored, because no defensible development data exist.
+  * Prospectivity itself never changes with the supply state; only the priority to investigate does.
 * **Live query:** `POST /api/exploration/predict` recomputes the same recipe for the query cell from
   Planetary Computer (~20–40 s). A live result inside the study area reproduces the cached grid value
   exactly. On failure/timeout the nearest cached cell is used **only within 2 km** (response fields
@@ -127,7 +135,7 @@ The deployed model on the full area (5-fold spatial CV) scores ROC 0.719, PR-AUC
 The evidence is **mixed**. Under the same protocol, the six-feature baseline has the higher
 full-area PR-AUC (0.021), and training on the west does not improve performance in the east. The
 gain comes from the features, not the three NMET labels. Model D (real + synthetic) was not run: the
-simulated subsurface is generated from model targets, so it would be circular.
+no synthetic exploration data exist (fabricated subsurface evidence is not generated).
 
 ## Production engine
 
@@ -262,8 +270,13 @@ real forecasting. Weather adds nothing at company-quarter level.
   There are exactly three decision states. `ON_TRACK` / `OPERATIONALLY_RECOVERABLE` /
   `RESIDUAL_GAP` are supply statuses, not decision states.
 * **Decision flip:** `POST /api/decision/flip` recomputes the full decision twice (baseline = mine
-  state, perturbed = user conditions). It returns both results, the changed inputs, the backend
-  `flipped` boolean and the transition. An out-of-distribution perturbation returns `REVIEW_REQUIRED`
+  state, perturbed = user conditions). It returns:
+  * both results (forecast P10/P50/P90, target, gap, residual gaps, portfolio, contingency on/off,
+    why-this-target-now);
+  * the changed inputs and `deltas`;
+  * `exploration_priority_changes`, i.e. rank and priority under both supply states (prospectivity
+    unchanged);
+  * the backend `flipped` boolean and the transition. An out-of-distribution perturbation returns `REVIEW_REQUIRED`
   with no portfolio and no target.
 
 ### Demo states (inputs only; outcomes computed and asserted by tests)
@@ -303,6 +316,7 @@ inside the new training range (truck count 10.9–16.9). No model was tuned to t
 | POST | `/api/decision/flip` | `{mine_id, baseline_conditions, perturbed_conditions, horizon?}` |
 | POST | `/api/decision/review`, GET `/api/decision/history` | **local demo review log** (JSONL file on the server; not a durable audit trail — production needs managed storage) |
 | GET | `/api/trust/exploration`, `/api/trust/production`, `/api/trust/provenance` | computed metrics only |
+| GET | `/api/trust/recovery?mine_id=` | scenarios tested, eligible / applicability-blocked portfolios, no-action vs selected worst-case residual, burden, constraint notes (no "accuracy") |
 | GET | `/api/model/manifest`, `/api/demo/scenarios` | |
 
 Accepted condition aliases: `rainfall_mm` → `rainfall_7d_mm` (7-day total),

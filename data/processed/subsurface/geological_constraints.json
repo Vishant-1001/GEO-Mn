@@ -1,5 +1,5 @@
 {
-  "_note": "REAL, CITED geological relationships used ONLY as constraints for the synthetic subsurface generator.",
+  "_note": "REAL, CITED geological relationships reported by the official block documents; shown as expectations, never as measurements at a target.",
   "stratigraphy": {
     "group": "Sausar Group (Mesoproterozoic), Central Indian manganese belt",
     "formations_top_down": [
@@ -64,7 +64,7 @@
     ],
     [
       "KAWALEWADA_SAKKARDARA",
-      NaN,
+      null,
       38.0,
       "reported_grade"
     ],

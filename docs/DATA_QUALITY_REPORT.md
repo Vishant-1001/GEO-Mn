@@ -20,7 +20,6 @@ says otherwise.
 |---|---|---|
 | Operations (2,093 days, 115,530 unit-shifts, 9,428 events) | Daily invariants on every simulated day (`check_day`); seed reproducibility; sha256 in manifest | Events: 7,275 breakdowns, 2,047 PM, 49 power outages, 43 weather stoppages, 14 explosive-supply episodes. Attainment 0.83–0.90 per year from 2022; 2021 is 1.00 because the simulation starts with fresh equipment and full inventory (burn-in). One test week (2024-08-16) has zero output because an explosive-supply episode exhausted the blasted inventory. That is physically consistent, so the production metrics use WAPE instead of MAPE. |
 | Recovery matrix (56 rows from 8,008 counterfactuals) | NORMAL / NO_ACTION deltas exactly 0; the arithmetic `gap_after = max(0, target − after)` holds; the matrix is read by the recovery engine | Common random numbers, so the differences are scenario and action effects only. |
-| Subsurface (360 holes, 1,316 intervals, 1,636 geochemistry samples, 160 geophysics readings) | `check_subsurface`: ordered, non-overlapping intervals within hole depth, thickness = to − from, grades 0–60 %; scenario semantics (negative = no Mn-bearing interval) | All rows SIMULATED; never used for training. |
 
 ## EO completeness
 

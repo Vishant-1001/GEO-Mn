@@ -43,7 +43,7 @@ Audit date: 2026-09-26. Study area: the Central-India manganese belt (Balaghat â
 
 No account was created and no credential was entered for any source.
 
-## 2. Mandatory real subsurface audit (before any synthetic subsurface)
+## 2. Mandatory real subsurface audit
 
 Question: is there public, georeferenced, observed subsurface data (borehole collars, lithology logs,
 assays, geophysics) for the AOI?
@@ -60,9 +60,9 @@ Conclusion:
 
 1. Observed subsurface evidence is used only at the level it is published: **REPORTED_BLOCK_LEVEL**,
    and only for targets whose footprint overlaps an official block.
-2. Every borehole, interval, assay and geophysical response in the product is **SIMULATED**. It sits in
-   `data/synthetic/subsurface/` and appears only in the what-if scenario engine, labelled
-   "SIMULATED â€” NOT OBSERVED". It is never used as a training label or feature.
+2. Everywhere else, subsurface evidence is **UNAVAILABLE**. No borehole, interval, assay or
+   geophysical value is generated. The product shows the next required evidence, and a rule-based
+   sensitivity of investigation priority to possible outcomes of that evidence.
 
 ## 3. Verified gaps and how each is handled
 
@@ -70,6 +70,6 @@ Conclusion:
 |---|---|
 | Mine-level daily / shift operations (equipment, delays, trucks) | SYNTHETIC equipment-level simulator driven by REAL IMD weather (`ml/synthetic_ops.py`). |
 | Historical recovery-action outcomes | SIMULATED counterfactuals from the same simulator (`recovery_scenario_matrix.csv`). |
-| Subsurface drilling / assays / geophysics | SIMULATED scenarios conditioned on the NMET-reported geology (section 2). |
+| Subsurface drilling / assays / geophysics | **Not filled.** Shown as UNAVAILABLE, with next required evidence (section 2). |
 | IMD 2026 rainfall | ERA5 used for those dates, with the source recorded per row. Nothing is imputed. |
 | Geomorphology outside MP / MH layers (~15 % of cells) | Left missing (NaN). The model handles missing values natively. |

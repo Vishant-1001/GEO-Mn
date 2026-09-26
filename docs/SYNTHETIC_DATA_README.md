@@ -7,17 +7,17 @@ Synthetic data are generated **only for verified gaps**. Every synthetic dataset
   counterfactual output). IDs start with `SYN_` / `SIM_`.
 * **Reproducible**: fixed seed (42) in a YAML config. Re-running the generator reproduces the files
   byte for byte, and the manifests store their sha256.
-* **Domain-constrained**: parameters are either cited real values (IMD thresholds, NMET-reported
-  thicknesses and grades, IBM grade classes) or marked `assumption` in the config.
+* **Domain-constrained**: parameters are either cited real values (IMD heavy-rain threshold, IMD
+  p95 7-day rainfall, MOIL output scale) or marked `assumption` in the config.
 * **Consumed**: each dataset is read by a named engine (table below). Nothing is generated just
   to fill space.
 
 **What synthetic data is never used for:**
 
 * It is never presented as MOIL telemetry.
-* Simulated drilling or assays are never presented as observed.
-* It is not a training label for exploration: the subsurface scenarios are generated from the
-  model's own targets, so training on them would be circular.
+* No subsurface record (borehole, interval, assay, geophysical value) is generated at all. That would
+  be fabricated evidence, so missing subsurface evidence stays UNAVAILABLE.
+* It is not a training label for exploration.
 * It is not in any headline real-data metric. Synthetic augmentation of the real MOIL quarterly
   model was tested and made the real held-out error worse, so it is excluded (see
   `MODEL_COMPARISON_REPORT.md`).
@@ -32,18 +32,13 @@ Synthetic data are generated **only for verified gaps**. Every synthetic dataset
 | `data/synthetic/production/synthetic_disruption_scenarios.csv` | 1,001 | SIMULATED | `scripts/synthetic/generate_recovery.py` | Scenario library; severity statistics |
 | `data/synthetic/recovery/synthetic_action_outcomes.csv` | 8,008 | SIMULATED | same | Source of the recovery matrix; trust comparison |
 | `data/synthetic/recovery/recovery_scenario_matrix.csv` | 56 | SIMULATED | same | **`services/recovery_service.py`**: every disruption and action effect in feature space |
-| `data/synthetic/subsurface/synthetic_boreholes.csv` | 360 | SIMULATED | `scripts/synthetic/generate_subsurface.py` | **`services/subsurface_service.py`** (what-if scenarios) |
-| `data/synthetic/subsurface/synthetic_borehole_intervals.csv` | 1,316 | SIMULATED | same | same |
-| `data/synthetic/subsurface/synthetic_geochemistry.csv` | 1,636 | SIMULATED | same | same |
-| `data/synthetic/subsurface/synthetic_geophysics.csv` | 160 | SIMULATED | same | same |
-| `data/synthetic/subsurface/synthetic_subsurface_targets.csv` | 240 | SIMULATED | same | same (per-target summary) |
 
 ## Regenerating
 
 ```bash
-python scripts/synthetic/generate_all.py            # operations -> recovery -> subsurface
+python scripts/synthetic/generate_all.py            # operations -> recovery
 python -m ml.run_pipeline                           # full offline rebuild incl. models
 ```
 
-Method details: `SYNTHETIC_GENERATION_METHOD.md` (operations and recovery),
-`SYNTHETIC_SUBSURFACE_METHOD.md` (subsurface). Column definitions: `DATA_DICTIONARY.md`.
+Method details: `SYNTHETIC_GENERATION_METHOD.md` (operations and recovery). Column definitions:
+`DATA_DICTIONARY.md`.

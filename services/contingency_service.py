@@ -34,7 +34,6 @@ from services.exploration_service import get_service as exploration
 from services.production_service import get_service as production
 
 STATES = ("OPERATIONAL_RESPONSE", "OPERATIONAL_AND_EXPLORATION_CONTINGENCY", "REVIEW_REQUIRED")
-_APPL_ORDER = {"HIGH": 0, "MODERATE": 1, "LOW": 2}
 
 
 def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=None, conditions=None,
@@ -111,8 +110,9 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
         else:
             state = "REVIEW_REQUIRED"
             review_reasons.append({"code": "NEAR_TERM_RESIDUAL_GAP",
-                                   "text": (f"Best eligible operational portfolio leaves {exp_res:.0f} t unrecovered in the next period; "
-                                            "exploration cannot supply near-term tonnes. Escalate (stockpile draw, "
+                                   "text": (f"Best eligible operational portfolio leaves {exp_res:.0f} t unrecovered in the next period. "
+                                            "Exploration is not treated as an immediate production-recovery action. "
+                                            "Operational escalation / supply-plan adjustment is required (stockpile draw, "
                                             "inter-mine transfer or plan revision are human decisions).")})
             summary = review_reasons[-1]["text"]
     else:  # STRATEGIC
@@ -137,19 +137,20 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
             reason_codes.append("RESIDUAL_STRATEGIC_GAP")
             ex = exploration()
             ranked = ex.prioritise(strategic)
-            min_appl = pol["min_target_applicability"]
-            eligible = [t for t in ranked if _APPL_ORDER[t["applicability"]] <= _APPL_ORDER[min_appl]]
+            eligible = [t for t in ranked if t["eligible_for_contingency"]]
             if eligible:
                 selected_target = eligible[0]
                 state = "OPERATIONAL_AND_EXPLORATION_CONTINGENCY"
-                summary = (f"Operational recovery ({rec['selected_portfolio']}) does not keep the residual within tolerance over the strategic horizon "
+                summary = ("Operational recovery does not fully resolve the projected strategic supply requirement; exploration "
+                           "contingency is therefore relevant to future supply continuity. "
+                           f"Operational recovery ({rec['selected_portfolio']}) does not keep the residual within tolerance over the strategic horizon "
                            f"(expected residual {exp_res:.0f} t, worst case {worst_res:.0f} t per period). "
                            f"Exploration contingency activated; next target {selected_target['target_id']} "
                            f"(priority {selected_target['exploration_priority']}).")
             else:
                 state = "REVIEW_REQUIRED"
                 review_reasons.append({"code": "NO_APPLICABLE_TARGET",
-                                       "text": "Strategic gap persists but no exploration target meets the applicability requirement."})
+                                       "text": "Strategic gap persists but no exploration target passes the study-area / applicability / minimum-evidence gates."})
                 summary = review_reasons[-1]["text"]
 
     why_now, why_codes = [], []
@@ -198,7 +199,8 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
         "review_reasons": review_reasons,
         "strategic_requirement": strategic,
         "forecast": {k: fc[k] for k in ("forecast_origin", "forecast_horizon", "p10_tonnes", "p50_tonnes", "p90_tonnes",
-                                        "gap_p50_tonnes", "risk_state", "quantiles_validated")},
+                                        "gap_p50_tonnes", "risk_state", "quantiles_validated")}
+                    | {"applicability": fc["applicability"]["level"]},
         "nominal_scenario": rec["nominal_scenario"],
         "overrides_applied": rec["overrides_applied"],
         "inputs_recomputed_server_side": True,
@@ -214,6 +216,11 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
     }
 
 
+def _delta(a, b):
+    """Change between two backend values; None when either side is withheld (e.g. REVIEW_REQUIRED)."""
+    return None if a is None or b is None else round(a - b, 1)
+
+
 def decision_flip(mine_id="DEMO_MINE", baseline_conditions=None, perturbed_conditions=None, horizon=None,
                   scenario=None, perturbed_scenario=None, actions=None, target_tonnes=None) -> dict:
     """Run the full decision twice — baseline vs user-perturbed conditions — and report the change."""
@@ -222,10 +229,30 @@ def decision_flip(mine_id="DEMO_MINE", baseline_conditions=None, perturbed_condi
                     scenario=perturbed_scenario or scenario, actions=actions)
 
     def brief(d):
-        return {k: d[k] for k in ("decision_state", "supply_status", "baseline_gap_tonnes", "best_operational_recovery_tonnes",
-                                  "expected_residual_gap_tonnes", "worst_case_residual_gap_tonnes", "selected_portfolio",
-                                  "next_target", "target_priority", "reason_codes", "decision_summary", "overrides_applied",
-                                  "nominal_scenario", "selection_status", "review_reasons", "supply_status")}
+        out = {k: d[k] for k in ("decision_state", "supply_status", "target_tonnes", "baseline_gap_tonnes",
+                                 "best_operational_recovery_tonnes", "expected_residual_gap_tonnes",
+                                 "worst_case_residual_gap_tonnes", "selected_portfolio", "next_target", "target_priority",
+                                 "reason_codes", "decision_summary", "overrides_applied", "nominal_scenario",
+                                 "selection_status", "review_reasons", "why_target_now")}
+        out["forecast"] = {k: d["forecast"][k] for k in ("p10_tonnes", "p50_tonnes", "p90_tonnes", "risk_state")}
+        out["exploration_contingency"] = bool(d["strategic_requirement"].get("active"))
+        return out
+
+    # Investigation priority of every target under each supply state (geological prospectivity is unchanged;
+    # only the strategic-relevance component moves with the residual gap).
+    ex = exploration()
+    rank_b = {t["target_id"]: t for t in ex.prioritise(base["strategic_requirement"])}
+    rank_p = {t["target_id"]: t for t in ex.prioritise(pert["strategic_requirement"])}
+    pos_b = {tid: i + 1 for i, tid in enumerate(rank_b)}
+    pos_p = {tid: i + 1 for i, tid in enumerate(rank_p)}
+    top = list(dict.fromkeys(list(rank_p)[:5] + list(rank_b)[:5]))
+    priority_changes = [{"target_id": tid,
+                         "priority_baseline": rank_b[tid]["exploration_priority"],
+                         "priority_perturbed": rank_p[tid]["exploration_priority"],
+                         "rank_baseline": pos_b[tid], "rank_perturbed": pos_p[tid],
+                         "strategic_relevance_baseline": rank_b[tid]["strategic_relevance"],
+                         "strategic_relevance_perturbed": rank_p[tid]["strategic_relevance"],
+                         "prospectivity_rank": rank_p[tid]["prospectivity_rank"]} for tid in top]
 
     b_in, p_in = base["overrides_applied"], pert["overrides_applied"]
     keys = sorted(set(b_in) | set(p_in))
@@ -240,6 +267,12 @@ def decision_flip(mine_id="DEMO_MINE", baseline_conditions=None, perturbed_condi
         "flipped": base["decision_state"] != pert["decision_state"],
         "transition": f"{base['decision_state']} -> {pert['decision_state']}",
         "changed_inputs": changed,
+        "deltas": {k: _delta(pert.get(k) if k != "forecast_p50_tonnes" else pert["forecast"]["p50_tonnes"],
+                             base.get(k) if k != "forecast_p50_tonnes" else base["forecast"]["p50_tonnes"])
+                   for k in ("forecast_p50_tonnes", "baseline_gap_tonnes", "expected_residual_gap_tonnes",
+                             "worst_case_residual_gap_tonnes")},
+        "exploration_priority_changes": priority_changes,
+        "priority_note": "Prospectivity is unchanged by supply conditions; only the priority to investigate changes.",
         "status": "SIMULATED_SCENARIO",
         "provenance": pert["provenance"],
     }

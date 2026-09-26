@@ -23,8 +23,11 @@ def test_targets_list_schema(client):
             assert any(o["evidence_class"] == "DRILLING_INTERSECTION_REPORTED" and o["source_mode"] == "REAL_GOVERNMENT"
                        for o in t["observed_ground_evidence"])
         assert t["status"] in ("EXPLORATION_TARGET", "REVIEW_REQUIRED")
-    pr = [t["exploration_priority"] for t in d["targets"]]
-    assert pr == sorted(pr, reverse=True)
+    elig = [t["eligible_for_contingency"] for t in d["targets"]]
+    assert elig == sorted(elig, reverse=True)                      # gated targets after eligible ones
+    for group in (True, False):
+        pr = [t["exploration_priority"] for t in d["targets"] if t["eligible_for_contingency"] is group]
+        assert pr == sorted(pr, reverse=True)
     assert "provenance" in d
 
 
@@ -67,14 +70,32 @@ def test_priority_depends_on_strategic_state(exploration_svc):
     assert [t["target_id"] for t in none] != [t["target_id"] for t in active]
 
 
-def test_priority_weights_renormalise_when_component_missing(exploration_svc, monkeypatch):
-    t0 = dict(exploration_svc.targets[0])
-    t0["development_readiness"] = None
-    monkeypatch.setattr(exploration_svc, "targets", [t0])
-    out = exploration_svc.prioritise(None)[0]
-    assert out["priority_renormalised"] is True
-    assert abs(sum(out["priority_weights_used"].values()) - 1.0) < 1e-6
-    assert "development_readiness" not in out["priority_weights_used"]
+def test_priority_without_contingency_uses_geology_evidence_only(exploration_svc):
+    out = exploration_svc.prioritise(None)
+    for t in out:
+        assert set(t["priority_components"]) == {"prospectivity", "evidence_applicability"}
+        assert t["priority_mode"] == "GEOLOGICAL_EVIDENCE_ONLY"
+        assert "development_readiness" not in t["priority_components"]      # no proxy is scored
+    act = exploration_svc.prioritise({"active": True, "severity": 1.0, "expected_residual_gap_tonnes": 1,
+                                      "worst_case_residual_gap_tonnes": 1})
+    assert all("strategic_relevance" in t["priority_components"] for t in act)
+    # geological prospectivity itself does not change with the supply state
+    p0 = {t["target_id"]: t["prospectivity_rank"] for t in out}
+    assert all(p0[t["target_id"]] == t["prospectivity_rank"] for t in act)
+
+
+def test_hard_gates_precede_priority(exploration_svc, monkeypatch):
+    base = exploration_svc.targets
+    low = dict(base[0], target_id="TLOW", applicability="LOW", prospectivity_rank=100.0)
+    l0 = dict(base[0], target_id="TL0", evidence_level=0, prospectivity_rank=100.0)
+    monkeypatch.setattr(exploration_svc, "targets", base + [low, l0])
+    ranked = exploration_svc.prioritise(None)
+    blocked = {t["target_id"]: t for t in ranked if not t["eligible_for_contingency"]}
+    assert "TLOW" in blocked and "TL0" in blocked
+    assert any("applicability" in r for r in blocked["TLOW"]["gate_blocked_reasons"])
+    assert any("evidence level" in r for r in blocked["TL0"]["gate_blocked_reasons"])
+    first_blocked = min(i for i, t in enumerate(ranked) if not t["eligible_for_contingency"])
+    assert all(not t["eligible_for_contingency"] for t in ranked[first_blocked:])   # eligible targets rank first
 
 
 def test_grid_endpoint(client):
@@ -98,3 +119,11 @@ def test_predict_invalid_inputs(client):
     assert client.post("/api/exploration/predict", json={"lat": 21, "lon": 80, "mode": "MAGIC"}).status_code == 400
     r = client.post("/api/exploration/predict", json={"lat": "north"})
     assert r.status_code == 422 and r.json()["error"] == "VALIDATION_ERROR"
+
+
+def test_no_label_derived_or_proximity_features(exploration_svc):
+    """Leakage guard: the model must not learn 'near known positives = positive'."""
+    leaky = ("dist", "distance", "proximity", "near", "mrds", "occurrence", "mine", "label", "known")
+    feats = [f.lower() for f in exploration_svc.features]
+    # lineament distance is a structural geology feature (NRSC map), not label-derived; it is allowed if present
+    assert not [f for f in feats if any(k in f for k in leaky) and not f.startswith("lineament_")]

@@ -65,3 +65,20 @@ def test_flip_uses_frontend_condition_aliases(client):
     d = r.json()
     assert r.status_code == 200 and d["flipped"] is True
     assert {c["input"] for c in d["changed_inputs"]} == {"rainfall_7d_mm", "equipment_availability", "blast_delay_h"}
+
+
+def test_flip_exposes_forecast_gap_and_priority_changes():
+    f = cs.decision_flip("DEMO_F", {}, STRESS)
+    b, p = f["baseline"], f["perturbed"]
+    assert p["forecast"]["p50_tonnes"] < b["forecast"]["p50_tonnes"]              # forecast falls
+    assert f["deltas"]["forecast_p50_tonnes"] < 0 and f["deltas"]["baseline_gap_tonnes"] >= 0
+    assert f["deltas"]["expected_residual_gap_tonnes"] > 0
+    assert b["exploration_contingency"] is False and p["exploration_contingency"] is True
+    ch = f["exploration_priority_changes"]
+    assert ch and any(r["rank_baseline"] != r["rank_perturbed"] for r in ch)
+    # the investigation priority changes; geological prospectivity does not
+    from services.exploration_service import get_service
+    pros = {t["target_id"]: t["prospectivity_rank"] for t in get_service().targets}
+    assert all(r["prospectivity_rank"] == pros[r["target_id"]] for r in ch)
+    assert p["next_target"] == ch[0]["target_id"] or p["next_target"] in {r["target_id"] for r in ch}
+    assert any(w["code"] == "RESERVE_NOT_CONFIRMED" for w in p["why_target_now"])

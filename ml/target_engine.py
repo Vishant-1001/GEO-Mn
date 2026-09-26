@@ -308,8 +308,8 @@ def main():
         "geology_support_basis": "All MRDS Mn training records in the study area fall on Precambrian units of the geology lattice (vs ~62% of the area).",
         "subsurface_note": ("Real subsurface evidence is limited to official NMET block records (one REPORTED block-level "
                             "drilling outcome, no published collars or assays) and reported surface samples. Targets without "
-                            "such overlap have subsurface_status UNAVAILABLE. Simulated subsurface scenarios are stored separately "
-                            "in data/synthetic/subsurface/ and are never merged into observed evidence."),
+                            "such overlap have subsurface_status UNAVAILABLE. No subsurface record is simulated or fabricated; "
+                            "next-evidence sensitivity is rule-based and never merged into observed evidence."),
     }
     save_json(DATA_DIR / "exploration_targets.json", {"meta": meta, "targets": targets})
     print(f"{len(targets)} targets from {n} clusters ({len(hot)} hot cells)")

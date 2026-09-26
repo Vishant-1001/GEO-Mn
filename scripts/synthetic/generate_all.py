@@ -2,10 +2,9 @@
 
   1. operations  ml.generate_operations          -> data/synthetic/production/* and data/production_history.csv
   2. recovery    scripts/synthetic/generate_recovery.py   -> disruption scenarios, action outcomes, recovery matrix
-  3. subsurface  scripts/synthetic/generate_subsurface.py -> simulated boreholes / intervals / geochem / geophysics
 
-Step 3 reads data/exploration_targets.json, so run it after the exploration model and target engine.
-Run: python scripts/synthetic/generate_all.py [--only operations|recovery|subsurface]
+No subsurface records (boreholes, assays, geophysics) are generated: they would be fabricated evidence.
+Run: python scripts/synthetic/generate_all.py [--only operations|recovery]
 """
 import argparse
 import os
@@ -17,7 +16,6 @@ ROOT = Path(__file__).resolve().parents[2]
 STEPS = {
     "operations": [sys.executable, "-u", "-m", "ml.generate_operations"],
     "recovery": [sys.executable, "-u", str(ROOT / "scripts" / "synthetic" / "generate_recovery.py")],
-    "subsurface": [sys.executable, "-u", str(ROOT / "scripts" / "synthetic" / "generate_subsurface.py")],
 }
 
 if __name__ == "__main__":

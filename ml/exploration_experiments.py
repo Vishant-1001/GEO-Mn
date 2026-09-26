@@ -17,9 +17,9 @@ Label sets
            Mn >= 10 %, and the centroid cells of blocks with a REPORTED drilling intersection or
            reported ore grades from old workings (Nagardhan, Kawalewada-Sakkardara).
   Model C  label set chosen from A/B + the full real feature stack chosen by the ablation.
-  Model D  real + synthetic augmentation — NOT RUN: the only synthetic exploration-side data are
-           the simulated subsurface scenarios, which are generated FROM this model's targets;
-           training on them would be circular leakage. Recorded as such in the report.
+  Model D  real + synthetic augmentation — NOT RUN: no synthetic exploration data exist (fabricated
+           subsurface evidence is not generated; labels drawn from the model's own targets would be
+           circular). Recorded as such in the report.
 
 Run: python -m ml.exploration_experiments   (needs data/processed/exploration/*_grid.csv*)
 """
@@ -227,9 +227,9 @@ def main():
                                    "dev_cv": ablation[best_fs] if lab == "A" else dev_spatial_cv(gC, best_feats, cfg)}
     models["D_real_plus_synthetic"] = {
         "status": "NOT_RUN",
-        "reason": ("The only synthetic exploration-side data are simulated subsurface scenarios generated FROM this "
-                   "model's targets; using them as labels or features would be circular leakage. No synthetic "
-                   "augmentation is used for exploration."),
+        "reason": ("No synthetic exploration data exist: fabricated boreholes, assays or geophysics would be "
+                   "invented evidence, and synthetic labels drawn from this model's own targets would be circular. "
+                   "No synthetic augmentation is used for exploration."),
     }
     # ---- final test region: scored once per model after all selection ----------
     for k, m in models.items():

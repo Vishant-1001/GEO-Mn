@@ -313,11 +313,11 @@
 
                 <div class="panel subsurface-panel" id="subsurfacePanel" aria-live="polite">
                     <div class="panel-head">
-                        <h2 class="panel-title">SUBSURFACE SCENARIO SIMULATOR</h2>
-                        <span class="badge badge-simulated"><span class="badge-k">MODE:</span> SIMULATED &mdash; NOT OBSERVED</span>
+                        <h2 class="panel-title">SUBSURFACE / GROUND EVIDENCE</h2>
+                        <span class="badge badge-simulated"><span class="badge-k">SENSITIVITY:</span> HYPOTHETICAL &mdash; NOT OBSERVED</span>
                     </div>
-                    <p class="panel-note">What-if only: how each simulated subsurface outcome <em>would</em> change evidence maturity, uncertainty and exploration priority. Observed records are never modified. Simulated drilling does not confirm mineralisation and yields no reserve or tonnage.</p>
-                    <div id="subsurfaceBody"><div class="empty-state">Select a target to compare observed evidence with simulated scenarios.</div></div>
+                    <p class="panel-note">Left: what official records actually report for this target. Right: how the investigation priority <em>would</em> change for each possible outcome of the next investigation (project rules). No boreholes, assays or geophysical values are generated, and nothing here confirms mineralisation or implies a reserve.</p>
+                    <div id="subsurfaceBody"><div class="empty-state">Select a target to see its observed evidence and next-evidence sensitivity.</div></div>
                 </div>
             </section>
 
@@ -569,6 +569,14 @@
                         <span class="panel-sub">Historical diagnostic: out-of-sample backtest forecasts vs synthetic actuals. Does not by itself prove future accuracy.</span>
                     </div>
                     <div id="trustReconciliation"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-head">
+                        <h2 class="panel-title">RECOVERY DIAGNOSTICS</h2>
+                        <span class="panel-sub">Current mine state &middot; applicability policy &middot; no recovery "accuracy" is claimed</span>
+                    </div>
+                    <div id="trustRecovery"></div>
                 </div>
 
                 <div class="split-2">

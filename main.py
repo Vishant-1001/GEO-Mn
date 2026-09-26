@@ -221,6 +221,7 @@ def supply_command(mine_id: str = Query("DEMO_MINE"), horizon: Optional[str] = Q
         "persistence_assumption": fc["persistence_assumption"],
         "scenario_override_applied": fc["scenario_override_applied"],
         "forecast_basis": fc["forecast_basis"],
+        "forecast_applicability": fc["applicability"]["level"],
         "primary_drivers": fc["drivers"],
         "model_contributions": fc["model_contributions"],
         "production_applicability": fc["applicability"]["level"],
@@ -380,6 +381,11 @@ def trust_exploration():
 @app.get("/api/trust/production")
 def trust_production():
     return trust_service.production()
+
+
+@app.get("/api/trust/recovery")
+def trust_recovery(mine_id: str = Query("DEMO_MINE")):
+    return trust_service.recovery(mine_id)
 
 
 @app.get("/api/trust/provenance")

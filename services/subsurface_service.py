@@ -1,36 +1,45 @@
-"""Subsurface evidence: OBSERVED (real, reported) vs SIMULATED scenario evidence fusion.
+"""Subsurface / ground evidence for a target: OBSERVED record + next-evidence sensitivity.
 
-Observed evidence = official NMET / DGM / MECL records attached to targets by ml/target_engine.py
-(REAL_GOVERNMENT; block-level, no published collars or assays).
-Simulated evidence = data/synthetic/subsurface/* produced by ml/synthetic_subsurface.py, conditioned
-on real geological constraints. The fusion engine shows how each SIMULATED scenario WOULD change
-evidence maturity, uncertainty and exploration priority. It never modifies the observed target
-record and never produces a reserve, resource or tonnage.
+Observed: official NMET / DGM / MECL block records attached to targets by ml/target_engine.py
+(REAL_GOVERNMENT; block level, no public collars, logs or assays). Everything else is UNAVAILABLE.
+
+Next-evidence sensitivity: for each possible OUTCOME of the recommended next investigation
+(geochemistry, geophysics, drilling), the project-configured rules in
+config/exploration_config.json -> subsurface_fusion show how the target's evidence maturity,
+uncertainty and investigation priority WOULD change. No boreholes, assays or geophysical values are
+generated: these are hypothetical outcomes, not observations, and never a reserve or tonnage.
 """
 from __future__ import annotations
 
-from functools import lru_cache
-
-import pandas as pd
+import json
 
 from services.common import DATA_DIR, SIMULATED, ApiError, load_config, provenance
 from services.exploration_service import get_service as exploration
 
-SYN = DATA_DIR / "synthetic" / "subsurface"
 UNC = ["LOW", "MODERATE", "HIGH"]
-
-
-@lru_cache(maxsize=1)
-def synthetic():
-    try:
-        return {n: pd.read_csv(SYN / f"synthetic_{n}.csv") for n in
-                ("boreholes", "borehole_intervals", "geochemistry", "geophysics", "subsurface_targets")}
-    except FileNotFoundError:
-        return None
+OUTCOME_TEXT = {
+    "NO_SUBSURFACE_EVIDENCE": "No further investigation (current state)",
+    "POSITIVE_GEOCHEMICAL_SUPPORT": "If soil / stream-sediment geochemistry returned a Mn anomaly",
+    "POSITIVE_GEOPHYSICAL_SUPPORT": "If an IP / magnetic traverse returned a coherent anomaly",
+    "POSITIVE_DRILLING_INTERSECTION": "If scout drilling intersected Mn mineralisation",
+    "AMBIGUOUS_DRILLING_RESULT": "If scout drilling returned thin / low-grade intersections",
+    "NEGATIVE_DRILLING_RESULT": "If scout drilling found no Mn horizon",
+}
 
 
 def _shift(unc, k):
     return UNC[max(0, min(2, UNC.index(unc) + k))]
+
+
+def _constraints(block_id):
+    """REAL, cited expectations from the official records (host, dips, widths, grades, proposed depths)."""
+    p = DATA_DIR / "processed" / "subsurface" / "geological_constraints.json"
+    if not p.exists():
+        return None
+    c = json.loads(p.read_text())
+    keep = {k: v for k, v in c.items() if not k.startswith("_") and k not in ("ibm_grade_classes",)}
+    return {"block": block_id, "official_expectations": keep,
+            "note": "Reported by official block documents; expectations, not measurements at this target."}
 
 
 def scenarios(target_id: str, strategic=None, scenario: str | None = None) -> dict:
@@ -38,61 +47,47 @@ def scenarios(target_id: str, strategic=None, scenario: str | None = None) -> di
     t = next((x for x in ex.targets if x["target_id"].upper() == str(target_id).upper()), None)
     if t is None:
         raise ApiError(404, "TARGET_NOT_FOUND", f"Unknown target_id '{target_id}'")
-    syn = synthetic()
-    if syn is None:
-        raise ApiError(503, "DATA_UNAVAILABLE", "Synthetic subsurface scenarios have not been generated.")
-    rules = load_config("exploration_config.json")["subsurface_fusion"]
-    base = ex.score_target(t, strategic)
-    names = [scenario.upper()] if scenario else [k for k in rules if not k.startswith("_")]
+    rules = {k: v for k, v in load_config("exploration_config.json")["subsurface_fusion"].items() if not k.startswith("_")}
+    names = [scenario.upper()] if scenario else list(rules)
     for n in names:
-        if n not in rules or n.startswith("_"):
+        if n not in rules:
             raise ApiError(400, "INVALID_INPUT", f"Unknown scenario '{scenario}'")
+    base = ex.score_target(t, strategic)
     out = []
     for n in names:
         r = rules[n]
-        sim_t = dict(t, evidence_level=max(t["evidence_level"], r["min_level"]),
-                     uncertainty=_shift(t["uncertainty"], r["uncertainty_shift"]))
-        scored = ex.score_target(sim_t, strategic, r["prospectivity_factor"])
-        iv = syn["borehole_intervals"]
-        iv = iv[(iv["target_id"] == t["target_id"]) & (iv["scenario"] == n)]
-        ore = iv[iv["manganese_presence"]]
-        gc = syn["geochemistry"]
-        gc = gc[(gc["target_id"] == t["target_id"]) & (gc["scenario"] == n)]
-        gp = syn["geophysics"]
-        gp = gp[(gp["target_id"] == t["target_id"]) & (gp["scenario"] == n)]
-        bh = syn["boreholes"]
-        bh = bh[(bh["target_id"] == t["target_id"]) & (bh["scenario"] == n)]
+        hyp = dict(t, evidence_level=max(t["evidence_level"], r["min_level"]),
+                   uncertainty=_shift(t["uncertainty"], r["uncertainty_shift"]))
+        scored = ex.score_target(hyp, strategic, r["prospectivity_factor"])
         out.append({
             "scenario": n,
-            "label": "SIMULATED — NOT OBSERVED",
-            "simulated_evidence_level": sim_t["evidence_level"],
-            "simulated_uncertainty": sim_t["uncertainty"],
+            "outcome": OUTCOME_TEXT.get(n, n),
+            "label": "HYPOTHETICAL OUTCOME — NOT OBSERVED",
+            "hypothetical_evidence_level": hyp["evidence_level"],
+            "hypothetical_uncertainty": hyp["uncertainty"],
             "exploration_priority_before": base["exploration_priority"],
             "exploration_priority_after": scored["exploration_priority"],
             "priority_change": round(scored["exploration_priority"] - base["exploration_priority"], 1),
             "recommended_next_investigation": r["next"],
-            "summary": {
-                "boreholes": int(len(bh)), "intervals": int(len(iv)), "mn_bearing_intervals": int(len(ore)),
-                "max_mn_pct": round(float(ore["mn_grade_pct"].max()), 2) if len(ore) else None,
-                "grade_classes": ore["grade_category"].value_counts().to_dict(),
-                "geochem_samples": int(len(gc)),
-                "surface_max_mn_pct": round(float(gc[gc["borehole_id"].isna()]["mn_pct"].max()), 2)
-                if len(gc) and gc["borehole_id"].isna().any() else None,
-                "geophysics": gp[["method", "response", "background", "anomaly_strength", "confidence"]].to_dict(orient="records"),
-            },
-            "boreholes": bh.to_dict(orient="records"),
-            "intervals": iv.to_dict(orient="records"),
-            "not_claimed": "No reserve, resource or tonnage is derived from simulated drilling.",
+            "not_claimed": "No borehole, assay, geophysical value, reserve or tonnage is generated or implied.",
         })
+    obs = t.get("observed_ground_evidence") or []
+    reported = t.get("subsurface_status") == "REPORTED_BLOCK_LEVEL"
     return {
         "target_id": t["target_id"],
         "observed_evidence": {
             "evidence_level": t["evidence_level"], "evidence_level_label": t["evidence_level_label"],
-            "subsurface_status": t["subsurface_status"], "records": t.get("observed_ground_evidence", []),
-            "label": "OBSERVED / REPORTED (REAL_GOVERNMENT)" if t.get("observed_ground_evidence") else "NO OBSERVED SUBSURFACE EVIDENCE",
+            "subsurface_status": t["subsurface_status"], "records": obs,
+            "label": "OBSERVED / REPORTED (REAL_GOVERNMENT)" if obs else "UNAVAILABLE",
+            "statement": (None if reported else
+                          "SUBSURFACE EVIDENCE UNAVAILABLE. This target is supported by available surface/geological "
+                          "evidence and requires additional ground/subsurface validation."),
+            "official_expectations": _constraints(t.get("nmet_block_id")) if obs else None,
         },
-        "simulated_scenarios": out,
-        "fusion_rules": {k: v for k, v in rules.items()},
+        "next_required_evidence": ex.next_evidence(t),
+        "next_evidence_sensitivity": out,
+        "reserve_confirmed": False,
+        "fusion_rules": rules,
         "provenance": provenance(SIMULATED, ex.model_version, None, None, False, observed_mode="REAL_GOVERNMENT",
-                                 scenario_mode="SIMULATED"),
+                                 sensitivity_mode="SIMULATED (rule-based, no generated records)"),
     }

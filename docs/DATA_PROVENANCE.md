@@ -14,7 +14,7 @@ Every major API response carries a `provenance` block with `data_mode`, `model_v
 | REAL_MOIL_PUBLIC | ▲ REAL / MOIL PUBLIC DISCLOSURE | MOIL Ltd. investor disclosures, company level | Quarterly production; reported exploration |
 | REAL_DERIVED | ○ REAL-DERIVED FEATURES | Features computed from real data with a documented recipe | EO indices; lineament distance |
 | SYNTHETIC | SYNTHETIC DEMONSTRATION DATA | Seeded simulator output | Demo-mine operations, equipment events |
-| SIMULATED | ◇ SIMULATED SCENARIO | Scenario or counterfactual output | Disruptions, action effects, subsurface scenarios, demo states |
+| SIMULATED | ◇ SIMULATED SCENARIO | Scenario or counterfactual output | Disruptions, action effects, next-evidence priority sensitivity (rule-based, no records), demo states |
 | CACHED | CACHED / REPLAY | Precomputed from the above, replayed | Prospectivity grid; cached coordinate fallback |
 | LIVE_COORDINATE_QUERY | LIVE COORDINATE QUERY | Features computed on request from MPC | Exploration predict (when enabled) |
 | UNAVAILABLE | UNAVAILABLE | No data. Shown instead of filling the gap. | Reserves; observed subsurface for most targets |
@@ -23,7 +23,7 @@ Every major API response carries a `provenance` block with `data_mode`, `model_v
 
 | Area | Inputs and modes |
 |---|---|
-| Exploration | Labels: MRDS (REAL_PUBLIC). Model B / C labels may add NMET cells (REAL_GOVERNMENT). Features: EO (REAL_DERIVED from REAL_PUBLIC); geomorphology and lineaments (REAL_GOVERNMENT). Grid: CACHED. Observed subsurface: REAL_GOVERNMENT at REPORTED_BLOCK_LEVEL. What-if subsurface: SIMULATED. |
+| Exploration | Labels: MRDS (REAL_PUBLIC). Model B / C labels may add NMET cells (REAL_GOVERNMENT). Features: EO (REAL_DERIVED from REAL_PUBLIC); geomorphology and lineaments (REAL_GOVERNMENT). Grid: CACHED. Observed subsurface: REAL_GOVERNMENT at REPORTED_BLOCK_LEVEL, otherwise UNAVAILABLE. No subsurface record is simulated. |
 | Production Risk (weekly) | Operations: SYNTHETIC. Weather: REAL_GOVERNMENT (IMD) with REAL_PUBLIC ERA5 soil moisture. Forecast: model estimate. |
 | Production Risk (real quarterly panel) | REAL_MOIL_PUBLIC company totals; forecast validated on real held-out quarters. |
 | Recovery | Scenario and action effects: SIMULATED (simulator counterfactuals). Tonnes: production-model estimate. |

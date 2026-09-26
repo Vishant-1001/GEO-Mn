@@ -100,15 +100,7 @@ Per scenario × portfolio: `scenario_delta_<feature>` (median effect of the disr
 `action_delta_<feature>` with `_p10` / `_p90` (effect of the portfolio given the disruption),
 scenario_rainfall_7d_mm_min, and simulated_recovery_t_median / p10 / p90.
 
-### Subsurface (`data/synthetic/subsurface/`)
-* `synthetic_boreholes.csv`: borehole_id `SIM_*`, target_id, scenario, latitude, longitude, azimuth,
-  dip (−60), total_depth_m, bed_dip_deg, formation_context, generation_basis.
-* `synthetic_borehole_intervals.csv`: depth_from_m, depth_to_m, interval_thickness_m, formation,
-  host_lithology, weathering_zone, manganese_presence, mn_grade_pct, grade_category (IBM classes),
-  confidence, evidence_level.
-* `synthetic_geochemistry.csv`: sample_id, borehole_id (empty for surface samples), depth, sample_type,
-  mn / fe / sio2 %, sample_quality (SIMULATED_ASSAY / SIMULATED_SCREENING).
-* `synthetic_geophysics.csv`: method (IP chargeability), response, background, anomaly_strength,
-  depth_or_scale, noise, confidence.
-* `synthetic_subsurface_targets.csv`: per target × scenario counts, and observed_evidence_level for
-  comparison.
+### Subsurface
+
+No synthetic subsurface table exists. Observed subsurface evidence is the REAL_GOVERNMENT block
+record above. Everywhere else it is UNAVAILABLE.

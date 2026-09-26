@@ -716,8 +716,11 @@
         const p10 = pick(s, 'p10_tonnes', 'p10');
         const iv = intervalInfo(s);
         $('#scP90').textContent = (num(p10) !== null && num(p90) !== null) ? `${fmtT(p10)} – ${fmtT(p90)}` : 'N/A';
-        $('#scIntervalNote').textContent = iv.validated ? 'Prediction interval (validated)' : 'NOT VALIDATED — indicative only';
-        $('#scIntervalNote').classList.toggle('kpi-sub-warn', !iv.validated);
+        // Backtest validation does not carry over to inputs outside the model's training experience.
+        const ood = s.forecast_applicability === 'LOW';
+        $('#scIntervalNote').textContent = ood ? 'Inputs outside training experience — interval not reliable'
+            : (iv.validated ? 'Prediction interval (validated in backtest)' : 'NOT VALIDATED — indicative only');
+        $('#scIntervalNote').classList.toggle('kpi-sub-warn', ood || !iv.validated);
         $('#scForecastBasis').innerHTML = `<b>Forecast basis:</b> ${esc(s.forecast_basis || 'Not returned by the backend.')} <span class="muted">${esc(iv.text)}${iv.window ? ` (${esc(iv.window)})` : ''}.</span>`;
         $('#scGap').textContent = fmtT(gap);
         $('#scRisk').innerHTML = riskHTML(risk);
@@ -778,7 +781,10 @@
         return `<div class="flip-state decision-${cls}">
             <span class="kpi-label">${esc(label)}</span>
             <div class="flip-title">${esc(decisionTitle(d.decision_state))}</div>
+            ${d.forecast ? `<div class="flip-sub">Forecast P50 / target: <b class="mono-val">${esc(fmtT(d.forecast.p50_tonnes))} / ${esc(fmtT(d.target_tonnes))}</b></div>` : ''}
+            <div class="flip-sub">Supply gap: <b class="mono-val">${esc(fmtT(d.baseline_gap_tonnes))}</b> &middot; ${esc(human(d.supply_status || ''))}</div>
             <div class="flip-sub">Portfolio: <b class="mono-val">${esc(port)}</b></div>
+            <div class="flip-sub">Exploration contingency: <b>${d.exploration_contingency ? 'ON' : 'OFF'}</b></div>
             <div class="flip-sub">Next target: <b class="mono-val">${esc(d.next_target || 'none')}</b></div>
             <div class="flip-sub">Residual (expected / worst): <b class="mono-val">${esc(fmtT(d.expected_residual_gap_tonnes))} / ${esc(fmtT(d.worst_case_residual_gap_tonnes))}</b></div>
             ${asArray(d.review_reasons).length ? `<div class="flip-sub muted">${asArray(d.review_reasons).map(r => esc(reasonText(r))).join('<br>')}</div>` : ''}
@@ -799,7 +805,24 @@
             <div class="flip-changed-inputs"><span class="kpi-label">CHANGED INPUTS</span>
                 ${changed.length ? `<table class="enterprise-table"><thead><tr><th>Input</th><th>Baseline</th><th>Perturbed</th></tr></thead><tbody>${changed.map(c => `<tr><td>${esc(human(c.input))}</td><td class="mono-val">${esc(c.baseline ?? '—')}</td><td class="mono-val">${esc(c.perturbed ?? '—')}</td></tr>`).join('')}</tbody></table>` : '<div class="muted">No inputs changed.</div>'}
             </div>
+            ${flipPriorityHTML(f)}
             <div class="chart-note">Both decisions were recomputed end-to-end by the backend. ${badgeHTML('SIMULATED')}</div>`;
+    }
+
+    // Target priority under both supply states (backend-computed; prospectivity itself is unchanged).
+    function flipPriorityHTML(f) {
+        const rows = asArray(f.exploration_priority_changes);
+        if (!rows.length) return '';
+        const mv = r => r.rank_perturbed < r.rank_baseline ? `<span class="ss-up">▲${r.rank_baseline - r.rank_perturbed}</span>`
+            : (r.rank_perturbed > r.rank_baseline ? `<span class="ss-down">▼${r.rank_perturbed - r.rank_baseline}</span>` : '=');
+        return `<div class="flip-changed-inputs"><span class="kpi-label">EXPLORATION PRIORITY — BASELINE → PERTURBED</span>
+            <div class="ss-scroll"><table class="enterprise-table"><thead><tr><th>Target</th><th>Prospectivity</th><th>Priority</th><th>Rank</th><th>Strategic relevance</th></tr></thead><tbody>
+            ${rows.map(r => `<tr><td class="mono-val">${esc(r.target_id)}</td><td class="mono-val">${fmtNum(r.prospectivity_rank, 1)}</td>
+                <td class="mono-val">${fmtNum(r.priority_baseline, 1)} → ${fmtNum(r.priority_perturbed, 1)}</td>
+                <td class="mono-val">${r.rank_baseline} → ${r.rank_perturbed} ${mv(r)}</td>
+                <td>${esc(r.strategic_relevance_baseline)} → ${esc(r.strategic_relevance_perturbed)}</td></tr>`).join('')}
+            </tbody></table></div>
+            <div class="chart-note">${esc(f.priority_note || '')}</div></div>`;
     }
 
     function renderSupplyFlip(f) {
@@ -1201,7 +1224,7 @@
                             <span class="ev-state">${e.ok === true ? 'AVAILABLE' : (e.ok === false ? 'UNAVAILABLE' : 'NOT REPORTED')}</span>
                         </li>`).join('')}
                     </ul>
-                    ${subsurface && subsurface.ok !== true ? `<div class="subsurface-note"><b>SUBSURFACE EVIDENCE UNAVAILABLE</b><br>Field mapping, geochemistry, geophysics and drilling/assay are required before any reserve or resource conclusion.</div>` : ''}
+                    ${subsurface && subsurface.ok !== true ? `<div class="subsurface-note"><b>SUBSURFACE EVIDENCE UNAVAILABLE</b><br>This target is supported by available surface/geological evidence and requires additional ground/subsurface validation.</div>` : ''}
                     ${t.raw && t.raw.subsurface_status === 'REPORTED_BLOCK_LEVEL' ? `<div class="subsurface-note"><b>REPORTED BLOCK-LEVEL EVIDENCE (OBSERVED, GOVERNMENT RECORD)</b><br>This target overlaps an official exploration block; reported findings are block-level (no public collars, logs or assays). See the subsurface panel below.</div>` : ''}
                 </div>
                 <div>
@@ -1297,53 +1320,41 @@
     }
 
 
-    // ---- Subsurface scenario simulator (SIMULATED — NOT OBSERVED) ----
-    const SS_LABEL = {
-        NO_SUBSURFACE_EVIDENCE: 'No subsurface evidence', POSITIVE_GEOPHYSICAL_SUPPORT: 'Positive geophysical support',
-        POSITIVE_GEOCHEMICAL_SUPPORT: 'Positive geochemical support', POSITIVE_DRILLING_INTERSECTION: 'Positive drilling intersection',
-        NEGATIVE_DRILLING_RESULT: 'Negative drilling result', AMBIGUOUS_DRILLING_RESULT: 'Ambiguous drilling result',
-    };
-
+    // ---- Subsurface / ground evidence: observed record + next-evidence sensitivity (backend rules) ----
     async function loadSubsurface(id) {
         const body = $('#subsurfaceBody');
         if (!body) return;
-        body.innerHTML = loadingHTML('Loading observed evidence and simulated scenarios…');
+        body.innerHTML = loadingHTML('Loading observed evidence…');
         let r;
         try {
             r = await api.get(`/api/exploration/targets/${encodeURIComponent(id)}/subsurface-scenarios?mine_id=${encodeURIComponent(MINE_ID)}`);
         } catch (e) {
-            if (state.exploration.selectedId === id) body.innerHTML = errorHTML('Subsurface scenarios unavailable.', e);
+            if (state.exploration.selectedId === id) body.innerHTML = errorHTML('Subsurface evidence unavailable.', e);
             return;
         }
         if (state.exploration.selectedId !== id) return;
         const obs = r.observed_evidence || {};
         const recs = asArray(obs.records);
-        const sims = asArray(r.simulated_scenarios);
+        const sens = asArray(r.next_evidence_sensitivity);
         const delta = d => d > 0 ? `<span class="ss-up">+${fmtNum(d, 1)}</span>` : (d < 0 ? `<span class="ss-down">${fmtNum(d, 1)}</span>` : '0');
         body.innerHTML = `<div class="ss-grid">
             <div class="ss-observed">
                 <div class="ss-title">OBSERVED EVIDENCE ${badgeHTML(recs.length ? 'REAL_GOVERNMENT' : 'UNAVAILABLE', 'MODE')}</div>
-                <div class="kpi-label">EVIDENCE LEVEL</div><div class="tc-val">L${esc(obs.evidence_level ?? '?')} &middot; ${esc(obs.evidence_level_label || '')}</div>
+                <div class="kpi-label">EVIDENCE MATURITY</div><div class="tc-val">L${esc(obs.evidence_level ?? '?')} &middot; ${esc(obs.evidence_level_label || '')}</div>
                 <div class="kpi-label" style="margin-top:.5rem">SUBSURFACE STATUS</div><div class="tc-val">${esc(upperHuman(obs.subsurface_status || 'UNAVAILABLE'))}</div>
-                ${recs.length ? `<ul class="ss-records">${recs.map(x => `<li><b>${esc(upperHuman(x.evidence_class || ''))}</b> &middot; ${esc(x.evidence_status || '')}<br>${esc(x.summary || '')}${x.official_url ? ` <a href="${esc(x.official_url)}" target="_blank" rel="noopener noreferrer">official source</a>` : ''}</li>`).join('')}</ul>`
-                    : '<div class="subsurface-note">No observed drilling, assay or geophysical record is publicly available for this target.</div>'}
+                ${obs.statement ? `<div class="subsurface-note">${esc(obs.statement)}</div>` : ''}
+                ${recs.length ? `<ul class="ss-records">${recs.map(x => `<li><b>${esc(upperHuman(x.evidence_class || ''))}</b> &middot; ${esc(x.evidence_status || '')}<br>${esc(x.summary || '')}${x.official_url ? ` <a href="${esc(x.official_url)}" target="_blank" rel="noopener noreferrer">official source</a>` : ''}</li>`).join('')}</ul>` : ''}
+                <div class="kpi-label" style="margin-top:.5rem">RESERVE CONFIRMED</div><div class="tc-val">${r.reserve_confirmed ? 'YES' : 'NO'}</div>
             </div>
             <div class="ss-sim">
-                <div class="ss-title">SIMULATED SCENARIOS ${badgeHTML('SIMULATED', 'MODE')} <span class="muted">— NOT OBSERVED</span></div>
+                <div class="ss-title">NEXT-EVIDENCE SENSITIVITY ${badgeHTML('SIMULATED', 'MODE')} <span class="muted">— hypothetical outcomes, not observed</span></div>
                 <div class="ss-scroll"><table class="ss-table">
-                    <thead><tr><th>Scenario</th><th>Level</th><th>Uncertainty</th><th>Priority</th><th>Simulated evidence</th><th>Next investigation</th></tr></thead>
-                    <tbody>${sims.map(x => {
-                        const sm = x.summary || {};
-                        const ev = x.scenario.includes('DRILLING') ? `${sm.boreholes} holes, ${sm.mn_bearing_intervals} Mn-bearing intervals${sm.max_mn_pct !== null && sm.max_mn_pct !== undefined ? `, max ${fmtNum(sm.max_mn_pct, 1)}% Mn` : ''}`
-                            : x.scenario === 'POSITIVE_GEOCHEMICAL_SUPPORT' ? `${sm.geochem_samples} surface samples, max ${fmtNum(sm.surface_max_mn_pct, 1)}% Mn`
-                            : x.scenario === 'POSITIVE_GEOPHYSICAL_SUPPORT' ? asArray(sm.geophysics).map(g => `${esc(g.method)}: ${fmtNum(g.anomaly_strength * 100, 0)}% above background`).join('; ')
-                            : 'none';
-                        return `<tr><td>${esc(SS_LABEL[x.scenario] || x.scenario)}</td><td>L${esc(x.simulated_evidence_level)}</td><td>${esc(x.simulated_uncertainty)}</td>
-                            <td class="mono-val">${fmtNum(x.exploration_priority_before, 1)} → ${fmtNum(x.exploration_priority_after, 1)} (${delta(x.priority_change)})</td>
-                            <td>${ev}</td><td>${esc(x.recommended_next_investigation)}</td></tr>`;
-                    }).join('')}</tbody>
+                    <thead><tr><th>If the next investigation…</th><th>Maturity</th><th>Uncertainty</th><th>Priority</th><th>Then</th></tr></thead>
+                    <tbody>${sens.map(x => `<tr><td>${esc(x.outcome)}</td><td>L${esc(x.hypothetical_evidence_level)}</td><td>${esc(x.hypothetical_uncertainty)}</td>
+                        <td class="mono-val">${fmtNum(x.exploration_priority_before, 1)} → ${fmtNum(x.exploration_priority_after, 1)} (${delta(x.priority_change)})</td>
+                        <td>${esc(x.recommended_next_investigation)}</td></tr>`).join('')}</tbody>
                 </table></div>
-                <div class="chart-note">Fusion rules are project-configured (config/exploration_config.json → subsurface_fusion), not an industry standard. No reserve, resource or tonnage is derived from simulated evidence.</div>
+                <div class="chart-note">Rules are project-configured (config/exploration_config.json → subsurface_fusion), not an industry standard.</div>
             </div>
         </div>`;
     }
@@ -1418,10 +1429,14 @@
         $('#prRiskPolicy').textContent = riskPolicyText(f.raw);
         const hasBand = f.p10 !== null && f.p90 !== null;
         const iv = intervalInfo(f.raw);
-        $('#prForecastSub').textContent = hasBand
-            ? (iv.validated ? 'P10 / P50 / P90 — validated interval' : 'P10 / P50 / P90 — P10–P90 interval NOT validated')
-            : 'Only the forecast fields returned by the backend are shown';
-        $('#prForecastBasis').innerHTML = `<b>Forecast basis:</b> ${esc(pick(f.raw, 'forecast_basis') || 'Not returned by the backend.')}
+        const appl = pick(f.raw, 'applicability') || {};
+        const ood = appl.level === 'LOW';
+        $('#prForecastSub').textContent = !hasBand ? 'Only the forecast fields returned by the backend are shown'
+            : ood ? 'P10 / P50 / P90 — inputs outside training experience; not reliable'
+            : (iv.validated ? 'P10 / P50 / P90 — interval validated in backtest' : 'P10 / P50 / P90 — P10–P90 interval NOT validated');
+        const viol = asArray(appl.range_violations).map(v => human(v.feature || v)).join(', ');
+        $('#prForecastBasis').innerHTML = `${appl.level ? `<div class="${ood ? 'caution-block' : 'muted'}">Model applicability: <b>${esc(appl.level)}</b>${viol ? ` — outside training range: ${esc(viol)}` : ''}${ood ? '. Treat this forecast as unsupported; human review required.' : ''}</div>` : ''}
+            <b>Forecast basis:</b> ${esc(pick(f.raw, 'forecast_basis') || 'Not returned by the backend.')}
             ${f.raw.scenario_override_applied ? badgeHTML('SIMULATED', 'INPUTS') : ''}
             <div class="muted">${esc(iv.text)}${iv.window ? ` · evaluation window ${esc(iv.window)}` : ''}. Period ${esc(pick(f.raw, 'period_start') || '?')} → ${esc(pick(f.raw, 'period_end') || '?')}.</div>`;
         renderRangeChart($('#prRangeChart'), f);
@@ -1866,7 +1881,10 @@
     async function loadTrust() {
         const btn = $('#btnRefreshTrust');
         setLoading(btn, true);
-        ['#trustExploration', '#trustProduction', '#trustReconciliation', '#trustProvenance'].forEach(s => { $(s).innerHTML = loadingHTML(); });
+        ['#trustExploration', '#trustProduction', '#trustReconciliation', '#trustProvenance', '#trustRecovery'].forEach(s => { $(s).innerHTML = loadingHTML(); });
+        api.get(`/api/trust/recovery?mine_id=${encodeURIComponent(MINE_ID)}`)
+            .then(renderRecoveryTrust)
+            .catch(e => { $('#trustRecovery').innerHTML = errorHTML('Recovery diagnostics unavailable.', e, 'model-trust'); });
         const [ex, pr, pv, rc] = await Promise.allSettled([
             api.get('/api/trust/exploration'),
             api.get('/api/trust/production'),
@@ -1933,6 +1951,23 @@
             <div class="ss-scroll"><table class="ss-table"><thead><tr><th>Model</th><th>ROC-AUC</th><th>PR-AUC</th><th>Positives in top 10 % area</th></tr></thead><tbody>${rows}</tbody></table></div>
             <div class="chart-note">${esc(e.decision_reason || '')} ${esc(e.supplementary_note || '')}</div>
             <div class="chart-note">Real + synthetic (model D): ${esc(e.model_d && e.model_d.reason ? e.model_d.reason : 'not run')}</div>`;
+    }
+
+    function renderRecoveryTrust(r) {
+        const blocked = asArray(r.applicability_blocked_portfolios);
+        const t = v => v === null || v === undefined ? 'N/A' : `${fmtNum(v, 0)} t`;
+        $('#trustRecovery').innerHTML = `${provenanceRowIf(r)}
+            <div class="rq-grid">
+                <div class="kpi-tile"><span class="kpi-label">SCENARIOS TESTED</span><div class="kpi-val mono-val">${asArray(r.scenarios_tested).length}</div></div>
+                <div class="kpi-tile"><span class="kpi-label">PORTFOLIOS EVALUATED</span><div class="kpi-val mono-val">${esc(r.portfolios_evaluated)}</div></div>
+                <div class="kpi-tile"><span class="kpi-label">ELIGIBLE</span><div class="kpi-val mono-val">${asArray(r.eligible_portfolios).length}</div><span class="kpi-sub">${esc(asArray(r.eligible_portfolios).join(', ') || 'none')}</span></div>
+                <div class="kpi-tile"><span class="kpi-label">APPLICABILITY-BLOCKED</span><div class="kpi-val mono-val">${blocked.length}</div></div>
+                <div class="kpi-tile"><span class="kpi-label">WORST-CASE RESIDUAL: NO ACTION → SELECTED</span><div class="kpi-val mono-val">${t(r.baseline_worst_case_residual_gap_tonnes)} → ${t(r.selected_worst_case_residual_gap_tonnes)}</div><span class="kpi-sub">${esc(r.selected_portfolio || upperHuman(r.selection_status || ''))}${r.selected_intervention_burden !== null && r.selected_intervention_burden !== undefined ? ` &middot; burden ${fmtNum(r.selected_intervention_burden, 1)}` : ''}</span></div>
+            </div>
+            ${blocked.length ? `<div class="chart-note">Blocked (LOW applicability in): ${blocked.map(b => `${esc(b.portfolio)} [${esc(asArray(b.scenarios).join(', '))}]`).join('; ')}</div>` : ''}
+            ${Object.keys(r.constraint_notes || {}).length ? `<div class="chart-note">Constraint notes: ${Object.entries(r.constraint_notes).map(([k, v]) => `${esc(k)}: ${esc(asArray(v).join(' '))}`).join('; ')}</div>` : ''}
+            <div class="chart-note">${esc(r.selection_rule || '')}</div>
+            <div class="chart-note">${esc(r.note || '')}</div>`;
     }
 
     function provenanceRowIf(src) {

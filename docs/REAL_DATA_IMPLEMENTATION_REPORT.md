@@ -10,7 +10,7 @@ only; no real production; subsurface UNAVAILABLE everywhere).
 | Weather | IMD gridded rainfall 0.25° + Tmax 1°, 2012–2025 (REAL_GOVERNMENT) | `scripts/data_acquisition/fetch_imd_gridded.py` → `data/processed/weather/imd_daily_mine_belt.csv` | Simulator weather driver; real quarterly model (rain anomaly candidate); heavy-rain scenario intensity (IMD p95 7-day = 148 mm) |
 | Production | MOIL quantitative-details disclosures (REAL_MOIL_PUBLIC) | `fetch_moil_production.py` (list API → 52 PDFs → pdfplumber → cumulative differencing with cross-checks) | `ml/train_real_production.py`; `/api/production/real-quarterly`; Production Risk panel |
 | Geomorphology / lineaments | NRSC Bhuvan 1:50k (REAL_GOVERNMENT) | `fetch_bhuvan_geology.py` (WMS GetFeatureInfo polygons, GetMap lineaments) → `build_geology_features.py` | Exploration features (ablation C–F); live-query lookup |
-| Official exploration blocks | NMET / DGM Maharashtra / MECL proposals (REAL_GOVERNMENT) | Transcribed → `build_real_subsurface.py` | Target evidence (REPORTED_BLOCK_LEVEL), label set B, geological constraints for the subsurface simulator |
+| Official exploration blocks | NMET / DGM Maharashtra / MECL proposals (REAL_GOVERNMENT) | Transcribed → `build_real_subsurface.py` | Target evidence (REPORTED_BLOCK_LEVEL), label set B, cited geological expectations shown with the target's observed evidence |
 | Company exploration | MOIL annual report (REAL_MOIL_PUBLIC) | Transcribed | Context only |
 | Grade classes | IBM Indian Minerals Yearbook (manganese chapter) | Cited in `geological_constraints.json` | Simulated interval grade categories |
 | Extended EO features | Sentinel-2 L2A (red-edge, SWIR ratios), NASADEM relief | `build_exploration_features.py` | Exploration ablation A–F |

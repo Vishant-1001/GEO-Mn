@@ -38,7 +38,7 @@ def test_provenance_catalogue(client):
     modes = {k: v["mode"] for k, v in d["sources"].items()}
     assert modes["operations"] == "SYNTHETIC"
     assert modes["reserves"] == "UNAVAILABLE"
-    assert modes["subsurface_observed"] == "REAL_GOVERNMENT" and modes["subsurface_scenarios"] == "SIMULATED"
+    assert modes["subsurface_observed"] == "REAL_GOVERNMENT" and modes["next_evidence_sensitivity"] == "SIMULATED"
     assert modes["recovery_scenarios"] == "SIMULATED" and modes["demo_states"] == "SIMULATED"
     assert modes["weather_imd"] == "REAL_GOVERNMENT" and modes["production_moil"] == "REAL_MOIL_PUBLIC"
     assert modes["geomorphology_lineaments"] == "REAL_GOVERNMENT" and modes["exploration_blocks"] == "REAL_GOVERNMENT"

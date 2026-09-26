@@ -190,3 +190,22 @@ def test_burden_exposed_and_configured():
         assert p["intervention_burden"] == pytest.approx(sum(w[a] for a in p["actions"]))
         assert "input-constraint" in p["feasibility_basis"]
     assert "intervention burden" in d["selection_rule"]
+
+
+def test_blocked_portfolios_require_human_review():
+    d = rs.evaluate("DEMO_MINE")
+    for p in d["evaluated_portfolios"]:
+        assert p["human_review_required"] == (not p["eligible"])
+        if p["low_applicability_scenarios"]:
+            assert p["human_review_required"] is True
+
+
+def test_trust_recovery_diagnostics(client):
+    r = client.get("/api/trust/recovery?mine_id=DEMO_MINE").json()
+    ev = rs.evaluate("DEMO_MINE")
+    assert r["scenarios_tested"] == ev["disruption_scenarios"] and r["portfolios_evaluated"] == 8
+    assert set(r["eligible_portfolios"]) == {p["portfolio_id"] for p in ev["evaluated_portfolios"] if p["eligible"]}
+    assert r["selected_portfolio"] == ev["selected_portfolio"]
+    if r["selected_portfolio"]:
+        assert r["selected_worst_case_residual_gap_tonnes"] <= r["baseline_worst_case_residual_gap_tonnes"]
+    assert "accuracy" in r["note"].lower() and "no recovery" in r["note"].lower()

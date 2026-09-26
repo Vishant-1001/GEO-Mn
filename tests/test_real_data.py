@@ -147,3 +147,12 @@ def test_moil_raw_pdfs_match_index():
         p = DATA_DIR / "raw" / "production" / "moil" / it["file"]
         assert p.read_bytes()[:4] == b"%PDF", it["file"]
         assert it["source_url"].startswith("https://backend.moil.nic.in/")
+
+
+@pytest.mark.parametrize("path", ["processed/subsurface/geological_constraints.json", "exploration_targets.json",
+                                  "manifests/real_moil_production.json", "manifests/real_subsurface_nmet.json"])
+def test_json_artifacts_are_strict_json(path):
+    """NaN / Infinity are not JSON; API responses built from these files must serialise."""
+    def reject(c):
+        raise ValueError(f"non-standard JSON constant {c}")
+    json.loads((DATA_DIR / path).read_text(), parse_constant=reject)

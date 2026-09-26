@@ -12,7 +12,7 @@ Outputs (data/processed/subsurface/):
   surface_geochem_samples.csv   decimal coordinates, validated ranges
   reported_findings.csv         findings joined to blocks
   moil_reported_exploration.csv company-level context (not linked to any target)
-  geological_constraints.json   real, cited constraints consumed by the synthetic subsurface generator
+  geological_constraints.json   real, cited expectations shown with a target's observed block evidence
 
 Nothing here is a borehole log: the only drilling outcome available (Nagardhan) is a REPORTED
 block-level count without coordinates or assays, and is kept exactly that way.
@@ -99,7 +99,7 @@ def main():
     grades = findings[findings["evidence_class"].isin(["GRADE_REPORTED", "GEOCHEMICAL_SURFACE"])]
     drill = findings[findings["evidence_class"] == "DRILLING_INTERSECTION_REPORTED"].iloc[0]
     constraints = {
-        "_note": "REAL, CITED geological relationships used ONLY as constraints for the synthetic subsurface generator.",
+        "_note": "REAL, CITED geological relationships reported by the official block documents; shown as expectations, never as measurements at a target.",
         "stratigraphy": {
             "group": "Sausar Group (Mesoproterozoic), Central Indian manganese belt",
             "formations_top_down": ["Bichua", "Junewani", "Chorbaoli", "Mansar", "Lohangi", "Sitasaongi"],
@@ -123,7 +123,9 @@ def main():
             "note": "reefs often intercalated with gondite; supergene oxide enrichment near surface (e.g. Dongri Buzurg)",
             "source": "NMET_KAWALEWADA",
         },
-        "grades_reported_pct_mn": [[r.block_id, r.mn_pct_min, r.mn_pct_max, r.finding_type] for r in grades.itertuples()],
+        # a bound that is not stated (e.g. "< 38 % Mn") is null, never NaN (invalid JSON)
+        "grades_reported_pct_mn": [[r.block_id, None if pd.isna(r.mn_pct_min) else r.mn_pct_min,
+                                    None if pd.isna(r.mn_pct_max) else r.mn_pct_max, r.finding_type] for r in grades.itertuples()],
         "drilling_outcome_reported": {"block": drill.block_id, "boreholes": int(drill.count_tested),
                                       "intersected": int(drill.count_positive), "source": drill.source_doc},
         "proposed_borehole_depths_m": sorted(set(int(x) for x in findings["depth_m"].dropna())),

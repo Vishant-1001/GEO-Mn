@@ -33,6 +33,7 @@ from services.common import (
     load_manifest, log, provenance,
 )
 
+LEVEL_ORDER = {"HIGH": 0, "MODERATE": 1, "LOW": 2}
 UNCERTAINTY_SCORE = {"LOW": 1.0, "MODERATE": 0.6, "HIGH": 0.2}
 NEXT_EVIDENCE = [
     "Field geological mapping and outcrop verification of the target footprint",
@@ -307,34 +308,47 @@ class ExplorationService:
         return score, level, (f"Strategic gap severity {severity:.2f} x proximity {proximity:.2f} "
                               f"({t['distance_to_demo_mine_km']} km from the supply point).")
 
+    def gates(self, t) -> tuple[bool, list[str]]:
+        """Hard gates before scoring: geographic validity -> applicability -> minimum evidence."""
+        g = self.cfg["priority_gates"]
+        blocked = []
+        if g["require_in_study_area"] and not in_envelope(t["lat"], t["lon"], self.cfg["study_area"]):
+            blocked.append("outside the study area")
+        if LEVEL_ORDER[t["applicability"]] > LEVEL_ORDER[g["min_applicability"]]:
+            blocked.append(f"applicability {t['applicability']} below {g['min_applicability']}")
+        if t["evidence_level"] < g["min_evidence_level"]:
+            blocked.append(f"evidence level L{t['evidence_level']} below L{g['min_evidence_level']}")
+        return not blocked, blocked
+
     def score_target(self, t, strategic=None, prospectivity_factor=1.0) -> dict:
-        """Priority of one target record (also used on SIMULATED evidence copies by the subsurface engine)."""
+        """Priority of one target record (also used for next-evidence sensitivity on a modified copy)."""
         w = self.cfg["priority_weights"]
         ev = (t["evidence_level"] / 4.0 + LEVEL_SCORE[t["applicability"]] + UNCERTAINTY_SCORE[t["uncertainty"]]) / 3.0
         srel, slevel, snote = self.strategic_relevance(t, strategic)
-        comps = {
-            "prospectivity": t["prospectivity_rank"] / 100.0 * prospectivity_factor,
-            "evidence_applicability": ev,
-            "strategic_relevance": srel,
-            "development_readiness": t.get("development_readiness"),
-        }
-        avail = {k: v for k, v in comps.items() if v is not None}
-        wsum = sum(w[k] for k in avail)
-        priority = 100.0 * sum(w[k] * avail[k] for k in avail) / wsum
+        active = bool(strategic and strategic.get("active"))
+        comps = {"prospectivity": t["prospectivity_rank"] / 100.0 * prospectivity_factor, "evidence_applicability": ev}
+        if active:   # contingency OFF: prospectivity + evidence/applicability only
+            comps["strategic_relevance"] = srel
+        wsum = sum(w[k] for k in comps)
+        priority = 100.0 * sum(w[k] * comps[k] for k in comps) / wsum
+        ok, blocked = self.gates(t)
         return {**t,
                 "strategic_relevance": slevel,
                 "strategic_relevance_score": round(srel, 3),
                 "strategic_relevance_note": snote,
                 "exploration_priority": round(priority, 1),
-                "priority_components": {k: (round(v, 3) if v is not None else None) for k, v in comps.items()},
-                "priority_weights_used": {k: round(w[k] / wsum, 3) for k in avail},
-                "priority_renormalised": len(avail) < len(comps),
+                "priority_components": {k: round(v, 3) for k, v in comps.items()},
+                "priority_weights_used": {k: round(w[k] / wsum, 3) for k in comps},
+                "priority_mode": "SUPPLY_AWARE" if active else "GEOLOGICAL_EVIDENCE_ONLY",
+                "eligible_for_contingency": ok,
+                "gate_blocked_reasons": blocked,
                 "status": "REVIEW_REQUIRED" if t["applicability"] == "LOW" else "EXPLORATION_TARGET",
                 "source_mode": CACHED}
 
     def prioritise(self, strategic=None) -> list[dict]:
         out = [self.score_target(t, strategic) for t in self.targets]
-        out.sort(key=lambda x: (-x["exploration_priority"], x["target_id"]))
+        # gates first, then priority, then id (deterministic)
+        out.sort(key=lambda x: (not x["eligible_for_contingency"], -x["exploration_priority"], x["target_id"]))
         for i, x in enumerate(out, start=1):
             x["priority_rank"] = i
         return out
@@ -387,13 +401,13 @@ class ExplorationService:
         if t["strategic_relevance"] in ("HIGH", "MODERATE"):
             r.append({"code": "PROXIMITY_TO_SUPPLY_NEED",
                       "text": f"{t['distance_to_demo_mine_km']} km from the supply point with the gap ({t['strategic_relevance']} strategic relevance)."})
-        if (t.get("development_readiness") or 0) >= 0.5:
-            r.append({"code": "DEVELOPMENT_READINESS_PROXY",
-                      "text": f"{t['nearest_documented_producer_km']} km from a documented producing / past-producing site (access proxy)."})
         r.append({"code": "HIGHEST_FEASIBLE_PRIORITY",
                   "text": f"Highest exploration priority ({t['exploration_priority']}) among targets with acceptable applicability."})
         r.append({"code": "LEAD_TIME_CAVEAT",
                   "text": "Exploration is a strategic contingency: it cannot supply ore in the next period."})
+        r.append({"code": "RESERVE_NOT_CONFIRMED",
+                  "text": (f"Reserve confirmed: NO. Evidence maturity L{t['evidence_level']}; no resource or reserve work "
+                           "exists for this target.")})
         return r
 
     def list_targets(self, strategic=None) -> dict:
@@ -403,7 +417,8 @@ class ExplorationService:
         keep = ("target_id", "lat", "lon", "geometry", "bbox", "n_cells", "area_km2", "prospectivity_rank", "peak_prospectivity_rank",
                 "rank_sd", "uncertainty", "applicability", "evidence_level", "evidence_level_label", "target_context",
                 "contains_training_labels", "subsurface_status", "strategic_relevance", "strategic_relevance_score",
-                "development_readiness", "distance_to_demo_mine_km", "exploration_priority", "priority_rank", "status", "source_mode",
+                "distance_to_demo_mine_km", "exploration_priority", "priority_rank", "priority_mode", "eligible_for_contingency",
+                "gate_blocked_reasons", "status", "source_mode",
                 "observed_ground_evidence", "nmet_block_id")
         return {
             "targets": [{k: t.get(k) for k in keep} for t in ranked],
@@ -414,10 +429,12 @@ class ExplorationService:
                 "components": {
                     "prospectivity": "prospectivity_rank / 100",
                     "evidence_applicability": "mean(evidence_level/4, applicability score, 1 - uncertainty penalty)",
-                    "strategic_relevance": "gap severity x exp(-distance / decay) under the current strategic state",
-                    "development_readiness": "exp(-distance to nearest documented producer / decay) — access proxy",
+                    "strategic_relevance": "gap severity x exp(-distance / decay); ONLY when strategic contingency is active",
                 },
-                "note": "PROJECT DEFAULT weights, not mining-industry standards. Unavailable components are dropped and weights re-normalised.",
+                "gates": self.cfg["priority_gates"],
+                "note": ("PROJECT DEFAULT weights, not mining-industry standards. Gates (study area, applicability, minimum "
+                         "evidence) are applied before scoring. Without an active strategic gap the priority uses "
+                         "prospectivity + evidence/applicability only. No development-readiness proxy is scored."),
             },
             "method": self.targets_meta.get("method"),
             "provenance": self._prov(CACHED, False, effective_resolution="~1 km (0.01 degree cell)"),
@@ -433,7 +450,7 @@ class ExplorationService:
                                  "peak_prospectivity_rank", "rank_sd", "uncertainty", "applicability", "applicability_cell_shares",
                                  "evidence_level", "evidence_level_label", "evidence_basis", "target_context",
                                  "contains_training_labels", "strategic_relevance", "strategic_relevance_score",
-                                 "strategic_relevance_note", "development_readiness", "nearest_documented_producer_km",
+                                 "strategic_relevance_note", "nearest_documented_producer_km",
                                  "distance_to_demo_mine_km", "exploration_priority", "priority_rank", "priority_components",
                                  "priority_weights_used", "status", "source_mode")},
             "surface_evidence": {"status": "AVAILABLE", "observation_window": _obs_window(), "features": t["surface_evidence"]},
