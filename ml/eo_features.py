@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import math
 import os
+import time
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -39,6 +41,10 @@ os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
 os.environ.setdefault("GDAL_HTTP_MERGE_CONSECUTIVE_RANGES", "YES")
 os.environ.setdefault("GDAL_HTTP_MAX_RETRY", "3")
 os.environ.setdefault("GDAL_HTTP_RETRY_DELAY", "1")
+os.environ.setdefault("GDAL_HTTP_TIMEOUT", "60")            # no hung reads (default: no timeout)
+os.environ.setdefault("GDAL_HTTP_CONNECTTIMEOUT", "20")
+os.environ.setdefault("GDAL_HTTP_LOW_SPEED_TIME", "30")
+os.environ.setdefault("GDAL_HTTP_LOW_SPEED_LIMIT", "1")
 os.environ.setdefault("CPL_VSIL_CURL_ALLOWED_EXTENSIONS", ".tif,.TIF,.tiff")
 
 STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
@@ -51,7 +57,7 @@ S2_SCENES_PER_TILE = 12
 S2_READ_RES_M = 200.0
 S2_MIN_VALID_SCENES = 3
 S2_SCL_VALID = (4, 5, 7)
-S2_BANDS = ("B02", "B04", "B08", "B11", "B12")
+S2_BANDS = ("B02", "B03", "B04", "B05", "B08", "B8A", "B11", "B12")
 
 LST_SCALE = 0.02
 
@@ -63,6 +69,24 @@ FEATURES = [
     "elevation",
     "slope",
 ]
+# Candidate real features added in the data upgrade; kept only if spatial validation supports them.
+EXTENDED_S2_FEATURES = ["NDRE", "Ferric_Iron_B4B3", "Ferrous_Silicate_B12B8A", "Gossan_B11B4", "SWIR_Albedo"]
+EXTENDED_TERRAIN_FEATURES = ["elevation_sd"]
+ALL_EO_FEATURES = FEATURES + EXTENDED_S2_FEATURES + EXTENDED_TERRAIN_FEATURES
+FEATURE_RATIONALE = {
+    "NDVI": "(B08-B04)/(B08+B04); vegetation cover masks or reflects substrate",
+    "Iron_Oxide_Index": "B04/B02; ferric oxide staining of weathered surfaces",
+    "Clay_Hydroxyl_Index": "B11/B12; Al/Mg-OH clay & alteration minerals",
+    "LST_Day_K": "MODIS daytime LST; thermal inertia / exposed rock vs soil",
+    "elevation": "NASADEM mean elevation; landscape position",
+    "slope": "NASADEM mean slope; resistant ridges vs pediplains",
+    "NDRE": "(B8A-B05)/(B8A+B05); red-edge vegetation stress over mineralised ground",
+    "Ferric_Iron_B4B3": "B04/B03; hematite/goethite (ferric iron) absorption",
+    "Ferrous_Silicate_B12B8A": "B12/B8A; ferrous silicates / mafic minerals",
+    "Gossan_B11B4": "B11/B04; oxidised gossan-type cappings",
+    "SWIR_Albedo": "(B11+B12)/2; dark Mn oxides (pyrolusite/psilomelane) lower SWIR reflectance",
+    "elevation_sd": "SD of 1-arcsec NASADEM elevation inside the cell; local ruggedness",
+}
 QC_COLUMNS = ["s2_valid_scenes", "s2_pixels", "lst_valid_composites", "dem_pixels"]
 
 RECIPE = {
@@ -81,6 +105,11 @@ RECIPE = {
             "NDVI": "(B08-B04)/(B08+B04)",
             "Iron_Oxide_Index": "B04/B02",
             "Clay_Hydroxyl_Index": "B11/B12",
+            "NDRE": "(B8A-B05)/(B8A+B05)",
+            "Ferric_Iron_B4B3": "B04/B03",
+            "Ferrous_Silicate_B12B8A": "B12/B8A",
+            "Gossan_B11B4": "B11/B04",
+            "SWIR_Albedo": "(B11+B12)/2 (reflectance)",
         },
     },
     "modis_lst": {
@@ -92,7 +121,8 @@ RECIPE = {
         "temporal_reduction": "mean of valid 8-day composites",
         "spatial_sampling": "nearest MODIS pixel to the cell centre",
     },
-    "dem": {"collection": "nasadem", "slope": "degrees, finite differences in metres"},
+    "dem": {"collection": "nasadem", "slope": "degrees, finite differences in metres",
+            "elevation_sd": "standard deviation of 1-arcsec elevation within the cell (m)"},
     "cell_aggregation": "Sentinel-2 and NASADEM: mean of pixels whose centre falls in the 0.01 degree cell; MODIS LST: nearest 1 km pixel to the cell centre",
 }
 
@@ -168,14 +198,30 @@ def _catalog():
     import planetary_computer
     import pystac_client
 
-    return pystac_client.Client.open(STAC_URL, modifier=planetary_computer.sign_inplace)
+    return pystac_client.Client.open(STAC_URL, modifier=planetary_computer.sign_inplace, timeout=90)
+
+
+def _resign(items):
+    """Refresh Planetary Computer SAS tokens (they expire ~1 h after the search) before reading."""
+    import planetary_computer
+
+    for it in items:
+        for a in it.assets.values():
+            a.href = planetary_computer.sign(a.href.split("?")[0])
+    return items
 
 
 def _search(collection, bbox, datetime=None):
     kw = {"collections": [collection], "bbox": list(bbox)}
     if datetime:
         kw["datetime"] = datetime
-    return list(_catalog().search(**kw).items())
+    for attempt in range(5):                       # the public STAC API drops connections occasionally
+        try:
+            return list(_catalog().search(**kw).items())
+        except Exception:
+            if attempt == 4:
+                raise
+            time.sleep(5 * (attempt + 1))
 
 
 def select_s2_items(bbox, window=OBSERVATION_WINDOW):
@@ -207,13 +253,27 @@ def _snap_bounds(bounds, origin_x, origin_y, step):
     return left, bottom, right, top
 
 
+def _retry(fn, tries=4, wait=3.0):
+    """Retry a remote read; the public blob storage occasionally stalls or drops connections."""
+    for attempt in range(tries):
+        try:
+            return fn()
+        except Exception:
+            if attempt == tries - 1:
+                raise
+            time.sleep(wait * (attempt + 1))
+
+
 def _read_resampled(href, bounds, shape, resampling):
     import rasterio
     from rasterio.windows import from_bounds
 
-    with rasterio.open(href) as src:
-        win = from_bounds(*bounds, transform=src.transform)
-        return src.read(1, window=win, out_shape=shape, resampling=resampling, boundless=True, fill_value=0)
+    def read():
+        with rasterio.open(href) as src:
+            win = from_bounds(*bounds, transform=src.transform)
+            return src.read(1, window=win, out_shape=shape, resampling=resampling, boundless=True, fill_value=0)
+
+    return _retry(read)
 
 
 def _s2_tile_composite(items, bbox, pool):
@@ -223,10 +283,12 @@ def _s2_tile_composite(items, bbox, pool):
     from rasterio.warp import transform, transform_bounds
 
     ref = items[0].assets["B11"].href
-    with rasterio.open(ref) as src:
-        crs = src.crs
-        tb = src.bounds
-        ox, oy = src.transform.c, src.transform.f
+
+    def meta():
+        with rasterio.open(ref) as src:
+            return src.crs, src.bounds, src.transform.c, src.transform.f
+
+    crs, tb, ox, oy = _retry(meta)
     b = transform_bounds("EPSG:4326", crs, *bbox, densify_pts=21)
     b = (max(b[0], tb.left), max(b[1], tb.bottom), min(b[2], tb.right), min(b[3], tb.top))
     if b[0] >= b[2] or b[1] >= b[3]:
@@ -251,10 +313,12 @@ def _s2_tile_composite(items, bbox, pool):
     stack = np.full((len(items), len(S2_BANDS), h, w), np.nan, dtype="float32")
     scl = np.zeros((len(items), h, w), dtype="uint8")
     ok_scene = np.ones(len(items), dtype=bool)
-    for k, band, arr in pool.map(run, jobs):
-        if arr is None:
-            ok_scene[k] = False
-            continue
+    results = list(pool.map(run, jobs))
+    failed = sum(arr is None for _, _, arr in results)
+    if failed:
+        # never composite from a silently reduced scene set (e.g. expired tokens) — fail the tile instead
+        raise RuntimeError(f"{failed} of {len(jobs)} band reads failed")
+    for k, band, arr in results:
         if band == "SCL":
             scl[k] = arr
         else:
@@ -277,11 +341,16 @@ def _s2_tile_composite(items, bbox, pool):
             warnings.simplefilter("ignore", category=RuntimeWarning)
             comp = np.nanmedian(stack, axis=0)
     comp[:, n_valid < S2_MIN_VALID_SCENES] = np.nan
-    b2, b4, b8, b11, b12 = comp
+    b2, b3, b4, b5, b8, b8a, b11, b12 = comp
     with np.errstate(all="ignore"):
         ndvi = (b8 - b4) / (b8 + b4)
         iron = b4 / b2
         clay = b11 / b12
+        ndre = (b8a - b5) / (b8a + b5)
+        ferric = b4 / b3
+        ferrous = b12 / b8a
+        gossan = b11 / b4
+        swir_alb = (b11 + b12) / 2
 
     xs = b[0] + (np.arange(w) + 0.5) * S2_READ_RES_M
     ys = b[3] - (np.arange(h) + 0.5) * S2_READ_RES_M
@@ -291,14 +360,40 @@ def _s2_tile_composite(items, bbox, pool):
         "NDVI": ndvi,
         "Iron_Oxide_Index": iron,
         "Clay_Hydroxyl_Index": clay,
+        "NDRE": ndre,
+        "Ferric_Iron_B4B3": ferric,
+        "Ferrous_Silicate_B12B8A": ferrous,
+        "Gossan_B11B4": gossan,
+        "SWIR_Albedo": swir_alb,
         "s2_valid_scenes": np.where(n_valid >= S2_MIN_VALID_SCENES, n_valid, np.nan).astype("float64"),
     }
 
 
-def add_sentinel2(lattice, bbox, pool, log=print):
+def add_sentinel2(lattice, bbox, pool, log=print, cache_dir=None):
+    """cache_dir: optional directory for per-tile checkpoints so an interrupted full-AOI run can resume."""
     tiles = select_s2_items(bbox)
     for n, (tile, items) in enumerate(sorted(tiles.items())):
-        res = _s2_tile_composite(items, bbox, pool)
+        ck = None
+        if cache_dir is not None:
+            ck = Path(cache_dir) / f"s2_{tile}_{'_'.join(f'{v:.3f}' for v in bbox)}.npz"
+        if ck is not None and ck.exists():
+            z = np.load(ck, allow_pickle=True)
+            res = None if z["empty"] else (z["lats"], z["lons"], z["arrs"].item())
+        else:
+            for attempt in range(3):
+                try:
+                    res = _s2_tile_composite(_resign(items), bbox, pool)
+                    break
+                except RuntimeError as e:
+                    log(f"  sentinel-2 tile {tile}: {e}; retrying with fresh tokens")
+                    if attempt == 2:
+                        raise
+            if ck is not None:
+                ck.parent.mkdir(parents=True, exist_ok=True)
+                if res is None:
+                    np.savez(ck, empty=True)
+                else:
+                    np.savez(ck, empty=False, lats=res[0], lons=res[1], arrs=np.array(res[2], dtype=object))
         if res is None:
             continue
         lats, lons, arrs = res
@@ -330,6 +425,7 @@ def add_modis_lst(lattice, bbox, pool, log=print):
         by_tile.setdefault(it.id.split(".")[2], []).append(it)
 
     for tile, its in sorted(by_tile.items()):
+        its = _resign(its)
         with rasterio.open(its[0].assets["LST_Day_1km"].href) as src:
             crs, tr = src.crs, src.transform
             win = from_bounds(*transform_bounds("EPSG:4326", crs, *bbox, densify_pts=21), transform=tr)
@@ -339,12 +435,16 @@ def add_modis_lst(lattice, bbox, pool, log=print):
             win = win.intersection(rasterio.windows.Window(0, 0, src.width, src.height))
             wtr = src.window_transform(win)
 
+        def read(href, dtype):
+            def f():
+                with rasterio.open(href) as s:
+                    return s.read(1, window=win).astype(dtype)
+            return _retry(f)
+
         def run(it):
             try:
-                with rasterio.open(it.assets["LST_Day_1km"].href) as s:
-                    lst = s.read(1, window=win).astype("float64")
-                with rasterio.open(it.assets["QC_Day"].href) as s:
-                    qc = s.read(1, window=win).astype("int64")
+                lst = read(it.assets["LST_Day_1km"].href, "float64")
+                qc = read(it.assets["QC_Day"].href, "int64")
                 ok = _lst_valid(qc) & (lst > 0)
                 return np.where(ok, lst * LST_SCALE, np.nan)
             except Exception:
@@ -407,6 +507,7 @@ def add_dem(lattice, bbox, log=print):
         slope = np.degrees(np.arctan(np.hypot(gx / dx, gy / dy)))
         LON, LAT = np.meshgrid(lons, lats)
         lattice.add("elevation", LAT, LON, z)
+        lattice.add("elevation_sq", LAT, LON, z * z)
         lattice.add("slope", LAT, LON, slope)
         lattice.add("dem_pixels", LAT, LON, np.where(np.isfinite(z), 1.0, np.nan))
     log(f"  nasadem: {len(items)} tiles")
@@ -416,7 +517,7 @@ def add_dem(lattice, bbox, log=print):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def extract_cell_features(bbox, threads=16, log=print):
+def extract_cell_features(bbox, threads=16, log=print, cache_dir=None):
     """Compute the exploration feature table for every 0.01 degree cell in bbox.
 
     bbox = (lon_min, lat_min, lon_max, lat_max). Returns a DataFrame with
@@ -425,14 +526,16 @@ def extract_cell_features(bbox, threads=16, log=print):
     """
     lat_ = Lattice(bbox)
     with ThreadPoolExecutor(max_workers=threads) as pool:
-        add_sentinel2(lat_, bbox, pool, log=log)
+        add_sentinel2(lat_, bbox, pool, log=log, cache_dir=cache_dir)
         add_modis_lst(lat_, bbox, pool, log=log)
     add_dem(lat_, bbox, log=log)
 
     lat, lon = lat_.centres()
     df = pd.DataFrame({"lat": lat, "lon": lon})
-    for f in FEATURES:
+    for f in FEATURES + EXTENDED_S2_FEATURES:
         df[f] = lat_.mean(f)
+    with np.errstate(invalid="ignore"):
+        df["elevation_sd"] = np.sqrt(np.clip(lat_.mean("elevation_sq") - lat_.mean("elevation") ** 2, 0, None))
     df["s2_valid_scenes"] = lat_.mean("s2_valid_scenes")
     df["s2_pixels"] = lat_.count("s2_pixels")
     df["lst_valid_composites"] = lat_.mean("lst_valid_composites")

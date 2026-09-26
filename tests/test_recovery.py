@@ -54,7 +54,7 @@ def test_feasibility_constraints():
     state = {"equipment_availability": 0.95, "equipment_downtime_h": 0.5, "maintenance_hours": 0.5, "drilling_delay_h": 1,
              "blast_delay_h": 1, "truck_count": 23, "haulage_delay_h": 0.5, "rainfall_7d_mm": 0,
              "soil_moisture_m3m3": 0.3, "temperature_max_c": 30}
-    _, status, notes = rs.apply_actions(state, ["EQUIPMENT_RECOVERY"], mine)
+    _, status, notes = rs.apply_actions(dict(state, truck_count=24), ["EQUIPMENT_RECOVERY"], mine)
     assert status == rs.NOT_FEASIBLE and any("headroom" in n for n in notes)
     s2, status, _ = rs.apply_actions(state, ["SCHEDULE_ADJUSTMENT"], mine)
     assert status == rs.CONSTRAINED and s2["truck_count"] == 24
@@ -105,7 +105,7 @@ def test_low_applicability_portfolios_are_not_selectable():
         assert "outside model applicability" in p["selection_blocked_reason"]
         assert p["selected"] is False
         # still shown as diagnostics
-        assert len(p["per_scenario"]) == 5 and any(s["applicability"] == "LOW" for s in p["per_scenario"])
+        assert len(p["per_scenario"]) == len(rs.ALL_SCENARIOS) and any(s["applicability"] == "LOW" for s in p["per_scenario"])
     sel = next(p for p in d["evaluated_portfolios"] if p["selected"])
     assert sel["low_applicability_scenarios"] == [] and sel["selection_applicability"] != "LOW"
 

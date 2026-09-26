@@ -37,3 +37,15 @@ def production_svc():
     from services.production_service import get_service
 
     return get_service()
+
+
+def merged_feature_grid():
+    """The REAL feature grid the deployed exploration model uses (EO + NRSC geology), keyed by cell centre."""
+    import pandas as pd
+
+    from services.common import DATA_DIR
+
+    proc = DATA_DIR / "processed" / "exploration"
+    eo = pd.read_csv(proc / "eo_features_grid.csv.gz")
+    geo = pd.read_csv(proc / "geology_features_grid.csv").drop(columns=["provenance", "geomorphology_class"])
+    return eo.merge(geo, on=["lat", "lon"], how="left")

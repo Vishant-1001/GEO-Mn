@@ -72,7 +72,7 @@ def test_trust_endpoint_matches_report(client, report):
 def test_synthetic_generator_is_deterministic():
     from ml.generate_operations import generate
 
-    a, b = generate(), generate()
+    a, b = generate()[0], generate()[0]
     pd.testing.assert_frame_equal(a, b)
     stored = pd.read_csv(DATA_DIR / "production_history.csv")
     assert np.allclose(stored["actual_tonnes"], a["actual_tonnes"], atol=0.051)

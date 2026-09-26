@@ -38,8 +38,9 @@ def test_near_term_never_uses_exploration():
 
 
 def test_horizon_gate_changes_decision_for_same_state():
-    assert cs.evaluate("DEMO_MINE", "NEAR_TERM")["decision_state"] == "OPERATIONAL_RESPONSE"
-    assert cs.evaluate("DEMO_MINE", "STRATEGIC")["decision_state"] == "OPERATIONAL_AND_EXPLORATION_CONTINGENCY"
+    # DEMO_B: the next period is recoverable by operations, but the residual under stress persists strategically
+    assert cs.evaluate("DEMO_B", "NEAR_TERM")["decision_state"] == "OPERATIONAL_RESPONSE"
+    assert cs.evaluate("DEMO_B", "STRATEGIC")["decision_state"] == "OPERATIONAL_AND_EXPLORATION_CONTINGENCY"
 
 
 def test_selected_target_is_computed_from_ranking():

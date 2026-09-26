@@ -1,5 +1,5 @@
 {
-  "_note": "Deterministic demonstration configuration. DEMO_MINE is a SYNTHETIC mine: its operational records are generated (seed 42) and are NOT MOIL data. Only its weather inputs are real public reanalysis for the stated coordinate.",
+  "_note": "Deterministic demonstration configuration. DEMO_MINE is a SYNTHETIC mine (simulator SYN_MINE_01): its operational records are generated (seed 42) and are NOT MOIL data. Its weather inputs are real: IMD gridded rainfall / Tmax (Government of India) with ERA5-Land soil moisture and ERA5 for dates IMD has not yet published.",
   "version": "demo-1.0",
   "seed": 42,
   "history_start": "2021-01-01",
@@ -13,9 +13,10 @@
       "lon": 79.95,
       "data_mode": "SYNTHETIC",
       "default_horizon": "STRATEGIC",
-      "fleet_max_trucks": 24,
+      "fleet_max_trucks": 22,
       "max_equipment_availability": 0.95,
-      "scheduled_hours_per_day": 20.0
+      "scheduled_hours_per_day": 20.0,
+      "_fleet_note": "matches data/synthetic/production/synthetic_generation_config.yaml: 18 base dumpers, up to 22 with redeployed pool trucks (fleet_changes.max_trucks)"
     }
   },
   "synthetic_generator": {

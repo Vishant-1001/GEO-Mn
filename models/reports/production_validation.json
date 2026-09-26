@@ -1,6 +1,6 @@
 {
   "model_version": "production-qgbm-1.0",
-  "selected_configuration": "level_default",
+  "selected_configuration": "ratio_regularised",
   "protocol": {
     "training_window": {
       "first_origin": "2021-03-26",
@@ -28,28 +28,28 @@
     "end": "2023-07-01",
     "candidates": {
       "level_default": {
-        "p50_mae_raw": 1029.17308095236,
-        "baseline_previous_period_mae": 1156.8169811320754,
-        "baseline_moving_average_4_mae": 1129.6490566037735,
-        "p10_p90_coverage_raw": 0.20754716981132076
+        "p50_mae_raw": 1182.2433984763459,
+        "baseline_previous_period_mae": 1118.258490566038,
+        "baseline_moving_average_4_mae": 1257.992452830189,
+        "p10_p90_coverage_raw": 0.2641509433962264
       },
       "ratio_default": {
-        "p50_mae_raw": 1073.7208911889825,
-        "baseline_previous_period_mae": 1156.8169811320754,
-        "baseline_moving_average_4_mae": 1129.6490566037735,
-        "p10_p90_coverage_raw": 0.24528301886792453
+        "p50_mae_raw": 1179.5329105889034,
+        "baseline_previous_period_mae": 1118.258490566038,
+        "baseline_moving_average_4_mae": 1257.992452830189,
+        "p10_p90_coverage_raw": 0.2830188679245283
       },
       "ratio_regularised": {
-        "p50_mae_raw": 1041.824411015998,
-        "baseline_previous_period_mae": 1156.8169811320754,
-        "baseline_moving_average_4_mae": 1129.6490566037735,
-        "p10_p90_coverage_raw": 0.41509433962264153
+        "p50_mae_raw": 1139.3465881552747,
+        "baseline_previous_period_mae": 1118.258490566038,
+        "baseline_moving_average_4_mae": 1257.992452830189,
+        "p10_p90_coverage_raw": 0.32075471698113206
       },
       "ratio_strongly_regularised": {
-        "p50_mae_raw": 1102.8873251499897,
-        "baseline_previous_period_mae": 1156.8169811320754,
-        "baseline_moving_average_4_mae": 1129.6490566037735,
-        "p10_p90_coverage_raw": 0.49056603773584906
+        "p50_mae_raw": 1149.1000203992194,
+        "baseline_previous_period_mae": 1118.258490566038,
+        "baseline_moving_average_4_mae": 1257.992452830189,
+        "p10_p90_coverage_raw": 0.5660377358490566
       }
     }
   },
@@ -60,66 +60,74 @@
     "n_folds": 9,
     "n_test_periods": 116,
     "model_p50": {
-      "mae": 843.6158442882396,
-      "rmse": 1145.3802443963932,
-      "r2": 0.5630596222358244,
-      "mape_pct": 9.832026770668142
+      "mae": 1143.8806665720854,
+      "rmse": 1588.7426778552,
+      "r2": 0.21283024034825948,
+      "wape_pct": 13.164517111854002,
+      "mape_pct_excl_near_zero": 14.920574147441219,
+      "near_zero_periods_excluded_from_mape": 1
     },
     "baseline_previous_period": {
-      "mae": 891.805172413793,
-      "rmse": 1200.663400604734,
-      "r2": 0.5198628078174741,
-      "mape_pct": 10.352792808467811
+      "mae": 1196.6758620689654,
+      "rmse": 1697.9932436606575,
+      "r2": 0.10084783704918965,
+      "wape_pct": 13.772118302129524,
+      "mape_pct_excl_near_zero": 15.79285121815789,
+      "near_zero_periods_excluded_from_mape": 1
     },
     "baseline_moving_average_4": {
-      "mae": 953.4280172413795,
-      "rmse": 1295.7536226680318,
-      "r2": 0.44079935064271314,
-      "mape_pct": 11.028859106344026
+      "mae": 1149.6810344827586,
+      "rmse": 1568.966232878768,
+      "r2": 0.23230542551544098,
+      "wape_pct": 13.231271490039214,
+      "mape_pct_excl_near_zero": 14.87073584476203,
+      "near_zero_periods_excluded_from_mape": 1
     },
     "diagnostic_oracle_conditions_p50": {
-      "mae": 418.0331308891483,
-      "rmse": 516.4815957615181,
-      "r2": 0.9111550996265287,
-      "mape_pct": 4.929968858916667,
+      "mae": 519.8207546490041,
+      "rmse": 975.8038658193307,
+      "r2": 0.7030479373485916,
+      "wape_pct": 5.98243280060056,
+      "mape_pct_excl_near_zero": 7.279101410024559,
+      "near_zero_periods_excluded_from_mape": 1,
       "note": "NOT a forecast skill: uses the true period conditions. Shows how much of the error comes from unknown future conditions."
     },
     "pinball_loss": {
-      "p10": 233.77282295515195,
-      "p50": 421.8079221441198,
-      "p90": 230.01318955112276
+      "p10": 298.7496563331957,
+      "p50": 571.9403332860427,
+      "p90": 272.6020733871259
     },
     "quantile_hit_rate": {
-      "p10": 0.12931034482758622,
-      "p50": 0.39655172413793105,
-      "p90": 0.9051724137931034
+      "p10": 0.1206896551724138,
+      "p50": 0.4827586206896552,
+      "p90": 0.9224137931034483
     },
-    "p10_p90_coverage": 0.7758620689655172,
-    "p10_p90_coverage_before_recalibration": 0.27586206896551724,
+    "p10_p90_coverage": 0.8017241379310345,
+    "p10_p90_coverage_before_recalibration": 0.3620689655172414,
     "p10_p90_nominal": 0.8,
-    "mean_interval_width_tonnes": 2710.067333995104,
-    "mean_actual_tonnes": 9607.90775862069,
+    "mean_interval_width_tonnes": 3362.0026700526973,
+    "mean_actual_tonnes": 8689.119827586208,
     "shortfall_classification": {
       "definition": "shortfall event = actual < target x (1 - 0.05); predicted when P50 < target x (1 - 0.05)",
-      "precision": 0.8181818181818182,
-      "recall": 0.8709677419354839,
-      "f1": 0.84375,
-      "events": 62,
-      "predicted_events": 66
+      "precision": 0.86,
+      "recall": 0.8958333333333334,
+      "f1": 0.8775510204081632,
+      "events": 96,
+      "predicted_events": 100
     },
     "model_beats_best_baseline_mae": true,
-    "mae_improvement_vs_best_baseline_pct": 5.403571275004201
+    "mae_improvement_vs_best_baseline_pct": 0.5045197525836211
   },
   "recalibration_offsets": {
-    "p10": -0.13470073200522367,
-    "p50": -0.042261453609118226,
-    "p90": 0.07213279818127272
+    "p10": -0.11465505831033682,
+    "p50": -0.03504852929184346,
+    "p90": 0.09810605664905059
   },
-  "quantiles_validated": false,
+  "quantiles_validated": true,
   "quantile_validation_rule": {
     "rule": "|P10-P90 coverage - 0.80| <= 0.08 and every quantile hit rate within +/-0.08 of nominal on the untouched test window (calibration offsets frozen before the test window)",
     "coverage_ok": true,
-    "hit_rates_ok": false
+    "hit_rates_ok": true
   },
   "shap_supported": true,
   "data_mode": "SYNTHETIC",

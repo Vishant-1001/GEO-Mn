@@ -37,8 +37,14 @@ def test_provenance_catalogue(client):
     d = client.get("/api/trust/provenance").json()
     modes = {k: v["mode"] for k, v in d["sources"].items()}
     assert modes["operations"] == "SYNTHETIC"
-    assert modes["subsurface"] == "UNAVAILABLE" and modes["reserves"] == "UNAVAILABLE"
+    assert modes["reserves"] == "UNAVAILABLE"
+    assert modes["subsurface_observed"] == "REAL_GOVERNMENT" and modes["subsurface_scenarios"] == "SIMULATED"
+    assert modes["recovery_scenarios"] == "SIMULATED" and modes["demo_states"] == "SIMULATED"
+    assert modes["weather_imd"] == "REAL_GOVERNMENT" and modes["production_moil"] == "REAL_MOIL_PUBLIC"
+    assert modes["geomorphology_lineaments"] == "REAL_GOVERNMENT" and modes["exploration_blocks"] == "REAL_GOVERNMENT"
     assert modes["sentinel2"] == "REAL_PUBLIC" and modes["exploration_labels"] == "REAL_PUBLIC"
+    assert set(d["modes"]) >= {"REAL_GOVERNMENT", "REAL_PUBLIC", "REAL_MOIL_PUBLIC", "REAL_DERIVED", "SYNTHETIC",
+                               "SIMULATED", "CACHED"}
     assert d["model_versions"]["exploration"] and d["model_versions"]["production"]
 
 

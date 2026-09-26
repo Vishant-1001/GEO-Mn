@@ -38,7 +38,7 @@ from ml.common import CONFIG_DIR, DATA_DIR, MODELS_DIR, REPORTS_DIR, ROOT, haver
 from ml.eo_features import FEATURES, RECIPE
 from ml.uncertainty import percentile_rank, uncertainty_level
 
-MODEL_VERSION = "exploration-pu-ensemble-1.0"
+MODEL_VERSION = "exploration-pu-ensemble-2.0"
 FAMILIES = {
     "spectral_only": ["NDVI", "Iron_Oxide_Index", "Clay_Hydroxyl_Index"],
     "thermal_terrain_only": ["LST_Day_K", "elevation", "slope"],
@@ -219,28 +219,44 @@ def legacy_check(grid):
 def main():
     warnings.filterwarnings("ignore")
     cfg = load_json(CONFIG_DIR / "exploration_config.json")
-    grid, pos = load_data(cfg)
-    print(f"cells {len(grid)}, complete {int(grid['complete'].sum())}, positive cells {int(grid['label'].sum())}, "
-          f"eligible background {int(grid['eligible_bg'].sum())}")
+    exp_path = REPORTS_DIR / "exploration_experiments.json"
+    experiments = load_json(exp_path) if exp_path.exists() else None
+    if experiments is not None:
+        # Feature set and label set were chosen by ml/exploration_experiments.py on the development region only.
+        from ml.exploration_experiments import ABLATION, BASELINE_SIX, load_grid, with_labels
 
-    ablation = {}
-    for kind in ("hgb", "rf"):
-        for fam, feats in FAMILIES.items():
-            if kind == "rf" and fam != "all_six":
-                continue
-            key = f"{kind}:{fam}"
-            ablation[key] = spatial_cv(grid, feats, cfg, kind)
-            a = ablation[key]
-            print(f"[{key}] spatial-CV ROC-AUC {a['roc_auc']:.3f} PR-AUC {a['pr_auc']:.3f} "
-                  f"(base {a['pr_auc_prevalence_baseline']:.3f}) capture@10% {a['top_area_capture']['top_10pct_area']:.2f}")
-
-    best = max(ablation, key=lambda k: (round(ablation[k]["roc_auc"], 3), k.endswith("all_six")))
-    kind, fam = best.split(":")
-    feats = FAMILIES[fam]
+        dep = experiments["final_decision"]["deployed"]
+        m = experiments["models"][dep]
+        feats = ABLATION.get(m["features"], BASELINE_SIX)
+        raw, mrds, nmet = load_grid(cfg)
+        grid = with_labels(raw, m["labels"])
+        pos = pd.concat([mrds[["lat", "lon"]], nmet[["lat", "lon"]]]) if m["labels"] == "B" else mrds
+        kind, best = "hgb", f"hgb:{dep}"
+        print(f"cells {len(grid)}, complete {int(grid['complete'].sum())}, positive cells {int(grid['label'].sum())}; "
+              f"deployed configuration {dep} ({len(feats)} features, label set {m['labels']})")
+        ablation = {best: spatial_cv(grid, feats, cfg, kind)}
+    else:
+        grid, pos = load_data(cfg)
+        print(f"cells {len(grid)}, complete {int(grid['complete'].sum())}, positive cells {int(grid['label'].sum())}, "
+              f"eligible background {int(grid['eligible_bg'].sum())}")
+        ablation = {}
+        for kind in ("hgb", "rf"):
+            for fam, fs in FAMILIES.items():
+                if kind == "rf" and fam != "all_six":
+                    continue
+                ablation[f"{kind}:{fam}"] = spatial_cv(grid, fs, cfg, kind)
+        best = max(ablation, key=lambda k: (round(ablation[k]["roc_auc"], 3), k.endswith("all_six")))
+        kind, fam = best.split(":")
+        feats = FAMILIES[fam]
+    for key, a in ablation.items():
+        print(f"[{key}] spatial-CV ROC-AUC {a['roc_auc']:.3f} PR-AUC {a['pr_auc']:.3f} "
+              f"(base {a['pr_auc_prevalence_baseline']:.3f}) capture@10% {a['top_area_capture']['top_10pct_area']:.2f}")
     print(f"selected {best}")
+    # applicability uses only features that exist for every scored cell (geology may be missing -> NaN)
+    iso_feats = [f for f in feats if not f.startswith(("geom_", "lineament_"))]
     holdout = region_holdout(grid, feats, cfg, kind)
     print(f"region holdout pooled ROC-AUC {holdout['pooled']['roc_auc']:.3f}")
-    legacy = legacy_check(grid)
+    legacy = legacy_check(grid) if experiments is None else {"status": "SKIPPED (feature set differs from the legacy model)"}
     print(f"legacy check: {legacy}")
 
     # ---- final ensemble on all labelled data ------------------------------
@@ -259,8 +275,8 @@ def main():
     ut = cfg["uncertainty_thresholds_rank_sd"]
     iso_rng = np.random.default_rng(cfg["ensemble"]["seed"])
     iso_idx = iso_rng.choice(len(cells), size=min(10000, len(cells)), replace=False)
-    iso = IsolationForest(n_estimators=300, random_state=cfg["ensemble"]["seed"]).fit(cells.iloc[iso_idx][feats])
-    iso_scores = iso.score_samples(cells[feats])
+    iso = IsolationForest(n_estimators=300, random_state=cfg["ensemble"]["seed"]).fit(cells.iloc[iso_idx][iso_feats])
+    iso_scores = iso.score_samples(cells[iso_feats])
     ap = cfg["applicability"]
     q_mod = float(np.quantile(iso_scores[iso_idx], ap["moderate_below_train_quantile"]))
     q_low = float(np.quantile(iso_scores[iso_idx], ap["low_below_train_quantile"]))
@@ -279,6 +295,9 @@ def main():
     out.loc[idx, "applicability"] = appl
     out.loc[idx, "data_status"] = "OK"
     out["known_mn_record_in_cell"] = grid["label"].astype(int)
+    if "label_mrds" in grid:
+        out["known_mn_record_in_cell"] = grid["label_mrds"].astype(int)
+        out["indian_government_mn_evidence_in_cell"] = grid["label_nmet"].astype(int)
     out.to_csv(DATA_DIR / "exploration_grid.csv", index=False)
 
     joblib.dump(members, MODELS_DIR / "exploration_model.pkl", compress=3)
@@ -291,6 +310,7 @@ def main():
         "iso_q_low": q_low,
         "feature_ranges": {c: {"min": float(cells[c].min()), "max": float(cells[c].max())} for c in feats},
         "features": list(feats),
+        "iso_features": list(iso_feats),
     }, MODELS_DIR / "exploration_train_reference.pkl", compress=3)
 
     unc_counts = out.loc[idx, "uncertainty"].value_counts().to_dict()
@@ -307,6 +327,7 @@ def main():
                                       "They are unlabelled, not proven barren; unknown != barren."),
         },
         "ablation_spatial_cv": ablation,
+        "experiments_report": "models/reports/exploration_experiments.json" if experiments is not None else None,
         "selected": best,
         "spatial_block_cv": ablation[best],
         "region_holdout": holdout,
@@ -349,13 +370,21 @@ def main():
                                  f"{ap['moderate_below_train_quantile']:.0%} and LOW below the {ap['low_below_train_quantile']:.0%} "
                                  "training score quantile"),
         "data_provenance": {
-            "labels": "REAL_PUBLIC — USGS MRDS manganese records (mrdata.usgs.gov)",
-            "features": "REAL_PUBLIC — Sentinel-2 L2A, MODIS MOD11A2, NASADEM via Microsoft Planetary Computer",
+            "labels": ("REAL_PUBLIC — USGS MRDS manganese records (mrdata.usgs.gov)"
+                       + ("; REAL_GOVERNMENT — NMET sample / block evidence cells" if "label_nmet" in grid else "")),
+            "features": "REAL_DERIVED — Sentinel-2 L2A, MODIS MOD11A2, NASADEM via Microsoft Planetary Computer",
+            **({"geology_features": "REAL_GOVERNMENT — NRSC Bhuvan 1:50k geomorphology (MP, MH layers)"}
+               if any(f.startswith("geom_") for f in feats) else {}),
         },
+        "selection": ("ml/exploration_experiments.py: feature set and label set chosen on the eastern development "
+                      "region, confirmed once on the untouched western region (models/reports/exploration_experiments.json)"
+                      if experiments is not None else "spatial-CV ROC-AUC over feature families"),
         "limitations": [
             "Positive labels are MRDS point records of mixed location precision; they cluster in two belts.",
             "Background is unlabelled, not barren, so ROC/PR values are indicative lower-bound style comparisons.",
-            "Surface spectra and terrain cannot see subsurface ore; no drilling, assay or geophysics is used.",
+            "Surface spectra, terrain and geomorphology cannot see subsurface ore; no drilling, assay or geophysics is used as a feature.",
+            "Geomorphology is mapped for MP and MH only (~85 % of cells); elsewhere it is missing, not zero.",
+            "Evidence for the richer feature stack is mixed (see supplementary_full_area in the experiments report).",
             "Ranks are relative to this study area only and are not transferable as absolute scores.",
             "Observation window is the fixed 2024 composite, not real-time imagery.",
         ],

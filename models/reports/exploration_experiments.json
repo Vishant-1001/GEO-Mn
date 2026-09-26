@@ -1,0 +1,636 @@
+{
+  "design": {
+    "development_region": "lon >= 79.8E (selection by spatial block CV inside this region only)",
+    "final_test_region": "lon < 79.8E (untouched until scored once per model)",
+    "evaluation_labels": "MRDS positive cells (same for every model); Indian-government cells reported separately",
+    "background": "unlabelled cells > exclusion buffer from every known positive (PU design; not proven barren)",
+    "selection_metric": "development spatial-CV PR-AUC (then ROC-AUC, then fewer features)",
+    "flag_rule": "precision / recall / F1 when the top 10 % of held-out area is flagged"
+  },
+  "label_counts": {
+    "mrds_positive_cells": 72,
+    "indian_government_positive_cells": 3,
+    "indian_government_sources": [
+      {
+        "lat": 21.5791,
+        "lon": 79.8628,
+        "source": "NMET KATORI_JHIRIYA XRF sample BR-2 (26.8% Mn)"
+      },
+      {
+        "lat": 21.5787,
+        "lon": 79.8621,
+        "source": "NMET KATORI_JHIRIYA XRF sample BR-3 (19.6% Mn)"
+      },
+      {
+        "lat": 21.5782,
+        "lon": 79.8611,
+        "source": "NMET KATORI_JHIRIYA XRF sample BR-4 (12.4% Mn)"
+      },
+      {
+        "lat": 21.5775,
+        "lon": 79.8617,
+        "source": "NMET KATORI_JHIRIYA XRF sample BR-5 (18.7% Mn)"
+      },
+      {
+        "lat": 21.5779,
+        "lon": 79.8629,
+        "source": "NMET KATORI_JHIRIYA XRF sample BR-6 (26.0% Mn)"
+      },
+      {
+        "lat": 21.5497,
+        "lon": 79.8068,
+        "source": "NMET/DGM block KAWALEWADA_SAKKARDARA centroid (reported: GRADE_REPORTED)"
+      },
+      {
+        "lat": 21.3268,
+        "lon": 79.3224,
+        "source": "NMET/DGM block NAGARDHAN centroid (reported: DRILLING_INTERSECTION_REPORTED; GRADE_REPORTED)"
+      }
+    ]
+  },
+  "feature_sets": {
+    "A_s2_spectral": [
+      "NDVI",
+      "Iron_Oxide_Index",
+      "Clay_Hydroxyl_Index",
+      "NDRE",
+      "Ferric_Iron_B4B3",
+      "Ferrous_Silicate_B12B8A",
+      "Gossan_B11B4",
+      "SWIR_Albedo"
+    ],
+    "B_s2_plus_terrain": [
+      "NDVI",
+      "Iron_Oxide_Index",
+      "Clay_Hydroxyl_Index",
+      "NDRE",
+      "Ferric_Iron_B4B3",
+      "Ferrous_Silicate_B12B8A",
+      "Gossan_B11B4",
+      "SWIR_Albedo",
+      "LST_Day_K",
+      "elevation",
+      "slope",
+      "elevation_sd"
+    ],
+    "C_s2_plus_geomorphology": [
+      "NDVI",
+      "Iron_Oxide_Index",
+      "Clay_Hydroxyl_Index",
+      "NDRE",
+      "Ferric_Iron_B4B3",
+      "Ferrous_Silicate_B12B8A",
+      "Gossan_B11B4",
+      "SWIR_Albedo",
+      "geom_structural_origin",
+      "geom_hills_valleys",
+      "geom_plateau",
+      "geom_pediplain",
+      "geom_dissection",
+      "geom_water_fluvial"
+    ],
+    "D_s2_terrain_geomorphology": [
+      "NDVI",
+      "Iron_Oxide_Index",
+      "Clay_Hydroxyl_Index",
+      "NDRE",
+      "Ferric_Iron_B4B3",
+      "Ferrous_Silicate_B12B8A",
+      "Gossan_B11B4",
+      "SWIR_Albedo",
+      "LST_Day_K",
+      "elevation",
+      "slope",
+      "elevation_sd",
+      "geom_structural_origin",
+      "geom_hills_valleys",
+      "geom_plateau",
+      "geom_pediplain",
+      "geom_dissection",
+      "geom_water_fluvial"
+    ],
+    "E_structural_geomorphology_only": [
+      "geom_structural_origin",
+      "geom_hills_valleys",
+      "geom_plateau",
+      "geom_pediplain",
+      "geom_dissection",
+      "geom_water_fluvial",
+      "lineament_dist_km",
+      "lineament_density"
+    ],
+    "F_full_real_stack": [
+      "NDVI",
+      "Iron_Oxide_Index",
+      "Clay_Hydroxyl_Index",
+      "NDRE",
+      "Ferric_Iron_B4B3",
+      "Ferrous_Silicate_B12B8A",
+      "Gossan_B11B4",
+      "SWIR_Albedo",
+      "LST_Day_K",
+      "elevation",
+      "slope",
+      "elevation_sd",
+      "geom_structural_origin",
+      "geom_hills_valleys",
+      "geom_plateau",
+      "geom_pediplain",
+      "geom_dissection",
+      "geom_water_fluvial",
+      "lineament_dist_km",
+      "lineament_density"
+    ],
+    "baseline_six": [
+      "NDVI",
+      "Iron_Oxide_Index",
+      "Clay_Hydroxyl_Index",
+      "LST_Day_K",
+      "elevation",
+      "slope"
+    ]
+  },
+  "ablation_dev_cv": {
+    "baseline_six": {
+      "positives": 57,
+      "background": 23091,
+      "roc_auc": 0.6288,
+      "pr_auc": 0.0074,
+      "prevalence": 0.0025,
+      "precision_top10pct": 0.0053,
+      "recall_top10pct": 0.2105,
+      "f1_top10pct": 0.0104,
+      "precision_top50_cells": 0.02,
+      "top_area_capture": {
+        "top_5pct": 0.1754,
+        "top_10pct": 0.2105,
+        "top_20pct": 0.2982
+      }
+    },
+    "A_s2_spectral": {
+      "positives": 57,
+      "background": 23091,
+      "roc_auc": 0.5596,
+      "pr_auc": 0.0037,
+      "prevalence": 0.0025,
+      "precision_top10pct": 0.0035,
+      "recall_top10pct": 0.1404,
+      "f1_top10pct": 0.0068,
+      "precision_top50_cells": 0.02,
+      "top_area_capture": {
+        "top_5pct": 0.0702,
+        "top_10pct": 0.1404,
+        "top_20pct": 0.2632
+      }
+    },
+    "B_s2_plus_terrain": {
+      "positives": 57,
+      "background": 23091,
+      "roc_auc": 0.6671,
+      "pr_auc": 0.0078,
+      "prevalence": 0.0025,
+      "precision_top10pct": 0.0045,
+      "recall_top10pct": 0.1754,
+      "f1_top10pct": 0.0088,
+      "precision_top50_cells": 0.06,
+      "top_area_capture": {
+        "top_5pct": 0.1053,
+        "top_10pct": 0.1754,
+        "top_20pct": 0.3158
+      }
+    },
+    "C_s2_plus_geomorphology": {
+      "positives": 57,
+      "background": 23091,
+      "roc_auc": 0.5757,
+      "pr_auc": 0.0038,
+      "prevalence": 0.0025,
+      "precision_top10pct": 0.0044,
+      "recall_top10pct": 0.1754,
+      "f1_top10pct": 0.0086,
+      "precision_top50_cells": 0.0,
+      "top_area_capture": {
+        "top_5pct": 0.1053,
+        "top_10pct": 0.1754,
+        "top_20pct": 0.2632
+      }
+    },
+    "D_s2_terrain_geomorphology": {
+      "positives": 57,
+      "background": 23091,
+      "roc_auc": 0.6437,
+      "pr_auc": 0.0091,
+      "prevalence": 0.0025,
+      "precision_top10pct": 0.0045,
+      "recall_top10pct": 0.1754,
+      "f1_top10pct": 0.0088,
+      "precision_top50_cells": 0.04,
+      "top_area_capture": {
+        "top_5pct": 0.0877,
+        "top_10pct": 0.1754,
+        "top_20pct": 0.2982
+      }
+    },
+    "E_structural_geomorphology_only": {
+      "positives": 57,
+      "background": 23091,
+      "roc_auc": 0.6342,
+      "pr_auc": 0.0036,
+      "prevalence": 0.0025,
+      "precision_top10pct": 0.0031,
+      "recall_top10pct": 0.1228,
+      "f1_top10pct": 0.006,
+      "precision_top50_cells": 0.0,
+      "top_area_capture": {
+        "top_5pct": 0.0351,
+        "top_10pct": 0.1228,
+        "top_20pct": 0.3158
+      }
+    },
+    "F_full_real_stack": {
+      "positives": 57,
+      "background": 23091,
+      "roc_auc": 0.5666,
+      "pr_auc": 0.0085,
+      "prevalence": 0.0025,
+      "precision_top10pct": 0.0045,
+      "recall_top10pct": 0.1754,
+      "f1_top10pct": 0.0087,
+      "precision_top50_cells": 0.04,
+      "top_area_capture": {
+        "top_5pct": 0.0877,
+        "top_10pct": 0.1754,
+        "top_20pct": 0.2982
+      }
+    }
+  },
+  "selected_feature_set": "D_s2_terrain_geomorphology",
+  "selected_label_set": "B",
+  "models": {
+    "A_mrds_baseline_features": {
+      "labels": "A",
+      "features": "baseline_six",
+      "dev_cv": {
+        "positives": 57,
+        "background": 23091,
+        "roc_auc": 0.6288,
+        "pr_auc": 0.0074,
+        "prevalence": 0.0025,
+        "precision_top10pct": 0.0053,
+        "recall_top10pct": 0.2105,
+        "f1_top10pct": 0.0104,
+        "precision_top50_cells": 0.02,
+        "top_area_capture": {
+          "top_5pct": 0.1754,
+          "top_10pct": 0.2105,
+          "top_20pct": 0.2982
+        }
+      },
+      "final_test": {
+        "mrds_labels": {
+          "positives": 15,
+          "background": 25582,
+          "roc_auc": 0.6845,
+          "pr_auc": 0.0023,
+          "prevalence": 0.0006,
+          "precision_top10pct": 0.0016,
+          "recall_top10pct": 0.2667,
+          "f1_top10pct": 0.0032,
+          "precision_top50_cells": 0.0,
+          "top_area_capture": {
+            "top_5pct": 0.2667,
+            "top_10pct": 0.2667,
+            "top_20pct": 0.2667
+          }
+        },
+        "indian_government_labels": {
+          "positives": 1,
+          "background": 25582,
+          "roc_auc": 0.4409,
+          "pr_auc": 0.0001,
+          "prevalence": 0.0,
+          "precision_top10pct": 0.0,
+          "recall_top10pct": 0.0,
+          "f1_top10pct": 0.0,
+          "precision_top50_cells": 0.0,
+          "top_area_capture": {
+            "top_5pct": 0.0,
+            "top_10pct": 0.0,
+            "top_20pct": 0.0
+          }
+        },
+        "nmet_cell_ranks": [
+          43.6
+        ]
+      }
+    },
+    "B_mrds_plus_indian_government_labels": {
+      "labels": "B",
+      "features": "baseline_six",
+      "dev_cv": {
+        "positives": 57,
+        "background": 23091,
+        "roc_auc": 0.6876,
+        "pr_auc": 0.019,
+        "prevalence": 0.0025,
+        "precision_top10pct": 0.0087,
+        "recall_top10pct": 0.3333,
+        "f1_top10pct": 0.017,
+        "precision_top50_cells": 0.08,
+        "top_area_capture": {
+          "top_5pct": 0.2456,
+          "top_10pct": 0.3333,
+          "top_20pct": 0.4561
+        }
+      },
+      "final_test": {
+        "mrds_labels": {
+          "positives": 15,
+          "background": 25582,
+          "roc_auc": 0.7241,
+          "pr_auc": 0.0018,
+          "prevalence": 0.0006,
+          "precision_top10pct": 0.0024,
+          "recall_top10pct": 0.4,
+          "f1_top10pct": 0.0048,
+          "precision_top50_cells": 0.0,
+          "top_area_capture": {
+            "top_5pct": 0.1333,
+            "top_10pct": 0.4,
+            "top_20pct": 0.4
+          }
+        },
+        "indian_government_labels": {
+          "positives": 1,
+          "background": 25582,
+          "roc_auc": 0.5325,
+          "pr_auc": 0.0001,
+          "prevalence": 0.0,
+          "precision_top10pct": 0.0,
+          "recall_top10pct": 0.0,
+          "f1_top10pct": 0.0,
+          "precision_top50_cells": 0.0,
+          "top_area_capture": {
+            "top_5pct": 0.0,
+            "top_10pct": 0.0,
+            "top_20pct": 0.0
+          }
+        },
+        "nmet_cell_ranks": [
+          52.8
+        ]
+      }
+    },
+    "C_full_real_stack": {
+      "labels": "B",
+      "features": "D_s2_terrain_geomorphology",
+      "dev_cv": {
+        "positives": 57,
+        "background": 23091,
+        "roc_auc": 0.7411,
+        "pr_auc": 0.0196,
+        "prevalence": 0.0025,
+        "precision_top10pct": 0.0108,
+        "recall_top10pct": 0.4035,
+        "f1_top10pct": 0.021,
+        "precision_top50_cells": 0.06,
+        "top_area_capture": {
+          "top_5pct": 0.193,
+          "top_10pct": 0.4035,
+          "top_20pct": 0.5614
+        }
+      },
+      "final_test": {
+        "mrds_labels": {
+          "positives": 15,
+          "background": 25582,
+          "roc_auc": 0.8243,
+          "pr_auc": 0.009,
+          "prevalence": 0.0006,
+          "precision_top10pct": 0.0033,
+          "recall_top10pct": 0.5333,
+          "f1_top10pct": 0.0065,
+          "precision_top50_cells": 0.04,
+          "top_area_capture": {
+            "top_5pct": 0.2667,
+            "top_10pct": 0.5333,
+            "top_20pct": 0.6667
+          }
+        },
+        "indian_government_labels": {
+          "positives": 1,
+          "background": 25582,
+          "roc_auc": 0.6483,
+          "pr_auc": 0.0001,
+          "prevalence": 0.0,
+          "precision_top10pct": 0.0,
+          "recall_top10pct": 0.0,
+          "f1_top10pct": 0.0,
+          "precision_top50_cells": 0.0,
+          "top_area_capture": {
+            "top_5pct": 0.0,
+            "top_10pct": 0.0,
+            "top_20pct": 0.0
+          }
+        },
+        "nmet_cell_ranks": [
+          64.2
+        ]
+      }
+    },
+    "D_real_plus_synthetic": {
+      "status": "NOT_RUN",
+      "reason": "The only synthetic exploration-side data are simulated subsurface scenarios generated FROM this model's targets; using them as labels or features would be circular leakage. No synthetic augmentation is used for exploration."
+    }
+  },
+  "seed_robustness": {
+    "A_mrds_baseline_features": {
+      "runs": [
+        {
+          "seed": 42,
+          "dev_roc": 0.6288,
+          "dev_pr": 0.0074,
+          "test_roc": 0.6845,
+          "test_pr": 0.0023,
+          "test_cap10": 0.2667
+        },
+        {
+          "seed": 7,
+          "dev_roc": 0.6459,
+          "dev_pr": 0.0105,
+          "test_roc": 0.6844,
+          "test_pr": 0.0018,
+          "test_cap10": 0.2
+        },
+        {
+          "seed": 13,
+          "dev_roc": 0.6153,
+          "dev_pr": 0.0072,
+          "test_roc": 0.6994,
+          "test_pr": 0.0016,
+          "test_cap10": 0.2667
+        },
+        {
+          "seed": 21,
+          "dev_roc": 0.6052,
+          "dev_pr": 0.0097,
+          "test_roc": 0.7178,
+          "test_pr": 0.0029,
+          "test_cap10": 0.2667
+        }
+      ],
+      "dev_roc_mean": 0.6238,
+      "dev_pr_mean": 0.0087,
+      "test_roc_mean": 0.6965,
+      "test_pr_mean": 0.0021,
+      "test_cap10_mean": 0.25,
+      "dev_roc_sd": 0.0176,
+      "dev_pr_sd": 0.0017,
+      "test_roc_sd": 0.0158,
+      "test_pr_sd": 0.0006,
+      "test_cap10_sd": 0.0333
+    },
+    "B_mrds_plus_indian_government_labels": {
+      "runs": [
+        {
+          "seed": 42,
+          "dev_roc": 0.6876,
+          "dev_pr": 0.019,
+          "test_roc": 0.7241,
+          "test_pr": 0.0018,
+          "test_cap10": 0.4
+        },
+        {
+          "seed": 7,
+          "dev_roc": 0.7062,
+          "dev_pr": 0.0225,
+          "test_roc": 0.7341,
+          "test_pr": 0.0029,
+          "test_cap10": 0.2667
+        },
+        {
+          "seed": 13,
+          "dev_roc": 0.6708,
+          "dev_pr": 0.0114,
+          "test_roc": 0.6966,
+          "test_pr": 0.0017,
+          "test_cap10": 0.2667
+        },
+        {
+          "seed": 21,
+          "dev_roc": 0.6825,
+          "dev_pr": 0.0178,
+          "test_roc": 0.651,
+          "test_pr": 0.0022,
+          "test_cap10": 0.2667
+        }
+      ],
+      "dev_roc_mean": 0.6868,
+      "dev_pr_mean": 0.0177,
+      "test_roc_mean": 0.7015,
+      "test_pr_mean": 0.0022,
+      "test_cap10_mean": 0.3,
+      "dev_roc_sd": 0.0147,
+      "dev_pr_sd": 0.0046,
+      "test_roc_sd": 0.0372,
+      "test_pr_sd": 0.0006,
+      "test_cap10_sd": 0.0667
+    },
+    "C_full_real_stack": {
+      "runs": [
+        {
+          "seed": 42,
+          "dev_roc": 0.7411,
+          "dev_pr": 0.0196,
+          "test_roc": 0.8243,
+          "test_pr": 0.009,
+          "test_cap10": 0.5333
+        },
+        {
+          "seed": 7,
+          "dev_roc": 0.7422,
+          "dev_pr": 0.0156,
+          "test_roc": 0.8086,
+          "test_pr": 0.0199,
+          "test_cap10": 0.4
+        },
+        {
+          "seed": 13,
+          "dev_roc": 0.7088,
+          "dev_pr": 0.0111,
+          "test_roc": 0.818,
+          "test_pr": 0.0091,
+          "test_cap10": 0.4667
+        },
+        {
+          "seed": 21,
+          "dev_roc": 0.7408,
+          "dev_pr": 0.027,
+          "test_roc": 0.7594,
+          "test_pr": 0.0134,
+          "test_cap10": 0.3333
+        }
+      ],
+      "dev_roc_mean": 0.7332,
+      "dev_pr_mean": 0.0183,
+      "test_roc_mean": 0.8026,
+      "test_pr_mean": 0.0128,
+      "test_cap10_mean": 0.4333,
+      "dev_roc_sd": 0.0163,
+      "dev_pr_sd": 0.0067,
+      "test_roc_sd": 0.0295,
+      "test_pr_sd": 0.0051,
+      "test_cap10_sd": 0.0861
+    }
+  },
+  "final_decision": {
+    "deployed": "C_full_real_stack",
+    "rule": "confirmation gate: deploy C only if its seed-averaged final-test PR-AUC beats A without losing ROC-AUC",
+    "reason": "Full real stack improves the seed-averaged untouched final-test PR-AUC without losing ROC-AUC."
+  },
+  "caveats": [
+    "Positive-unlabelled labels: background is not barren, so metrics compare models; they are not hit rates.",
+    "Few positives in the final test region: metric sampling uncertainty is large.",
+    "Indian-government positives are block-level / sample-level points (location precision ~ block size).",
+    "Geomorphology covers Madhya Pradesh + Maharashtra layers only (~85 % of cells); the rest is missing, not zero."
+  ],
+  "supplementary_full_area": {
+    "labels_A:baseline_six": {
+      "full_area_cv_roc": 0.6842,
+      "full_area_cv_pr": 0.0213,
+      "full_area_cv_prevalence": 0.0015,
+      "full_area_cv_cap10": 0.2361,
+      "train_east_test_west_roc": 0.6845,
+      "train_west_test_east_roc": 0.6649,
+      "holdout_pooled_cap10": 0.2778
+    },
+    "labels_A:D_s2_terrain_geomorphology": {
+      "full_area_cv_roc": 0.7272,
+      "full_area_cv_pr": 0.0077,
+      "full_area_cv_prevalence": 0.0015,
+      "full_area_cv_cap10": 0.3333,
+      "train_east_test_west_roc": 0.7892,
+      "train_west_test_east_roc": 0.659,
+      "holdout_pooled_cap10": 0.2778
+    },
+    "labels_B:baseline_six": {
+      "full_area_cv_roc": 0.7123,
+      "full_area_cv_pr": 0.0061,
+      "full_area_cv_prevalence": 0.0015,
+      "full_area_cv_cap10": 0.2533,
+      "train_east_test_west_roc": 0.7121,
+      "train_west_test_east_roc": 0.6447,
+      "holdout_pooled_cap10": 0.32
+    },
+    "labels_B:D_s2_terrain_geomorphology": {
+      "full_area_cv_roc": 0.719,
+      "full_area_cv_pr": 0.0044,
+      "full_area_cv_prevalence": 0.0015,
+      "full_area_cv_cap10": 0.3067,
+      "train_east_test_west_roc": 0.8133,
+      "train_west_test_east_roc": 0.6633,
+      "holdout_pooled_cap10": 0.36
+    }
+  },
+  "supplementary_note": "Mixed evidence: the selected stack improves ROC-AUC and top-10 % capture and, trained on the data-rich east, generalises much better to the west; but full-area PR-AUC (dominated by a few top-ranked hits among ~70 positives) is higher for the six-feature baseline, and training on the 15 western positives shows no gain in the east. Deployment followed the pre-declared confirmation gate."
+}

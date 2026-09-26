@@ -1,14 +1,14 @@
 {
   "production": {
     "model_version": "production-qgbm-1.0",
-    "model_type": "3 x sklearn HistGradientBoostingRegressor(loss='quantile') for q = 0.10, 0.50, 0.90 with monotonic constraints",
-    "configuration": "level_default",
+    "model_type": "3 x sklearn HistGradientBoostingRegressor(loss='quantile') for q = 0.10, 0.50, 0.90 with monotonic constraints; target = period tonnes / prod_roll_mean_4 (ratio formulation)",
+    "configuration": "ratio_regularised",
     "hyperparameters": {
-      "max_iter": 400,
-      "learning_rate": 0.04,
-      "max_leaf_nodes": 15,
-      "min_samples_leaf": 25,
-      "l2_regularization": 1.0
+      "max_iter": 150,
+      "learning_rate": 0.05,
+      "max_leaf_nodes": 7,
+      "min_samples_leaf": 60,
+      "l2_regularization": 2.0
     },
     "monotonic_constraints": {
       "equipment_availability": 1,
@@ -164,44 +164,50 @@
     "validation_method": "rolling-origin expanding-window backtest, 13-period folds, purged by one period; configuration selected on 2022-07-01..2023-07-01, quantile offsets calibrated on 2023-07-01..2024-07-01 and frozen, metrics reported on origins >= 2024-07-01",
     "validation_metrics": {
       "p50": {
-        "mae": 843.6158442882396,
-        "rmse": 1145.3802443963932,
-        "r2": 0.5630596222358244,
-        "mape_pct": 9.832026770668142
+        "mae": 1143.8806665720854,
+        "rmse": 1588.7426778552,
+        "r2": 0.21283024034825948,
+        "wape_pct": 13.164517111854002,
+        "mape_pct_excl_near_zero": 14.920574147441219,
+        "near_zero_periods_excluded_from_mape": 1
       },
       "baseline_previous_period": {
-        "mae": 891.805172413793,
-        "rmse": 1200.663400604734,
-        "r2": 0.5198628078174741,
-        "mape_pct": 10.352792808467811
+        "mae": 1196.6758620689654,
+        "rmse": 1697.9932436606575,
+        "r2": 0.10084783704918965,
+        "wape_pct": 13.772118302129524,
+        "mape_pct_excl_near_zero": 15.79285121815789,
+        "near_zero_periods_excluded_from_mape": 1
       },
       "baseline_moving_average_4": {
-        "mae": 953.4280172413795,
-        "rmse": 1295.7536226680318,
-        "r2": 0.44079935064271314,
-        "mape_pct": 11.028859106344026
+        "mae": 1149.6810344827586,
+        "rmse": 1568.966232878768,
+        "r2": 0.23230542551544098,
+        "wape_pct": 13.231271490039214,
+        "mape_pct_excl_near_zero": 14.87073584476203,
+        "near_zero_periods_excluded_from_mape": 1
       },
       "pinball_loss": {
-        "p10": 233.77282295515195,
-        "p50": 421.8079221441198,
-        "p90": 230.01318955112276
+        "p10": 298.7496563331957,
+        "p50": 571.9403332860427,
+        "p90": 272.6020733871259
       },
-      "p10_p90_coverage": 0.7758620689655172,
-      "p10_p90_coverage_before_recalibration": 0.27586206896551724,
+      "p10_p90_coverage": 0.8017241379310345,
+      "p10_p90_coverage_before_recalibration": 0.3620689655172414,
       "model_beats_best_baseline_mae": true,
-      "mae_improvement_vs_best_baseline_pct": 5.403571275004201,
+      "mae_improvement_vs_best_baseline_pct": 0.5045197525836211,
       "quantile_hit_rate": {
-        "p10": 0.12931034482758622,
-        "p50": 0.39655172413793105,
-        "p90": 0.9051724137931034
+        "p10": 0.1206896551724138,
+        "p50": 0.4827586206896552,
+        "p90": 0.9224137931034483
       },
       "shortfall_classification": {
         "definition": "shortfall event = actual < target x (1 - 0.05); predicted when P50 < target x (1 - 0.05)",
-        "precision": 0.8181818181818182,
-        "recall": 0.8709677419354839,
-        "f1": 0.84375,
-        "events": 62,
-        "predicted_events": 66
+        "precision": 0.86,
+        "recall": 0.8958333333333334,
+        "f1": 0.8775510204081632,
+        "events": 96,
+        "predicted_events": 100
       },
       "test_window": [
         "2024-07-05",
@@ -209,7 +215,7 @@
       ],
       "n_test_periods": 116
     },
-    "quantiles_validated": false,
+    "quantiles_validated": true,
     "uncertainty_method": "direct quantile regression (P10/P50/P90) + additive offsets (relative to P50) estimated once on the calibration window and frozen; crossing repaired by sorting; coverage checked on the untouched test window",
     "applicability_method": "IsolationForest on training operating-state + weather features, thresholds at training 1st/5th score percentiles, plus per-feature range checks",
     "explanation_method": "SHAP TreeExplainer on the P50 model (model contributions in tonnes; associative, not causal)",
@@ -224,16 +230,28 @@
     ]
   },
   "exploration": {
-    "model_version": "exploration-pu-ensemble-1.0",
+    "model_version": "exploration-pu-ensemble-2.0",
     "model_type": "PU-bagging ensemble of 15 HistGradientBoostingClassifier members; output = percentile rank of the mean member score over the study-area grid",
     "output_semantics": "prospectivity_rank 0-100 = relative rank within the study area. It is NOT a probability of a deposit, reserve or tonnage.",
     "features": [
       "NDVI",
       "Iron_Oxide_Index",
       "Clay_Hydroxyl_Index",
+      "NDRE",
+      "Ferric_Iron_B4B3",
+      "Ferrous_Silicate_B12B8A",
+      "Gossan_B11B4",
+      "SWIR_Albedo",
       "LST_Day_K",
       "elevation",
-      "slope"
+      "slope",
+      "elevation_sd",
+      "geom_structural_origin",
+      "geom_hills_valleys",
+      "geom_plateau",
+      "geom_pediplain",
+      "geom_dissection",
+      "geom_water_fluvial"
     ],
     "feature_recipe": {
       "grid_res_deg": 0.01,
@@ -254,7 +272,12 @@
         "indices": {
           "NDVI": "(B08-B04)/(B08+B04)",
           "Iron_Oxide_Index": "B04/B02",
-          "Clay_Hydroxyl_Index": "B11/B12"
+          "Clay_Hydroxyl_Index": "B11/B12",
+          "NDRE": "(B8A-B05)/(B8A+B05)",
+          "Ferric_Iron_B4B3": "B04/B03",
+          "Ferrous_Silicate_B12B8A": "B12/B8A",
+          "Gossan_B11B4": "B11/B04",
+          "SWIR_Albedo": "(B11+B12)/2 (reflectance)"
         }
       },
       "modis_lst": {
@@ -268,7 +291,8 @@
       },
       "dem": {
         "collection": "nasadem",
-        "slope": "degrees, finite differences in metres"
+        "slope": "degrees, finite differences in metres",
+        "elevation_sd": "standard deviation of 1-arcsec elevation within the cell (m)"
       },
       "cell_aggregation": "Sentinel-2 and NASADEM: mean of pixels whose centre falls in the 0.01 degree cell; MODIS LST: nearest 1 km pixel to the cell centre"
     },
@@ -282,42 +306,150 @@
     "effective_resolution": "0.01 degree cells (~1.1 km x 1.0 km)",
     "observation_window": "2024-01-01/2024-12-31",
     "training_labels": {
-      "positive_cells": 72,
-      "positive_records": 73,
-      "eligible_background_cells": 48736,
+      "positive_cells": 75,
+      "positive_records": 80,
+      "eligible_background_cells": 48673,
       "background_per_member": 4000,
       "negative_construction": "Positive-unlabelled: background cells are drawn at random from the study area >3.0 km from any MRDS Mn record. They are unlabelled, not proven barren; unknown != barren."
     },
     "validation_method": "spatial block CV (0.25 degree blocks, 5 folds) + east/west region holdout at 79.8E",
     "validation_metrics": {
-      "spatial_cv_roc_auc": 0.6881377899978114,
-      "spatial_cv_pr_auc": 0.01176812059305623,
-      "spatial_cv_pr_auc_prevalence_baseline": 0.0014751680052450418,
+      "spatial_cv_roc_auc": 0.7189709558345146,
+      "spatial_cv_pr_auc": 0.00436261684435557,
+      "spatial_cv_pr_auc_prevalence_baseline": 0.001538524657421843,
       "spatial_cv_top_area_capture": {
-        "top_5pct_area": 0.16666666666666666,
-        "top_10pct_area": 0.2222222222222222,
-        "top_20pct_area": 0.3472222222222222
+        "top_5pct_area": 0.17333333333333334,
+        "top_10pct_area": 0.30666666666666664,
+        "top_20pct_area": 0.4533333333333333
       },
-      "spatial_cv_success_rate_auc": 0.6540277777777778,
-      "region_holdout_roc_auc": 0.6756446010706209,
+      "spatial_cv_success_rate_auc": 0.6923333333333334,
+      "region_holdout_roc_auc": 0.694879159561427,
       "region_holdout_top_area_capture": {
-        "top_5pct_area": 0.25,
-        "top_10pct_area": 0.2916666666666667,
-        "top_20pct_area": 0.3333333333333333
+        "top_5pct_area": 0.21333333333333335,
+        "top_10pct_area": 0.36,
+        "top_20pct_area": 0.48
       }
     },
     "uncertainty_method": "std-dev of member percentile ranks across 15 PU-bagging members; LOW < 5.0, HIGH > 10.0 rank points (project thresholds)",
     "applicability_method": "geographic envelope + IsolationForest on study-area feature space; MODERATE below the 5% and LOW below the 1% training score quantile",
     "data_provenance": {
-      "labels": "REAL_PUBLIC \u2014 USGS MRDS manganese records (mrdata.usgs.gov)",
-      "features": "REAL_PUBLIC \u2014 Sentinel-2 L2A, MODIS MOD11A2, NASADEM via Microsoft Planetary Computer"
+      "labels": "REAL_PUBLIC \u2014 USGS MRDS manganese records (mrdata.usgs.gov); REAL_GOVERNMENT \u2014 NMET sample / block evidence cells",
+      "features": "REAL_DERIVED \u2014 Sentinel-2 L2A, MODIS MOD11A2, NASADEM via Microsoft Planetary Computer",
+      "geology_features": "REAL_GOVERNMENT \u2014 NRSC Bhuvan 1:50k geomorphology (MP, MH layers)"
     },
+    "selection": "ml/exploration_experiments.py: feature set and label set chosen on the eastern development region, confirmed once on the untouched western region (models/reports/exploration_experiments.json)",
     "limitations": [
       "Positive labels are MRDS point records of mixed location precision; they cluster in two belts.",
       "Background is unlabelled, not barren, so ROC/PR values are indicative lower-bound style comparisons.",
-      "Surface spectra and terrain cannot see subsurface ore; no drilling, assay or geophysics is used.",
+      "Surface spectra, terrain and geomorphology cannot see subsurface ore; no drilling, assay or geophysics is used as a feature.",
+      "Geomorphology is mapped for MP and MH only (~85 % of cells); elsewhere it is missing, not zero.",
+      "Evidence for the richer feature stack is mixed (see supplementary_full_area in the experiments report).",
       "Ranks are relative to this study area only and are not transferable as absolute scores.",
       "Observation window is the fixed 2024 composite, not real-time imagery."
+    ]
+  },
+  "real_production": {
+    "model_version": "real-moil-quarterly-1.0",
+    "model_type": "selected method: ridge_no_weather (chosen on the selection window)",
+    "features": [
+      "lag1",
+      "lag4",
+      "mean4",
+      "yoy_growth_lag1",
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "rain_prev_anom"
+    ],
+    "candidates": [
+      "ridge_weather",
+      "ridge_no_weather",
+      "gbm_weather",
+      "seasonal_naive_x_yoy",
+      "last_quarter"
+    ],
+    "training_period": [
+      "2012-10-01",
+      "2026-04-01"
+    ],
+    "validation_method": "expanding-window one-step-ahead; selection FY2019-22, untouched test FY2023+",
+    "validation_metrics": {
+      "model_a": {
+        "n": 12,
+        "mae": 52840.794565553726,
+        "rmse": 63861.7573515476,
+        "r2": -2.373071102373377,
+        "mape_pct": 11.731523684875073,
+        "smape_pct": 12.555433627871182
+      },
+      "baselines": {
+        "last_quarter": {
+          "n": 12,
+          "mae": 40500.0,
+          "rmse": 46763.589825133546,
+          "r2": -0.808670480391481,
+          "mape_pct": 9.196405384125281,
+          "smape_pct": 9.210220635649707
+        },
+        "same_quarter_last_year": {
+          "n": 12,
+          "mae": 52083.333333333336,
+          "rmse": 69640.14646739337,
+          "r2": -3.0110965607553934,
+          "mape_pct": 11.910090323649001,
+          "smape_pct": 13.472795214716065
+        },
+        "seasonal_naive_x_yoy": {
+          "n": 12,
+          "mae": 38837.1219179435,
+          "rmse": 46952.40649187882,
+          "r2": -0.8233056519776343,
+          "mape_pct": 8.599808995189264,
+          "smape_pct": 8.671128765560965
+        }
+      },
+      "hybrid_comparison": {
+        "quarters": [
+          "2024-04-01",
+          "2024-07-01",
+          "2024-10-01",
+          "2025-01-01",
+          "2025-04-01",
+          "2025-07-01",
+          "2025-10-01",
+          "2026-01-01"
+        ],
+        "note": "Model B needs synthetic operations, which exist only from 2021; A and B are compared on the same real quarters where both are available.",
+        "model_a_real_only": {
+          "n": 8,
+          "mae": 44771.86529272574,
+          "rmse": 49680.362714632836,
+          "r2": -1.8996413122343556,
+          "mape_pct": 9.398574602565105,
+          "smape_pct": 9.440556071529695
+        },
+        "model_b_real_plus_synthetic": {
+          "n": 8,
+          "mae": 60486.0031753624,
+          "rmse": 70432.86558363072,
+          "r2": -4.828079658502729,
+          "mape_pct": 13.091719478710992,
+          "smape_pct": 12.044464447095454
+        }
+      }
+    },
+    "data_provenance": {
+      "target": "REAL_MOIL_PUBLIC",
+      "weather": "REAL_GOVERNMENT (IMD)",
+      "hybrid_features": "SYNTHETIC (demo-mine simulator)"
+    },
+    "uncertainty_method": "empirical held-out error band (indicative)",
+    "applicability_method": "company-level quarterly only; not a mine-level or weekly model",
+    "limitations": [
+      "~50 quarters of data; metrics have wide sampling uncertainty",
+      "company-level totals mix many mines; no operational drivers are observed",
+      "quarterly values are derived by differencing cumulative disclosures (rounded to 0.01 lakh t)"
     ]
   }
 }

@@ -1,0 +1,35 @@
+{
+  "dataset_name": "Synthetic demonstration-mine operations (SYN_MINE_01)",
+  "generator_name": "ml/synthetic_ops.py via ml/generate_operations.py",
+  "generator_version": "ops-sim-2.0",
+  "schema_version": "2.0",
+  "seed": 42,
+  "generation_timestamp": "2026-09-26T05:05:34+00:00",
+  "source_constraints": [
+    "REAL daily rainfall & Tmax: IMD gridded (2021-2025), ERA5 (2026 only) \u2014 per-row source columns",
+    "REAL soil moisture: ERA5-Land",
+    "IMD 'heavy rain' threshold 64.5 mm/day used for weather-state labels",
+    "Production magnitude sized as a larger single mine relative to MOIL's company total (~18-19 lakh t/yr across its mines, REAL_MOIL_PUBLIC)"
+  ],
+  "assumptions": "all fleet, failure, repair, maintenance, blasting and utilisation parameters in synthetic_generation_config.yaml are DOMAIN-CALIBRATED SYNTHETIC ASSUMPTIONS (not MOIL data)",
+  "files": {
+    "production_history.csv": {
+      "rows": 2093,
+      "sha256": "7a3b01c9d088afabf0bd79709b65f03c82a7769f46fd9fe80efabe95192913ff"
+    },
+    "synthetic_mine_operational_history.csv.gz": {
+      "rows": 115530,
+      "sha256": "e868591f9fd6e09bef52bf191747c07072452fb15471f22ddc88b62690cc9aa9"
+    },
+    "synthetic_equipment_events.csv": {
+      "rows": 9428,
+      "sha256": "255e2515b757398c5110ca90c42a7abab31c5bf2d0ef7142c2c41e1ac1005140"
+    }
+  },
+  "consumers": {
+    "production_history.csv": "production engine (weekly conditional quantile model), recovery & contingency",
+    "synthetic_mine_operational_history": "judge inspection; aggregation source of production_history.csv",
+    "synthetic_equipment_events.csv": "judge inspection; disruption-scenario library derivation"
+  },
+  "provenance": "SYNTHETIC (operations) + REAL (weather inputs)"
+}

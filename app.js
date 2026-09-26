@@ -230,6 +230,10 @@
     // ── Provenance badges ───────────────────────────────────
     const MODE_BADGES = {
         REAL_PUBLIC: ['REAL / PUBLIC', 'real'],
+        REAL_GOVERNMENT: ['REAL / GOVERNMENT OF INDIA', 'realgov'],
+        REAL_MOIL_PUBLIC: ['REAL / MOIL PUBLIC DISCLOSURE', 'realmoil'],
+        REAL_DERIVED: ['REAL-DERIVED FEATURES', 'derived'],
+        REPORTED_BLOCK_LEVEL: ['REPORTED (BLOCK LEVEL)', 'realgov'],
         REAL: ['REAL / PUBLIC', 'real'],
         PUBLIC: ['REAL / PUBLIC', 'real'],
         SYNTHETIC: ['SYNTHETIC DEMONSTRATION DATA', 'synthetic'],
@@ -1060,6 +1064,7 @@
 
     async function selectTarget(id, { fly = true } = {}) {
         state.exploration.selectedId = id;
+        loadSubsurface(id);
         $$('.target-item').forEach(el => {
             const sel = el.dataset.target === id;
             el.classList.toggle('selected', sel);
@@ -1182,7 +1187,7 @@
                 <div class="tc-cell"><span class="kpi-label">STRATEGIC RELEVANCE</span><div class="tc-val">${esc(t.strategic ? upperHuman(typeof t.strategic === 'object' ? pick(t.strategic, 'level', 'label') : t.strategic) : 'N/A')}</div></div>
                 <div class="tc-cell"><span class="kpi-label">EXPLORATION PRIORITY</span><div class="tc-val mono-val">${t.priority !== null ? esc(fmtNum(t.priority, 0)) : 'N/A'}</div></div>
                 <div class="tc-cell"><span class="kpi-label">GEOLOGICAL CONTEXT</span><div class="tc-val tc-val-sm">${esc(t.geology && pick(t.geology, 'unit_name') ? pick(t.geology, 'unit_name') : 'N/A')}</div></div>
-                <div class="tc-cell"><span class="kpi-label">SUBSURFACE EVIDENCE</span><div class="tc-val">${esc(subsurface && subsurface.ok === true ? 'AVAILABLE' : 'UNAVAILABLE')}</div></div>
+                <div class="tc-cell"><span class="kpi-label">SUBSURFACE EVIDENCE (OBSERVED)</span><div class="tc-val">${esc(t.raw && t.raw.subsurface_status ? upperHuman(t.raw.subsurface_status) : (subsurface && subsurface.ok === true ? 'AVAILABLE' : 'UNAVAILABLE'))}</div></div>
                 <div class="tc-cell"><span class="kpi-label">DISTANCE TO SUPPLY POINT</span><div class="tc-val mono-val">${t.distanceKm !== null ? esc(fmtNum(t.distanceKm, 1)) + ' km' : 'N/A'}</div></div>
                 <div class="tc-cell tc-cell-wide"><span class="kpi-label">STATUS</span><div class="tc-val">${esc(statusText(t))}${t.context ? ` &middot; ${esc(t.context)}` : ''}</div></div>
             </div>
@@ -1197,6 +1202,7 @@
                         </li>`).join('')}
                     </ul>
                     ${subsurface && subsurface.ok !== true ? `<div class="subsurface-note"><b>SUBSURFACE EVIDENCE UNAVAILABLE</b><br>Field mapping, geochemistry, geophysics and drilling/assay are required before any reserve or resource conclusion.</div>` : ''}
+                    ${t.raw && t.raw.subsurface_status === 'REPORTED_BLOCK_LEVEL' ? `<div class="subsurface-note"><b>REPORTED BLOCK-LEVEL EVIDENCE (OBSERVED, GOVERNMENT RECORD)</b><br>This target overlaps an official exploration block; reported findings are block-level (no public collars, logs or assays). See the subsurface panel below.</div>` : ''}
                 </div>
                 <div>
                     <h3 class="why-title">EVIDENCE LADDER</h3>
@@ -1290,6 +1296,85 @@
         };
     }
 
+
+    // ---- Subsurface scenario simulator (SIMULATED — NOT OBSERVED) ----
+    const SS_LABEL = {
+        NO_SUBSURFACE_EVIDENCE: 'No subsurface evidence', POSITIVE_GEOPHYSICAL_SUPPORT: 'Positive geophysical support',
+        POSITIVE_GEOCHEMICAL_SUPPORT: 'Positive geochemical support', POSITIVE_DRILLING_INTERSECTION: 'Positive drilling intersection',
+        NEGATIVE_DRILLING_RESULT: 'Negative drilling result', AMBIGUOUS_DRILLING_RESULT: 'Ambiguous drilling result',
+    };
+
+    async function loadSubsurface(id) {
+        const body = $('#subsurfaceBody');
+        if (!body) return;
+        body.innerHTML = loadingHTML('Loading observed evidence and simulated scenarios…');
+        let r;
+        try {
+            r = await api.get(`/api/exploration/targets/${encodeURIComponent(id)}/subsurface-scenarios?mine_id=${encodeURIComponent(MINE_ID)}`);
+        } catch (e) {
+            if (state.exploration.selectedId === id) body.innerHTML = errorHTML('Subsurface scenarios unavailable.', e);
+            return;
+        }
+        if (state.exploration.selectedId !== id) return;
+        const obs = r.observed_evidence || {};
+        const recs = asArray(obs.records);
+        const sims = asArray(r.simulated_scenarios);
+        const delta = d => d > 0 ? `<span class="ss-up">+${fmtNum(d, 1)}</span>` : (d < 0 ? `<span class="ss-down">${fmtNum(d, 1)}</span>` : '0');
+        body.innerHTML = `<div class="ss-grid">
+            <div class="ss-observed">
+                <div class="ss-title">OBSERVED EVIDENCE ${badgeHTML(recs.length ? 'REAL_GOVERNMENT' : 'UNAVAILABLE', 'MODE')}</div>
+                <div class="kpi-label">EVIDENCE LEVEL</div><div class="tc-val">L${esc(obs.evidence_level ?? '?')} &middot; ${esc(obs.evidence_level_label || '')}</div>
+                <div class="kpi-label" style="margin-top:.5rem">SUBSURFACE STATUS</div><div class="tc-val">${esc(upperHuman(obs.subsurface_status || 'UNAVAILABLE'))}</div>
+                ${recs.length ? `<ul class="ss-records">${recs.map(x => `<li><b>${esc(upperHuman(x.evidence_class || ''))}</b> &middot; ${esc(x.evidence_status || '')}<br>${esc(x.summary || '')}${x.official_url ? ` <a href="${esc(x.official_url)}" target="_blank" rel="noopener noreferrer">official source</a>` : ''}</li>`).join('')}</ul>`
+                    : '<div class="subsurface-note">No observed drilling, assay or geophysical record is publicly available for this target.</div>'}
+            </div>
+            <div class="ss-sim">
+                <div class="ss-title">SIMULATED SCENARIOS ${badgeHTML('SIMULATED', 'MODE')} <span class="muted">— NOT OBSERVED</span></div>
+                <div class="ss-scroll"><table class="ss-table">
+                    <thead><tr><th>Scenario</th><th>Level</th><th>Uncertainty</th><th>Priority</th><th>Simulated evidence</th><th>Next investigation</th></tr></thead>
+                    <tbody>${sims.map(x => {
+                        const sm = x.summary || {};
+                        const ev = x.scenario.includes('DRILLING') ? `${sm.boreholes} holes, ${sm.mn_bearing_intervals} Mn-bearing intervals${sm.max_mn_pct !== null && sm.max_mn_pct !== undefined ? `, max ${fmtNum(sm.max_mn_pct, 1)}% Mn` : ''}`
+                            : x.scenario === 'POSITIVE_GEOCHEMICAL_SUPPORT' ? `${sm.geochem_samples} surface samples, max ${fmtNum(sm.surface_max_mn_pct, 1)}% Mn`
+                            : x.scenario === 'POSITIVE_GEOPHYSICAL_SUPPORT' ? asArray(sm.geophysics).map(g => `${esc(g.method)}: ${fmtNum(g.anomaly_strength * 100, 0)}% above background`).join('; ')
+                            : 'none';
+                        return `<tr><td>${esc(SS_LABEL[x.scenario] || x.scenario)}</td><td>L${esc(x.simulated_evidence_level)}</td><td>${esc(x.simulated_uncertainty)}</td>
+                            <td class="mono-val">${fmtNum(x.exploration_priority_before, 1)} → ${fmtNum(x.exploration_priority_after, 1)} (${delta(x.priority_change)})</td>
+                            <td>${ev}</td><td>${esc(x.recommended_next_investigation)}</td></tr>`;
+                    }).join('')}</tbody>
+                </table></div>
+                <div class="chart-note">Fusion rules are project-configured (config/exploration_config.json → subsurface_fusion), not an industry standard. No reserve, resource or tonnage is derived from simulated evidence.</div>
+            </div>
+        </div>`;
+    }
+
+    // ---- Real MOIL company-level quarterly production (REAL_MOIL_PUBLIC) ----
+    async function loadRealQuarterly() {
+        const body = $('#rqBody');
+        if (!body) return;
+        let r;
+        try { r = await api.get('/api/production/real-quarterly?last_n=24'); }
+        catch (e) { body.innerHTML = errorHTML('Real MOIL quarterly production unavailable.', e); $('#rqProvenance').innerHTML = badgeHTML('UNAVAILABLE', 'DATA'); return; }
+        $('#rqProvenance').innerHTML = provenanceHTML(r.provenance);
+        const q = asArray(r.quarters);
+        const max = Math.max(...q.map(x => x.production_t || 0), 1);
+        const v = r.validation || {}; const fc = r.forecast || {}; const bf = r.baseline_forecasts_t || {};
+        const t = x => x === null || x === undefined ? 'N/A' : `${fmtNum(x, 0)} t`;
+        body.innerHTML = `
+            <div class="rq-bars" role="img" aria-label="MOIL quarterly production, last ${q.length} quarters">
+                ${q.map(x => `<div class="rq-bar ${/derived/.test(x.basis) ? 'derived' : ''}" style="height:${(100 * (x.production_t || 0) / max).toFixed(1)}%" title="FY${esc(x.fy)} Q${x.fy_quarter}: ${fmtNum(x.production_t, 0)} t (${esc(x.basis)})"></div>`).join('')}
+            </div>
+            <div class="rq-axis"><span>${esc(q.length ? q[0].quarter_start : '')}</span><span>solid = stated, pale = derived by differencing cumulative disclosures</span><span>${esc(q.length ? q[q.length - 1].quarter_start : '')}</span></div>
+            <div class="rq-grid">
+                <div class="kpi-tile"><span class="kpi-label">NEXT QUARTER (${esc(fc.quarter_start || '?')}) &middot; ${esc(upperHuman(fc.method || ''))}</span><div class="kpi-val mono-val">${t(fc.point_t)}</div><span class="kpi-sub">Indicative band ${fc.empirical_error_band_t ? `${fmtNum(fc.empirical_error_band_t[0], 0)}–${fmtNum(fc.empirical_error_band_t[1], 0)} t` : 'N/A'} (not a calibrated interval)</span></div>
+                <div class="kpi-tile"><span class="kpi-label">BASELINE &middot; SEASONAL NAIVE × YOY</span><div class="kpi-val mono-val">${t(bf.seasonal_naive_x_yoy)}</div></div>
+                <div class="kpi-tile"><span class="kpi-label">BASELINE &middot; LAST QUARTER</span><div class="kpi-val mono-val">${t(bf.last_quarter)}</div></div>
+                <div class="kpi-tile"><span class="kpi-label">HELD-OUT MAPE (MODEL / BEST BASELINE)</span><div class="kpi-val mono-val">${fmtNum(v.selected_test && v.selected_test.mape_pct, 1)}% / ${fmtNum(v.best_baseline_test && v.best_baseline_test.mape_pct, 1)}%</div><span class="kpi-sub">${esc(v.test_window ? v.test_window.join(' → ') : '')}, real quarters</span></div>
+            </div>
+            <div class="rq-verdict ${v.model_beats_best_baseline ? 'ok' : ''}">${esc(v.verdict || '')} Synthetic-operations augmentation ${v.synthetic_augmentation_helps ? 'improved' : 'did not improve'} real held-out error and is ${v.synthetic_augmentation_helps ? '' : 'not '}used.</div>
+            <div class="chart-note">${esc(r.claims_not_made || '')}</div>`;
+    }
+
     async function loadProduction() {
         const btn = $('#btnRefreshProduction');
         setLoading(btn, true);
@@ -1299,6 +1384,7 @@
             api.get(`/api/production/history?mine_id=${encodeURIComponent(MINE_ID)}&days=90`),
             api.post('/api/production/forecast', { mine_id: MINE_ID }),
         ]);
+        loadRealQuarterly();
         state.production.history = hist.status === 'fulfilled' ? hist.value : null;
         state.production.forecast = fc.status === 'fulfilled' ? fc.value : null;
         state.loaded['production-risk'] = hist.status === 'fulfilled' || fc.status === 'fulfilled';
@@ -1808,7 +1894,7 @@
                 ['Applicability method', ['applicability_method'], 'How out-of-experience inputs are detected.'],
                 ['Uncertainty method', ['uncertainty_method'], 'How rank uncertainty is measured.'],
                 ['Calibration', ['calibration'], null],
-            ]) + trustNotes(ex.value)
+            ]) + experimentsHTML(ex.value.experiments) + trustNotes(ex.value)
             : errorHTML('Exploration validation unavailable.', ex.reason, 'model-trust');
 
         $('#trustProduction').innerHTML = pr.status === 'fulfilled'
@@ -1835,6 +1921,18 @@
         renderReconciliation(rc);
         updateDataModePill();
         setLoading(btn, false);
+    }
+
+    // Label-source / feature experiments: untouched western test region, 4-seed averages (backend values only).
+    function experimentsHTML(e) {
+        if (!e || !e.final_test_seed_averaged) return '';
+        const rows = Object.entries(e.final_test_seed_averaged).map(([k, v]) => `<tr${k === e.deployed ? ' class="ss-active"' : ''}>
+            <td>${esc(upperHuman(k))}${k === e.deployed ? ' <b>(deployed)</b>' : ''}</td><td class="mono-val">${fmtNum(v.test_roc, 3)} ± ${fmtNum(v.test_roc_sd, 3)}</td>
+            <td class="mono-val">${fmtNum(v.test_pr, 4)}</td><td class="mono-val">${fmtNum(v.test_cap10 * 100, 0)} %</td></tr>`).join('');
+        return `<div class="chart-note" style="margin-top:.75rem"><b>Model comparison — untouched western test region</b> (prevalence ${fmtNum(e.final_test_prevalence, 4)}; mean of 4 seeds)</div>
+            <div class="ss-scroll"><table class="ss-table"><thead><tr><th>Model</th><th>ROC-AUC</th><th>PR-AUC</th><th>Positives in top 10 % area</th></tr></thead><tbody>${rows}</tbody></table></div>
+            <div class="chart-note">${esc(e.decision_reason || '')} ${esc(e.supplementary_note || '')}</div>
+            <div class="chart-note">Real + synthetic (model D): ${esc(e.model_d && e.model_d.reason ? e.model_d.reason : 'not run')}</div>`;
     }
 
     function provenanceRowIf(src) {

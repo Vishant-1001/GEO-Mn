@@ -60,12 +60,10 @@ def test_live_only_failure_is_503(exploration_svc, monkeypatch):
 
 
 def test_live_success_path(exploration_svc, monkeypatch):
-    import pandas as pd
+    from tests.conftest import merged_feature_grid
 
-    from services.common import DATA_DIR
-
-    g = pd.read_csv(DATA_DIR / "exploration_grid_features.csv.gz")
-    row = g[(g["lat"] == 21.815) & (g["lon"] == 80.185)].iloc[0].to_dict()
+    g = merged_feature_grid()
+    row = g[(g["lat"].round(4) == 21.815) & (g["lon"].round(4) == 80.185)].iloc[0].to_dict()
     monkeypatch.setattr(exploration_svc, "live_enabled", lambda: True)
     monkeypatch.setattr(exploration_svc, "_live_features", lambda lat, lon: row)
     d = exploration_svc.predict(*INSIDE)

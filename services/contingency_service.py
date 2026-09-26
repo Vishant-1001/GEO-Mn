@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from services import demo_service, recovery_service
 from services.common import SIMULATED, load_config, provenance
-from services.exploration_service import NEXT_EVIDENCE
+from services.exploration_service import ExplorationService
 from services.exploration_service import get_service as exploration
 from services.production_service import get_service as production
 
@@ -193,7 +193,7 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
                                               "strategic_relevance", "evidence_level", "distance_to_demo_mine_km")}
                            for t in ranked[:5]],
         "why_target_now": why_now,
-        "next_evidence": NEXT_EVIDENCE if selected_target is not None else [],
+        "next_evidence": ExplorationService.next_evidence(selected_target) if selected_target is not None else [],
         "reason_codes": reason_codes,
         "review_reasons": review_reasons,
         "strategic_requirement": strategic,
@@ -208,7 +208,7 @@ def evaluate(mine_id="DEMO_MINE", horizon=None, target_tonnes=None, base_state=N
         "human_review_required": True,
         "provenance": provenance(SIMULATED if rec["overrides_applied"] else "SYNTHETIC", prod.model_version,
                                  fc["provenance"]["observation_window"], None, False,
-                                 operations_mode="SYNTHETIC", weather_mode="REAL_PUBLIC",
+                                 operations_mode="SYNTHETIC", weather_mode="REAL_GOVERNMENT",
                                  exploration_mode="CACHED", exploration_model_version=exploration().model_version,
                                  risk_policy_version=load_config("risk_policy.json")["version"]),
     }

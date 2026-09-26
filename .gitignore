@@ -24,3 +24,10 @@ data/runtime/
 
 # Local editor / agent launch configs
 .claude/
+
+# local run logs
+logs/
+
+# Large raw downloads (re-fetch with scripts/data_acquisition/*; processed outputs are committed)
+data/raw/geology/*.geojson
+data/raw/weather/imd/

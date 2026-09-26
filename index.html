@@ -310,6 +310,15 @@
                 <div class="panel target-card" id="targetCard" aria-live="polite">
                     <div class="empty-state">Select an exploration target on the map or in the list.</div>
                 </div>
+
+                <div class="panel subsurface-panel" id="subsurfacePanel" aria-live="polite">
+                    <div class="panel-head">
+                        <h2 class="panel-title">SUBSURFACE SCENARIO SIMULATOR</h2>
+                        <span class="badge badge-simulated"><span class="badge-k">MODE:</span> SIMULATED &mdash; NOT OBSERVED</span>
+                    </div>
+                    <p class="panel-note">What-if only: how each simulated subsurface outcome <em>would</em> change evidence maturity, uncertainty and exploration priority. Observed records are never modified. Simulated drilling does not confirm mineralisation and yields no reserve or tonnage.</p>
+                    <div id="subsurfaceBody"><div class="empty-state">Select a target to compare observed evidence with simulated scenarios.</div></div>
+                </div>
             </section>
 
             <!-- ══════════════════════════════════════════════════════════
@@ -333,7 +342,7 @@
                 <div class="panel">
                     <div class="panel-head">
                         <h2 class="panel-title">HISTORICAL PRODUCTION</h2>
-                        <span class="panel-sub">Last 90 days &middot; 7-day period totals &middot; actual vs target &middot; synthetic operations</span>
+                        <span class="panel-sub">Last 90 days &middot; 7-day period totals &middot; actual vs target &middot; SYNTHETIC demo-mine operations (not MOIL telemetry)</span>
                     </div>
                     <div class="chart-legend" id="histLegend"></div>
                     <div class="chart-wrap" id="histChart"></div>
@@ -363,6 +372,15 @@
                             <div class="kpi-tile"><span class="kpi-label">RISK</span><div class="kpi-val" id="prRisk">&mdash;</div><span class="kpi-sub" id="prRiskPolicy">Risk policy: configured policy</span></div>
                         </div>
                     </div>
+                </div>
+
+                <div class="panel" id="realQuarterPanel">
+                    <div class="panel-head">
+                        <h2 class="panel-title">REAL MOIL PRODUCTION &middot; COMPANY TOTAL, QUARTERLY</h2>
+                        <span class="panel-sub">Public MOIL disclosures &middot; not the demo mine &middot; not weekly</span>
+                    </div>
+                    <div class="prov-row" id="rqProvenance"></div>
+                    <div id="rqBody" class="panel-body"><div class="empty-state">Loading real quarterly production…</div></div>
                 </div>
 
                 <div class="panel">
@@ -411,6 +429,8 @@
                             <label class="choice"><input type="radio" name="scenario" value="heavy_rain"><span>Heavy Rain</span></label>
                             <label class="choice"><input type="radio" name="scenario" value="equipment_degradation"><span>Equipment Degradation</span></label>
                             <label class="choice"><input type="radio" name="scenario" value="blast_delay"><span>Blast Delay</span></label>
+                            <label class="choice"><input type="radio" name="scenario" value="drill_delay"><span>Drill Delay</span></label>
+                            <label class="choice"><input type="radio" name="scenario" value="haulage_disruption"><span>Haulage Disruption</span></label>
                             <label class="choice"><input type="radio" name="scenario" value="combined"><span>Combined Disruption</span></label>
                         </div>
                     </fieldset>

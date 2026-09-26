@@ -1,0 +1,328 @@
+{
+  "model_version": "real-moil-quarterly-1.0",
+  "data_provenance": {
+    "target": "REAL_MOIL_PUBLIC",
+    "weather": "REAL_GOVERNMENT (IMD)",
+    "hybrid_features": "SYNTHETIC (demo-mine simulator)"
+  },
+  "forecast_unit": "next fiscal quarter, MOIL company total manganese-ore production (t)",
+  "selection_window": "FY2019-20 .. FY2022-23",
+  "selection": {
+    "ridge_weather": {
+      "n": 16,
+      "mae": 42326.49418111493,
+      "rmse": 62033.73446164914,
+      "r2": 0.17535688496580548,
+      "mape_pct": 17.861170599642275,
+      "smape_pct": 15.791537029055696
+    },
+    "ridge_no_weather": {
+      "n": 16,
+      "mae": 41246.18158354142,
+      "rmse": 61182.504774433,
+      "r2": 0.19783318882889933,
+      "mape_pct": 17.45217991363695,
+      "smape_pct": 15.380869043918368
+    },
+    "gbm_weather": {
+      "n": 16,
+      "mae": 45786.177142773115,
+      "rmse": 61884.92732310242,
+      "r2": 0.17930846392565747,
+      "mape_pct": 19.01114252845582,
+      "smape_pct": 16.083327309153734
+    },
+    "seasonal_naive_x_yoy": {
+      "n": 16,
+      "mae": 71302.56679355024,
+      "rmse": 94697.06788166273,
+      "r2": -0.921689637155217,
+      "mape_pct": 28.26827350865414,
+      "smape_pct": 25.993690142663585
+    },
+    "last_quarter": {
+      "n": 16,
+      "mae": 80187.5,
+      "rmse": 92709.55991697943,
+      "r2": -0.8418710552309521,
+      "mape_pct": 31.351318583840165,
+      "smape_pct": 28.143332381090403
+    }
+  },
+  "selected_family": "ridge_no_weather",
+  "test_window": [
+    "2023-04-01",
+    "2026-01-01"
+  ],
+  "test_provenance": "REAL_MOIL_PUBLIC quarters, never used for selection",
+  "model_a_real_only": {
+    "n": 12,
+    "mae": 52840.794565553726,
+    "rmse": 63861.7573515476,
+    "r2": -2.373071102373377,
+    "mape_pct": 11.731523684875073,
+    "smape_pct": 12.555433627871182
+  },
+  "all_candidates_on_test": {
+    "ridge_weather": {
+      "n": 12,
+      "mae": 52840.794565553726,
+      "rmse": 63861.7573515476,
+      "r2": -2.373071102373377,
+      "mape_pct": 11.731523684875073,
+      "smape_pct": 12.555433627871182
+    },
+    "ridge_no_weather": {
+      "n": 12,
+      "mae": 52702.822993462796,
+      "rmse": 63721.21389592119,
+      "r2": -2.3582408990582993,
+      "mape_pct": 11.690824309032315,
+      "smape_pct": 12.508953251411187
+    },
+    "gbm_weather": {
+      "n": 12,
+      "mae": 61477.94949676365,
+      "rmse": 78972.51332011887,
+      "r2": -4.1581703991423415,
+      "mape_pct": 14.19279921885796,
+      "smape_pct": 14.894033221827105
+    },
+    "seasonal_naive_x_yoy": {
+      "n": 12,
+      "mae": 38837.1219179435,
+      "rmse": 46952.40649187882,
+      "r2": -0.8233056519776343,
+      "mape_pct": 8.599808995189264,
+      "smape_pct": 8.671128765560965
+    },
+    "last_quarter": {
+      "n": 12,
+      "mae": 40500.0,
+      "rmse": 46763.589825133546,
+      "r2": -0.808670480391481,
+      "mape_pct": 9.196405384125281,
+      "smape_pct": 9.210220635649707
+    }
+  },
+  "selected_method": "ridge_no_weather",
+  "baselines": {
+    "last_quarter": {
+      "n": 12,
+      "mae": 40500.0,
+      "rmse": 46763.589825133546,
+      "r2": -0.808670480391481,
+      "mape_pct": 9.196405384125281,
+      "smape_pct": 9.210220635649707
+    },
+    "same_quarter_last_year": {
+      "n": 12,
+      "mae": 52083.333333333336,
+      "rmse": 69640.14646739337,
+      "r2": -3.0110965607553934,
+      "mape_pct": 11.910090323649001,
+      "smape_pct": 13.472795214716065
+    },
+    "seasonal_naive_x_yoy": {
+      "n": 12,
+      "mae": 38837.1219179435,
+      "rmse": 46952.40649187882,
+      "r2": -0.8233056519776343,
+      "mape_pct": 8.599808995189264,
+      "smape_pct": 8.671128765560965
+    }
+  },
+  "diagnostic_target_quarter_weather_known": {
+    "n": 11,
+    "mae": 54515.524641023694,
+    "rmse": 66023.1855694146,
+    "r2": -2.553358922099331,
+    "mape_pct": 12.172608510007986,
+    "smape_pct": 13.060881763580712
+  },
+  "hybrid_comparison": {
+    "quarters": [
+      "2024-04-01",
+      "2024-07-01",
+      "2024-10-01",
+      "2025-01-01",
+      "2025-04-01",
+      "2025-07-01",
+      "2025-10-01",
+      "2026-01-01"
+    ],
+    "note": "Model B needs synthetic operations, which exist only from 2021; A and B are compared on the same real quarters where both are available.",
+    "model_a_real_only": {
+      "n": 8,
+      "mae": 44771.86529272574,
+      "rmse": 49680.362714632836,
+      "r2": -1.8996413122343556,
+      "mape_pct": 9.398574602565105,
+      "smape_pct": 9.440556071529695
+    },
+    "model_b_real_plus_synthetic": {
+      "n": 8,
+      "mae": 60486.0031753624,
+      "rmse": 70432.86558363072,
+      "r2": -4.828079658502729,
+      "mape_pct": 13.091719478710992,
+      "smape_pct": 12.044464447095454
+    }
+  },
+  "features": {
+    "model_a": [
+      "lag1",
+      "lag4",
+      "mean4",
+      "yoy_growth_lag1",
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "rain_prev_anom"
+    ],
+    "model_b_extra": [
+      "syn_equipment_availability_prev_q",
+      "syn_blast_delay_h_prev_q",
+      "syn_haulage_delay_h_prev_q"
+    ]
+  },
+  "model_a_beats_best_baseline": false,
+  "synthetic_augmentation_helps": false,
+  "model_b_real_plus_synthetic": {
+    "n": 8,
+    "mae": 60486.0031753624,
+    "rmse": 70432.86558363072,
+    "r2": -4.828079658502729,
+    "mape_pct": 13.091719478710992,
+    "smape_pct": 12.044464447095454
+  },
+  "decision": "synthetic operational augmentation NOT used for headline real forecasting (did not improve real held-out error); synthetic operations remain for scenario / recovery simulation only",
+  "test_rows": [
+    {
+      "quarter_start": "2023-04-01",
+      "fy": "2023-24",
+      "fy_quarter": 1,
+      "actual_t": 436000.0,
+      "model_a_t": 295351.0,
+      "model_b_t": null,
+      "same_quarter_last_year_t": 322000.0
+    },
+    {
+      "quarter_start": "2023-07-01",
+      "fy": "2023-24",
+      "fy_quarter": 2,
+      "actual_t": 378000.0,
+      "model_a_t": 294779.0,
+      "model_b_t": null,
+      "same_quarter_last_year_t": 241000.0
+    },
+    {
+      "quarter_start": "2023-10-01",
+      "fy": "2023-24",
+      "fy_quarter": 3,
+      "actual_t": 459000.0,
+      "model_a_t": 409179.0,
+      "model_b_t": null,
+      "same_quarter_last_year_t": 337000.0
+    },
+    {
+      "quarter_start": "2024-01-01",
+      "fy": "2023-24",
+      "fy_quarter": 4,
+      "actual_t": 483000.0,
+      "model_a_t": 480775.0,
+      "model_b_t": null,
+      "same_quarter_last_year_t": 402000.0
+    },
+    {
+      "quarter_start": "2024-04-01",
+      "fy": "2024-25",
+      "fy_quarter": 1,
+      "actual_t": 470000.0,
+      "model_a_t": 409345.0,
+      "model_b_t": 583072.0,
+      "same_quarter_last_year_t": 436000.0
+    },
+    {
+      "quarter_start": "2024-07-01",
+      "fy": "2024-25",
+      "fy_quarter": 2,
+      "actual_t": 400000.0,
+      "model_a_t": 403138.0,
+      "model_b_t": 458084.0,
+      "same_quarter_last_year_t": 378000.0
+    },
+    {
+      "quarter_start": "2024-10-01",
+      "fy": "2024-25",
+      "fy_quarter": 3,
+      "actual_t": 460000.0,
+      "model_a_t": 499126.0,
+      "model_b_t": 534503.0,
+      "same_quarter_last_year_t": 459000.0
+    },
+    {
+      "quarter_start": "2025-01-01",
+      "fy": "2024-25",
+      "fy_quarter": 4,
+      "actual_t": 473000.0,
+      "model_a_t": 528233.0,
+      "model_b_t": 534434.0,
+      "same_quarter_last_year_t": 483000.0
+    },
+    {
+      "quarter_start": "2025-04-01",
+      "fy": "2025-26",
+      "fy_quarter": 1,
+      "actual_t": 502000.0,
+      "model_a_t": 424635.0,
+      "model_b_t": 495329.0,
+      "same_quarter_last_year_t": 470000.0
+    },
+    {
+      "quarter_start": "2025-07-01",
+      "fy": "2025-26",
+      "fy_quarter": 2,
+      "actual_t": 442000.0,
+      "model_a_t": 417779.0,
+      "model_b_t": 453022.0,
+      "same_quarter_last_year_t": 400000.0
+    },
+    {
+      "quarter_start": "2025-10-01",
+      "fy": "2025-26",
+      "fy_quarter": 3,
+      "actual_t": 477000.0,
+      "model_a_t": 520842.0,
+      "model_b_t": 582815.0,
+      "same_quarter_last_year_t": 460000.0
+    },
+    {
+      "quarter_start": "2026-01-01",
+      "fy": "2025-26",
+      "fy_quarter": 4,
+      "actual_t": 486000.0,
+      "model_a_t": 540594.0,
+      "model_b_t": 539286.0,
+      "same_quarter_last_year_t": 473000.0
+    }
+  ],
+  "next_quarter_forecast": {
+    "quarter_start": "2026-07-01",
+    "fiscal_quarter": 2,
+    "method": "ridge_no_weather",
+    "point_t": 440921.0,
+    "empirical_error_band_t": [
+      389003.0,
+      521669.0
+    ],
+    "band_note": "10th-90th percentile of the selected method's real held-out one-step errors (n=12; indicative only, not a calibrated interval)",
+    "status": "AVAILABLE"
+  },
+  "baseline_next_quarter_t": {
+    "seasonal_naive_x_yoy": 481751.0,
+    "last_quarter": 507000.0,
+    "note": "Shown because the selected model did not beat the best baseline on the untouched real test window."
+  }
+}

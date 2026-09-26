@@ -16,8 +16,12 @@ def test_targets_list_schema(client):
         assert 0 <= t["prospectivity_rank"] <= 100
         assert t["applicability"] in ("HIGH", "MODERATE", "LOW")
         assert t["uncertainty"] in ("LOW", "MODERATE", "HIGH")
-        assert t["subsurface_status"] == "UNAVAILABLE"
-        assert t["evidence_level"] <= 2  # no drilling/assay/reserve data exist, so never promoted beyond 2
+        assert t["subsurface_status"] in ("UNAVAILABLE", "REPORTED_BLOCK_LEVEL")
+        assert t["evidence_level"] <= 3  # no resource/reserve work exists, so L4 is never reached
+        if t["evidence_level"] == 3:     # L3 only from an official REPORTED drilling outcome, never from simulation
+            assert t["subsurface_status"] == "REPORTED_BLOCK_LEVEL"
+            assert any(o["evidence_class"] == "DRILLING_INTERSECTION_REPORTED" and o["source_mode"] == "REAL_GOVERNMENT"
+                       for o in t["observed_ground_evidence"])
         assert t["status"] in ("EXPLORATION_TARGET", "REVIEW_REQUIRED")
     pr = [t["exploration_priority"] for t in d["targets"]]
     assert pr == sorted(pr, reverse=True)

@@ -1,0 +1,6 @@
+sample_id,block_id,mn_pct,ca_pct,si_pct,p_pct,fe_pct,al_pct,method,source_doc,note,lat,lon,provenance
+BR-2,KATORI_JHIRIYA,26.8,7.07,6.5,3.4,1.6,1.1,hand-held XRF,NMET_KATORI,"Mn outcrop near Fulchur; reported table ""Hand held XRF Result in %""",21.579083,79.862806,REAL_GOVERNMENT
+BR-3,KATORI_JHIRIYA,19.6,4.0,14.5,2.0,4.9,1.6,hand-held XRF,NMET_KATORI,,21.57875,79.862083,REAL_GOVERNMENT
+BR-4,KATORI_JHIRIYA,12.4,0.3,20.7,0.1,5.4,2.2,hand-held XRF,NMET_KATORI,,21.578222,79.861111,REAL_GOVERNMENT
+BR-5,KATORI_JHIRIYA,18.7,0.47,12.7,,5.5,7.96,hand-held XRF,NMET_KATORI,P not reported (--),21.5775,79.861722,REAL_GOVERNMENT
+BR-6,KATORI_JHIRIYA,26.0,1.05,15.35,,5.02,0.61,hand-held XRF,NMET_KATORI,P not reported (--),21.577944,79.862944,REAL_GOVERNMENT

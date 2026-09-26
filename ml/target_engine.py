@@ -19,19 +19,23 @@ Run:  python -m ml.target_engine
 
 from __future__ import annotations
 
+import json
+
+import joblib
+
 import numpy as np
 import pandas as pd
 from scipy import ndimage
 from sklearn.cluster import KMeans
 
-from ml.common import CONFIG_DIR, DATA_DIR, haversine_km, load_json, save_json
+from ml.common import MODELS_DIR, CONFIG_DIR, DATA_DIR, haversine_km, load_json, save_json
 from ml.eo_features import FEATURES
 
 EVIDENCE_LEVELS = {
     0: "LEVEL 0 — remote sensing indication",
     1: "LEVEL 1 — remote sensing + geological support",
     2: "LEVEL 2 — ground / geophysical / geochemical support",
-    3: "LEVEL 3 — drilling / assay support",
+    3: "LEVEL 3 — reported drilling outcome (official block record; no public logs or assays)",
     4: "LEVEL 4 — resource / reserve work",
 }
 SUBSURFACE_COLUMNS = ["target_id", "source_type", "source_id", "depth_m", "evidence_strength", "evidence_status", "source_mode"]
@@ -75,14 +79,69 @@ def footprint_geojson(cells, res):
     return {"type": gj["type"], "coordinates": rnd(gj["coordinates"])}
 
 
+EVIDENCE_CLASS_LEVEL = {"PROPOSAL_ONLY": 0, "STRUCTURAL": 1, "GEOLOGICAL_CONTEXT": 1, "GEOLOGICAL_MAPPING": 2, "GRADE_REPORTED": 2,
+                        "GEOCHEMICAL_SURFACE": 2, "PIT_INTERSECTION_REPORTED": 2, "DRILLING_INTERSECTION_REPORTED": 3}
+
+
+def load_nmet():
+    d = DATA_DIR / "processed" / "subsurface"
+    if not (d / "exploration_blocks.csv").exists():
+        return None
+    from shapely.geometry import shape
+
+    blocks = pd.read_csv(d / "exploration_blocks.csv")
+    blocks["shape"] = blocks["geometry"].map(lambda g: shape(json.loads(g)))
+    return {"blocks": blocks, "findings": pd.read_csv(d / "reported_findings.csv"),
+            "samples": pd.read_csv(d / "surface_geochem_samples.csv")}
+
+
+def observed_evidence(cells, res, nmet):
+    """REAL official evidence overlapping a target footprint (buffered by 1 km)."""
+    if nmet is None:
+        return []
+    from shapely.geometry import Point, box
+    from shapely.ops import unary_union
+
+    fp = unary_union([box(lo - res / 2, la - res / 2, lo + res / 2, la + res / 2)
+                      for la, lo in zip(cells["lat"], cells["lon"])]).buffer(0.01)
+    out = []
+    for b in nmet["blocks"].itertuples():
+        if not fp.intersects(b.shape):
+            continue
+        for f in nmet["findings"][nmet["findings"]["block_id"] == b.block_id].itertuples():
+            out.append({"source_type": "official_exploration_block", "block_id": b.block_id, "source_id": f.source_doc,
+                        "evidence_class": f.evidence_class, "implied_level": EVIDENCE_CLASS_LEVEL[f.evidence_class],
+                        "summary": f"{b.block_id.replace('_', '-').title()}: {f.value_text}",
+                        "depth_m": None if pd.isna(f.depth_m) else float(f.depth_m),
+                        "evidence_status": "PROPOSED (not executed)" if f.evidence_class == "PROPOSAL_ONLY" else "REPORTED",
+                        "stage": b.stage, "official_url": b.official_url, "source_mode": "REAL_GOVERNMENT"})
+    for s in nmet["samples"].itertuples():
+        if fp.contains(Point(s.lon, s.lat)):
+            out.append({"source_type": "surface_sample", "block_id": s.block_id, "source_id": s.sample_id,
+                        "evidence_class": "GEOCHEMICAL_SURFACE", "implied_level": 2,
+                        "summary": f"surface sample {s.sample_id}: {s.mn_pct} % Mn ({s.method})",
+                        "depth_m": 0.0, "evidence_status": "REPORTED", "stage": "surface",
+                        "official_url": None, "source_mode": "REAL_GOVERNMENT"})
+    return out
+
+
 def main():
     cfg = load_json(CONFIG_DIR / "exploration_config.json")
+    nmet = load_nmet()
     demo = load_json(CONFIG_DIR / "demo_config.json")
     res = cfg["grid_res_deg"]
     tcfg = cfg["targets"]
     grid = pd.read_csv(DATA_DIR / "exploration_grid.csv")
-    feats = pd.read_csv(DATA_DIR / "exploration_grid_features.csv.gz")
-    grid = grid.merge(feats[["lat", "lon"] + FEATURES], on=["lat", "lon"], how="left")
+    model_feats = list(joblib.load(MODELS_DIR / "exploration_feature_columns.pkl"))
+    proc = DATA_DIR / "processed" / "exploration"
+    if (proc / "eo_features_grid.csv.gz").exists():
+        feats = pd.read_csv(proc / "eo_features_grid.csv.gz")
+        geo_f = pd.read_csv(proc / "geology_features_grid.csv")
+        feats = feats.merge(geo_f.drop(columns=["provenance"], errors="ignore"), on=["lat", "lon"], how="left")
+    else:
+        feats = pd.read_csv(DATA_DIR / "exploration_grid_features.csv.gz")
+    SURFACE = [f for f in dict.fromkeys(FEATURES + model_feats) if f in feats.columns]
+    grid = grid.merge(feats[["lat", "lon"] + SURFACE], on=["lat", "lon"], how="left")
     geo = pd.read_csv(DATA_DIR / "geology_lattice.csv")
     mrds = pd.read_csv(DATA_DIR / "mrds_mn_occurrences.csv")
     mrds = mrds[mrds["label_use"] != "EXCLUDED_REGIONAL_RECORD"]
@@ -100,7 +159,7 @@ def main():
     lab, n = ndimage.label(mask, structure=structure)
     grid["cluster"] = lab[grid["i"], grid["j"]]
 
-    pct = {f: grid[f].rank(pct=True) for f in FEATURES}
+    pct = {f: grid[f].rank(pct=True) for f in SURFACE}
     scored = grid[grid["data_status"] == "OK"]
     clusters = []
     max_cells = tcfg["max_cells_per_target"]
@@ -147,10 +206,13 @@ def main():
 
         sub = subsurface[subsurface["target_id"] == tid]
         sub_types = set(sub["source_type"]) if len(sub) else set()
-        if len(sub):
-            subsurface_status = "AVAILABLE"
-        else:
-            subsurface_status = "UNAVAILABLE"
+
+        # ---- REAL official ground / subsurface evidence (NMET blocks, reported samples)
+        observed = observed_evidence(cells, res, nmet)
+        obs_level = max((o["implied_level"] for o in observed), default=0)
+        has_reported_drilling = any(o["evidence_class"] == "DRILLING_INTERSECTION_REPORTED" for o in observed)
+        subsurface_status = ("AVAILABLE" if len(sub) else
+                             "REPORTED_BLOCK_LEVEL" if has_reported_drilling else "UNAVAILABLE")
 
         level = 0
         basis = ["Model prospectivity from Sentinel-2 / MODIS / NASADEM features (remote sensing indication)."]
@@ -162,6 +224,15 @@ def main():
             level = 2
             if records:
                 basis.append(f"{len(records)} documented MRDS manganese record(s) within ~1 km of the footprint (reported context).")
+        if obs_level >= 2 and level < 2:
+            level = 2
+        if obs_level >= 2:
+            basis.append("Official ground evidence (NMET/DGM/MECL, REAL_GOVERNMENT): "
+                         + "; ".join(sorted({o["summary"] for o in observed if o["implied_level"] >= 2})))
+        if has_reported_drilling:
+            level = 3
+            basis.append("REPORTED drilling intersection at block level (official document; collar coordinates and assays "
+                         "not published) — not a resource or reserve statement.")
         if sub_types & DRILL_TYPES:
             level = 3
             basis.append("Drilling / assay evidence recorded in subsurface_evidence.csv.")
@@ -171,7 +242,10 @@ def main():
         readiness = float(np.exp(-d_prod / cfg["development_readiness"]["distance_decay_km"])) if d_prod is not None else None
 
         surface = {}
-        for f in FEATURES:
+        for f in SURFACE:
+            if cells[f].isna().all():
+                surface[f] = {"mean": None, "study_area_percentile": None, "note": "not mapped in this footprint"}
+                continue
             surface[f] = {"mean": round(float(cells[f].mean()), 4),
                           "study_area_percentile": round(float(pct[f].loc[cells.index].mean() * 100), 1)}
 
@@ -207,9 +281,14 @@ def main():
             },
             "documented_occurrences": records,
             "target_context": "BROWNFIELD" if records else "GREENFIELD",
-            "contains_training_labels": any(r["used_as_training_label"] for r in records),
+            "contains_training_labels": (any(r["used_as_training_label"] for r in records)
+                                         or bool(cells.get("indian_government_mn_evidence_in_cell", pd.Series(dtype=int)).sum() > 0)),
+            "contains_indian_government_training_label": bool(
+                cells.get("indian_government_mn_evidence_in_cell", pd.Series(dtype=int)).sum() > 0),
             "subsurface_status": subsurface_status,
             "subsurface_evidence": sub.to_dict(orient="records"),
+            "observed_ground_evidence": observed,
+            "nmet_block_id": next((o["block_id"] for o in observed if o.get("block_id")), None),
             "nearest_documented_producer_km": round(d_prod, 1) if d_prod is not None else None,
             "development_readiness": round(readiness, 3) if readiness is not None else None,
             "distance_to_demo_mine_km": round(float(haversine_km(mine["lat"], mine["lon"], clat, clon)), 1),
@@ -227,8 +306,10 @@ def main():
         "scored_cells": int(len(scored)),
         "evidence_levels": EVIDENCE_LEVELS,
         "geology_support_basis": "All MRDS Mn training records in the study area fall on Precambrian units of the geology lattice (vs ~62% of the area).",
-        "subsurface_note": ("No legitimate drilling, assay or geophysical data are available to this project; "
-                            "subsurface_status is UNAVAILABLE for every target. data/subsurface_evidence.csv defines the schema."),
+        "subsurface_note": ("Real subsurface evidence is limited to official NMET block records (one REPORTED block-level "
+                            "drilling outcome, no published collars or assays) and reported surface samples. Targets without "
+                            "such overlap have subsurface_status UNAVAILABLE. Simulated subsurface scenarios are stored separately "
+                            "in data/synthetic/subsurface/ and are never merged into observed evidence."),
     }
     save_json(DATA_DIR / "exploration_targets.json", {"meta": meta, "targets": targets})
     print(f"{len(targets)} targets from {n} clusters ({len(hot)} hot cells)")

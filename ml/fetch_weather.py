@@ -1,6 +1,6 @@
 """Fetch real daily weather for the demo mine location (ERA5 reanalysis via Open-Meteo).
 
-Output: data/weather_daily.csv with date, rainfall_mm, temperature_max_c, soil_moisture_m3m3.
+Output: data/raw/weather/era5_open_meteo_demo_mine.csv with date, rainfall_mm, temperature_max_c, soil_moisture_m3m3.
 
 These values are REAL_PUBLIC reanalysis (ECMWF ERA5 / ERA5-Land via the Open-Meteo
 archive API), not direct satellite observations and not mine-site gauges.
@@ -39,7 +39,7 @@ def main():
         "soil_moisture_m3m3": d["soil_moisture_0_to_7cm_mean"],
     })
     missing = int(df.isna().any(axis=1).sum())
-    df.to_csv(DATA_DIR / "weather_daily.csv", index=False)
+    df.to_csv(DATA_DIR / "raw" / "weather" / "era5_open_meteo_demo_mine.csv", index=False)
     meta = {
         "source": "Open-Meteo historical weather API (ERA5 / ERA5-Land reanalysis, ECMWF Copernicus)",
         "url": url,
@@ -50,7 +50,7 @@ def main():
         "data_mode": "REAL_PUBLIC",
         "note": "Reanalysis values for a ~10 km grid cell; not a mine-site rain gauge.",
     }
-    (DATA_DIR / "weather_sources.json").write_text(json.dumps(meta, indent=2) + "\n")
+    (DATA_DIR / "raw" / "weather" / "era5_open_meteo_sources.json").write_text(json.dumps(meta, indent=2) + "\n")
     print(meta)
 
 

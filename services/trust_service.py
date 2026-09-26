@@ -18,6 +18,25 @@ def _r(x, nd=3):
     return None if x is None else round(float(x), nd)
 
 
+def _experiments():
+    e = _report("exploration_experiments.json")
+    if e is None:
+        return None
+    rob = e.get("seed_robustness", {})
+    return {
+        "design": e["design"],
+        "deployed": e["final_decision"]["deployed"], "decision_rule": e["final_decision"].get("rule"),
+        "decision_reason": e["final_decision"]["reason"],
+        "selected_feature_set": e["selected_feature_set"], "selected_label_set": e["selected_label_set"],
+        "final_test_seed_averaged": {k: {m: _r(v.get(f"{m}_mean"), 4) for m in ("test_roc", "test_pr", "test_cap10")}
+                                     | {"test_roc_sd": _r(v.get("test_roc_sd"), 4)} for k, v in rob.items()},
+        "final_test_prevalence": e["models"]["A_mrds_baseline_features"]["final_test"]["mrds_labels"].get("prevalence"),
+        "ablation_dev_cv": {k: {"roc_auc": _r(v["roc_auc"]), "pr_auc": _r(v["pr_auc"], 4)} for k, v in e["ablation_dev_cv"].items()},
+        "model_d": e["models"]["D_real_plus_synthetic"],
+        "supplementary_note": e.get("supplementary_note"),
+    }
+
+
 def exploration() -> dict:
     rep = _report("exploration_validation.json")
     man = load_manifest().get("exploration", {})
@@ -40,7 +59,9 @@ def exploration() -> dict:
         "region_holdout_method": "train west of 79.8E / test east, and the reverse; pooled within-region ranks",
         "observation_window": man.get("observation_window"),
         "effective_resolution": man.get("effective_resolution"),
-        "subsurface_evidence": "UNAVAILABLE — no drilling, assay or geophysical data are used",
+        "subsurface_evidence": ("Observed: REPORTED_BLOCK_LEVEL for targets overlapping official NMET blocks (REAL_GOVERNMENT); "
+                                "no public collars, logs or assays. Simulated subsurface is what-if only and never used in training."),
+        "experiments": _experiments(),
         "region_holdout": {"roc_auc": _r(ho["roc_auc"]), "pr_auc": _r(ho["pr_auc"], 4),
                            "top_area_capture": {k: _r(v) for k, v in ho["top_area_capture"].items()},
                            "splits": {k: v for k, v in rep["region_holdout"].items() if k != "pooled"}},
@@ -64,7 +85,9 @@ def exploration() -> dict:
             "Satellite features come from a fixed 2024 reference window (not real-time imagery).",
         ],
         "provenance": provenance("REAL_PUBLIC", rep["model_version"], man.get("observation_window"), None, False,
-                                 labels_mode="REAL_PUBLIC", features_mode="REAL_PUBLIC"),
+                                 labels_mode="REAL_PUBLIC", features_mode="REAL_DERIVED",
+                                 geology_features_mode="REAL_GOVERNMENT" if any(
+                                     f.startswith("geom_") for f in man.get("features", [])) else None),
     }
 
 
@@ -84,7 +107,8 @@ def production() -> dict:
         "mae": _r(bt["model_p50"]["mae"], 1),
         "rmse": _r(bt["model_p50"]["rmse"], 1),
         "r2": _r(bt["model_p50"]["r2"]),
-        "mape_pct": _r(bt["model_p50"]["mape_pct"], 2),
+        "wape_pct": _r(bt["model_p50"].get("wape_pct"), 2),
+        "mape_pct_excl_near_zero": _r(bt["model_p50"].get("mape_pct_excl_near_zero"), 2),
         "baseline": {
             "previous_period": {k: _r(v, 3) for k, v in bt["baseline_previous_period"].items()},
             "moving_average_4": {k: _r(v, 3) for k, v in bt["baseline_moving_average_4"].items()},
@@ -113,6 +137,11 @@ def production() -> dict:
         "limitations": man.get("limitations", []),
         "notes": [
             rep["caveat"],
+            (f"P50 MAE is {bt.get('mae_improvement_vs_best_baseline_pct', 0):.1f} % better than the best simple baseline on the "
+             "test window — "
+             + ("a material advantage." if bt.get("mae_improvement_vs_best_baseline_pct", 0) >= 2.0 else
+                "effectively a tie; the model's value here is the conditional scenario response and calibrated "
+                "interval, not point accuracy.")),
             "Real mine accuracy requires training and validation on mine-level operational data.",
             "Configuration chosen on the selection window; quantile offsets estimated on the separate calibration window "
             "and frozen; all reported metrics come from the later, untouched test window.",
@@ -123,34 +152,73 @@ def production() -> dict:
             "Forecasts assume the trailing 7-day operating/weather state persists (conditional forecast).",
         ],
         "provenance": provenance("SYNTHETIC", rep["model_version"], f"{bt['test_start']}/{bt['test_end']}", None, False,
-                                 operations_mode="SYNTHETIC", weather_mode="REAL_PUBLIC"),
+                                 operations_mode="SYNTHETIC", weather_mode="REAL_GOVERNMENT (IMD) + REAL_PUBLIC (ERA5 soil moisture)"),
     }
+
+
+def _manifest(rel):
+    p = DATA_DIR / rel
+    return json.loads(p.read_text()) if p.exists() else {}
 
 
 def provenance_catalogue() -> dict:
     ex_src = json.loads((DATA_DIR / "exploration_sources.json").read_text()) if (DATA_DIR / "exploration_sources.json").exists() else {}
-    wx_src = json.loads((DATA_DIR / "weather_sources.json").read_text()) if (DATA_DIR / "weather_sources.json").exists() else {}
+    era5 = _manifest("raw/weather/era5_open_meteo_sources.json")
+    imd = _manifest("manifests/real_imd_gridded.json")
+    moil = _manifest("manifests/real_moil_production.json")
+    bhuvan = _manifest("manifests/real_bhuvan_geology.json")
+    nmet = _manifest("manifests/real_subsurface_nmet.json")
+    syn_ops = _manifest("synthetic/production/synthetic_generation_manifest.json")
+    syn_rec = _manifest("synthetic/recovery/recovery_generation_manifest.json")
+    syn_sub = _manifest("synthetic/subsurface/subsurface_generation_manifest.json")
     man = load_manifest()
     demo = load_config("demo_config.json")
+    exm = man.get("exploration", {})
     return {
+        "modes": {
+            "REAL_GOVERNMENT": "Official Government of India data (IMD, NRSC/Bhuvan, NMET/Ministry of Mines)",
+            "REAL_PUBLIC": "Public international data (USGS MRDS, Sentinel-2, MODIS, NASADEM, ERA5)",
+            "REAL_MOIL_PUBLIC": "MOIL Ltd. public investor disclosures (company level)",
+            "REAL_DERIVED": "Features computed from real data by a documented recipe",
+            "SYNTHETIC": "Generated by a seeded, domain-constrained simulator; not observed",
+            "SIMULATED": "Scenario / counterfactual outputs of a simulator; not observed",
+            "CACHED": "Precomputed from the sources above; replayed, not live",
+        },
         "sources": {
             "exploration_labels": {"mode": "REAL_PUBLIC", "description": "USGS Mineral Resources Data System (MRDS) Mn records",
                                    "retrieved_utc": ex_src.get("mrds", {}).get("retrieved_utc"),
                                    "records_used": ex_src.get("mrds", {}).get("positives_used")},
             "sentinel2": {"mode": "REAL_PUBLIC", "description": "Sentinel-2 L2A via Microsoft Planetary Computer (annual median composite)",
-                          "observation_window": man.get("exploration", {}).get("observation_window")},
+                          "observation_window": exm.get("observation_window")},
             "modis_lst": {"mode": "REAL_PUBLIC", "description": "MODIS MOD11A2 v061 LST (x0.02 K, QC-filtered)",
-                          "observation_window": man.get("exploration", {}).get("observation_window")},
-            "dem": {"mode": "REAL_PUBLIC", "description": "NASADEM elevation and derived slope"},
-            "geology": {"mode": "REAL_PUBLIC", "description": ex_src.get("geology", {}).get("underlying_map", "Macrostrat world geology"),
-                        "note": ex_src.get("geology", {}).get("note")},
+                          "observation_window": exm.get("observation_window")},
+            "dem": {"mode": "REAL_PUBLIC", "description": "NASADEM elevation and derived slope / relief"},
+            "geology_macrostrat": {"mode": "REAL_PUBLIC", "description": ex_src.get("geology", {}).get("underlying_map", "Macrostrat world geology"),
+                                   "note": ex_src.get("geology", {}).get("note")},
+            "geomorphology_lineaments": {"mode": "REAL_GOVERNMENT", "description": bhuvan.get("dataset_name"),
+                                         "provider": bhuvan.get("provider"), "retrieved_utc": bhuvan.get("retrieval_timestamp")},
+            "exploration_blocks": {"mode": "REAL_GOVERNMENT", "description": nmet.get("dataset_name"),
+                                   "provider": nmet.get("provider"), "blocks": nmet.get("blocks"),
+                                   "note": "Block-level reported outcomes only; no public collars, logs or assays."},
             "exploration_grid": {"mode": "CACHED", "description": "Precomputed 0.01 degree prospectivity grid",
                                  "cells": ex_src.get("grid", {}).get("cells")},
-            "weather": {"mode": "REAL_PUBLIC", "description": wx_src.get("source"), "note": wx_src.get("note"),
-                        "observation_window": f"{demo['history_start']}/{demo['history_end']}"},
-            "operations": {"mode": "SYNTHETIC", "description": "Generated operational history for DEMO_MINE (seed 42) — NOT MOIL data"},
-            "scenarios": {"mode": "SIMULATED", "description": "Disruption scenarios, action portfolios and demo states"},
-            "subsurface": {"mode": "UNAVAILABLE", "description": "No drilling, assay or geophysical data available"},
+            "weather_imd": {"mode": "REAL_GOVERNMENT", "description": imd.get("dataset_name"), "provider": imd.get("provider"),
+                            "retrieved_utc": imd.get("retrieval_timestamp"), "unavailable": imd.get("unavailable")},
+            "weather_era5": {"mode": "REAL_PUBLIC", "description": era5.get("source"), "note": era5.get("note"),
+                             "use": "soil moisture and dates IMD has not yet published (per-row source recorded)",
+                             "observation_window": f"{demo['history_start']}/{demo['history_end']}"},
+            "production_moil": {"mode": "REAL_MOIL_PUBLIC", "description": moil.get("dataset_name"),
+                                "quarters": moil.get("quarters_derived"), "coverage": moil.get("coverage"),
+                                "note": "Company-total quarterly production; not mine-level, not weekly."},
+            "operations": {"mode": "SYNTHETIC", "description": "Equipment-level simulated operations for SYN_MINE_01 (DEMO_MINE) — NOT MOIL telemetry",
+                           "seed": syn_ops.get("seed"), "generator_version": syn_ops.get("generator_version")},
+            "recovery_scenarios": {"mode": "SIMULATED", "description": syn_rec.get("dataset_name"), "seed": syn_rec.get("seed"),
+                                   "note": "Action effects are simulator counterfactuals, not historical MOIL interventions."},
+            "subsurface_observed": {"mode": "REAL_GOVERNMENT", "description": "Reported NMET / DGM / MECL block findings attached to overlapping targets",
+                                    "note": "REPORTED_BLOCK_LEVEL only where a target overlaps an official block; otherwise UNAVAILABLE."},
+            "subsurface_scenarios": {"mode": "SIMULATED", "description": syn_sub.get("dataset_name"), "seed": syn_sub.get("seed"),
+                                     "note": "SIMULATED — NOT OBSERVED. Used only for what-if evidence fusion."},
+            "demo_states": {"mode": "SIMULATED", "description": "Deterministic demo states DEMO_A..DEMO_F"},
             "reserves": {"mode": "UNAVAILABLE", "description": "No reserve/resource tonnage is produced or implied by GEO-MN"},
         },
         "model_versions": {k: v.get("model_version") for k, v in man.items()},
@@ -163,6 +231,7 @@ def provenance_catalogue() -> dict:
         "notes": [
             "Satellite composites use a fixed 2024 observation window; nothing is real-time.",
             "Prospectivity is a relative rank; it is not a probability of a deposit or a reserve estimate.",
-            "Operational data are synthetic; forecasts and scenario outcomes are model estimates.",
+            "Demo-mine operational data are synthetic; forecasts and scenario outcomes are model estimates.",
+            "Real MOIL production is company-level quarterly; no mine-level MOIL accuracy is claimed.",
         ],
     }

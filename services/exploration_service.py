@@ -29,7 +29,7 @@ from ml.common import haversine_km
 from ml.ood import LEVEL_SCORE, in_envelope
 from ml.uncertainty import percentile_rank
 from services.common import (
-    CACHED, DATA_DIR, LIVE_COORDINATE_QUERY, MODELS_DIR, REAL_PUBLIC, ApiError, env_flag, file_timestamp, load_config,
+    CACHED, DATA_DIR, LIVE_COORDINATE_QUERY, MODELS_DIR, REAL_GOVERNMENT, REAL_PUBLIC, ApiError, env_flag, file_timestamp, load_config,
     load_manifest, log, provenance,
 )
 
@@ -76,6 +76,18 @@ class ExplorationService:
             self.geology = pd.read_csv(DATA_DIR / "geology_lattice.csv")
         except Exception:
             self.geology = None
+        # REAL_GOVERNMENT (NRSC Bhuvan) per-cell geomorphology / lineament features, used when the
+        # deployed model includes them; a live query reads them from this cached grid (NaN outside it).
+        self.geo_features = None
+        if self.members is not None and any(f.startswith(("geom_", "lineament_")) for f in self.features):
+            try:
+                g = pd.read_csv(DATA_DIR / "processed" / "exploration" / "geology_features_grid.csv")
+                res = self.cfg["grid_res_deg"]
+                g["ci"] = np.floor(g["lat"] / res + 1e-9).astype(int)
+                g["cj"] = np.floor(g["lon"] / res + 1e-9).astype(int)
+                self.geo_features = g.set_index(["ci", "cj"])
+            except Exception as e:
+                self.error = (self.error or "") + f" geology features unavailable: {type(e).__name__}"
         try:
             m = pd.read_csv(DATA_DIR / "mrds_mn_occurrences.csv")
             self.mrds = m[m["label_use"] != "EXCLUDED_REGIONAL_RECORD"].reset_index(drop=True)
@@ -109,25 +121,33 @@ class ExplorationService:
     def _prov(self, mode, fallback=False, **extra):
         return provenance(mode, self.model_version, _obs_window(),
                           file_timestamp(DATA_DIR / "exploration_grid.csv") if mode == CACHED else None,
-                          fallback, labels_mode=REAL_PUBLIC, features_mode=REAL_PUBLIC, **extra)
+                          fallback, labels_mode=REAL_PUBLIC, features_mode=REAL_PUBLIC,
+                          geology_features_mode=REAL_GOVERNMENT if self.geo_features is not None else None, **extra)
 
     # ------------------------------------------------------------- scoring
     def score_features(self, feats: dict) -> dict:
         """Rank / uncertainty / applicability for one feature vector (identical to training)."""
-        X = pd.DataFrame([feats])[self.features]
-        if X.isna().any(axis=None):
-            raise ValueError("incomplete features")
+        X = pd.DataFrame([feats]).reindex(columns=self.features).astype(float)
+        iso_feats = self.reference.get("iso_features", self.features)
+        if X[iso_feats].isna().any(axis=None):
+            raise ValueError("incomplete features")      # geology columns may be NaN (unmapped); EO may not
         S = np.array([m.predict_proba(X)[:, 1][0] for m in self.members])
         ref = self.reference
         rank = float(percentile_rank(ref["ensemble_ref"], [S.mean()])[0])
         mranks = [float(percentile_rank(ref["member_refs"][k], [S[k]])[0]) for k in range(len(S))]
         sd = float(np.std(mranks))
-        iso = float(ref["isolation_forest"].score_samples(X)[0])
+        iso = float(ref["isolation_forest"].score_samples(X[iso_feats])[0])
         appl = "HIGH" if iso >= ref["iso_q_moderate"] else ("MODERATE" if iso >= ref["iso_q_low"] else "LOW")
+        # hard envelope: any feature outside the study-area training range is out of domain, whatever the
+        # multivariate score says (IsolationForest dilutes a few extreme values across many features)
+        rng = ref.get("feature_ranges", {})
+        violations = [f for f in iso_feats if f in rng and not (rng[f]["min"] <= float(X[f].iloc[0]) <= rng[f]["max"])]
+        if violations:
+            appl = "LOW"
         t = self.cfg["uncertainty_thresholds_rank_sd"]
         unc = "LOW" if sd < t["low_below"] else ("HIGH" if sd > t["high_above"] else "MODERATE")
         return {"prospectivity_rank": round(rank, 1), "rank_sd": round(sd, 1), "uncertainty": unc,
-                "feature_applicability": appl, "isolation_score": round(iso, 4)}
+                "feature_applicability": appl, "isolation_score": round(iso, 4), "range_violations": violations}
 
     def _live_features(self, lat, lon):
         from ml.eo_features import cell_centre, extract_point_features
@@ -138,9 +158,21 @@ class ExplorationService:
                 return self._live_cache[key]
         fut = self._pool.submit(extract_point_features, lat, lon)
         feats = fut.result(timeout=self.cfg["live_query_timeout_s"])
+        feats = {**feats, **self.geology_features_at(lat, lon)}
         with self._lock:
             self._live_cache[key] = feats
         return feats
+
+    def geology_features_at(self, lat, lon) -> dict:
+        if self.geo_features is None:
+            return {}
+        res = self.cfg["grid_res_deg"]
+        key = (math.floor(lat / res + 1e-9), math.floor(lon / res + 1e-9))
+        cols = [f for f in self.features if f.startswith(("geom_", "lineament_"))]
+        if key not in self.geo_features.index:
+            return {c: np.nan for c in cols}
+        row = self.geo_features.loc[key]
+        return {c: float(row[c]) if pd.notna(row[c]) else np.nan for c in cols}
 
     def nearest_cell(self, lat, lon):
         g = self.grid_ok
@@ -191,7 +223,7 @@ class ExplorationService:
             try:
                 feats = self._live_features(lat, lon)
                 result = self.score_features(feats)
-                result["features"] = {k: round(float(feats[k]), 4) for k in self.features}
+                result["features"] = {k: (None if pd.isna(feats.get(k)) else round(float(feats[k]), 4)) for k in self.features}
                 result["quality"] = {k: (None if pd.isna(feats.get(k)) else round(float(feats[k]), 2))
                                      for k in ("s2_valid_scenes", "s2_pixels", "lst_valid_composites", "dem_pixels")}
                 source = LIVE_COORDINATE_QUERY
@@ -275,31 +307,33 @@ class ExplorationService:
         return score, level, (f"Strategic gap severity {severity:.2f} x proximity {proximity:.2f} "
                               f"({t['distance_to_demo_mine_km']} km from the supply point).")
 
-    def prioritise(self, strategic=None) -> list[dict]:
+    def score_target(self, t, strategic=None, prospectivity_factor=1.0) -> dict:
+        """Priority of one target record (also used on SIMULATED evidence copies by the subsurface engine)."""
         w = self.cfg["priority_weights"]
-        out = []
-        for t in self.targets:
-            ev = (t["evidence_level"] / 4.0 + LEVEL_SCORE[t["applicability"]] + UNCERTAINTY_SCORE[t["uncertainty"]]) / 3.0
-            srel, slevel, snote = self.strategic_relevance(t, strategic)
-            comps = {
-                "prospectivity": t["prospectivity_rank"] / 100.0,
-                "evidence_applicability": ev,
-                "strategic_relevance": srel,
-                "development_readiness": t.get("development_readiness"),
-            }
-            avail = {k: v for k, v in comps.items() if v is not None}
-            wsum = sum(w[k] for k in avail)
-            priority = 100.0 * sum(w[k] * avail[k] for k in avail) / wsum
-            out.append({**t,
-                        "strategic_relevance": slevel,
-                        "strategic_relevance_score": round(srel, 3),
-                        "strategic_relevance_note": snote,
-                        "exploration_priority": round(priority, 1),
-                        "priority_components": {k: (round(v, 3) if v is not None else None) for k, v in comps.items()},
-                        "priority_weights_used": {k: round(w[k] / wsum, 3) for k in avail},
-                        "priority_renormalised": len(avail) < len(comps),
-                        "status": "REVIEW_REQUIRED" if t["applicability"] == "LOW" else "EXPLORATION_TARGET",
-                        "source_mode": CACHED})
+        ev = (t["evidence_level"] / 4.0 + LEVEL_SCORE[t["applicability"]] + UNCERTAINTY_SCORE[t["uncertainty"]]) / 3.0
+        srel, slevel, snote = self.strategic_relevance(t, strategic)
+        comps = {
+            "prospectivity": t["prospectivity_rank"] / 100.0 * prospectivity_factor,
+            "evidence_applicability": ev,
+            "strategic_relevance": srel,
+            "development_readiness": t.get("development_readiness"),
+        }
+        avail = {k: v for k, v in comps.items() if v is not None}
+        wsum = sum(w[k] for k in avail)
+        priority = 100.0 * sum(w[k] * avail[k] for k in avail) / wsum
+        return {**t,
+                "strategic_relevance": slevel,
+                "strategic_relevance_score": round(srel, 3),
+                "strategic_relevance_note": snote,
+                "exploration_priority": round(priority, 1),
+                "priority_components": {k: (round(v, 3) if v is not None else None) for k, v in comps.items()},
+                "priority_weights_used": {k: round(w[k] / wsum, 3) for k in avail},
+                "priority_renormalised": len(avail) < len(comps),
+                "status": "REVIEW_REQUIRED" if t["applicability"] == "LOW" else "EXPLORATION_TARGET",
+                "source_mode": CACHED}
+
+    def prioritise(self, strategic=None) -> list[dict]:
+        out = [self.score_target(t, strategic) for t in self.targets]
         out.sort(key=lambda x: (-x["exploration_priority"], x["target_id"]))
         for i, x in enumerate(out, start=1):
             x["priority_rank"] = i
@@ -320,9 +354,28 @@ class ExplorationService:
             r.append({"code": "BROWNFIELD_CONTEXT", "text": "Documented Mn records nearby (extension of known mineralisation)."})
         if t.get("contains_training_labels"):
             r.append({"code": "CAUTION_TRAINING_LABEL_OVERLAP",
-                      "text": "Footprint contains MRDS records used as training labels; its rank is partly in-sample."})
-        r.append({"code": "NO_SUBSURFACE_DATA", "text": "No drilling, assay or geophysical data available (subsurface UNAVAILABLE)."})
+                      "text": "Footprint contains records used as training labels (MRDS and/or official NMET evidence); its rank is partly in-sample."})
+        obs = t.get("observed_ground_evidence") or []
+        if t.get("subsurface_status") == "REPORTED_BLOCK_LEVEL":
+            blocks = sorted({o["block_id"] for o in obs})
+            r.append({"code": "REPORTED_BLOCK_LEVEL_SUBSURFACE",
+                      "text": (f"Official block record(s) {', '.join(blocks)} report a historical drilling outcome at block level "
+                               "(REAL_GOVERNMENT); no public collars, logs or assays.")})
+        else:
+            r.append({"code": "NO_SUBSURFACE_DATA", "text": "No observed drilling, assay or geophysical data available (subsurface UNAVAILABLE)."})
+        if obs and t.get("subsurface_status") != "REPORTED_BLOCK_LEVEL":
+            r.append({"code": "OFFICIAL_BLOCK_OVERLAP",
+                      "text": f"Footprint overlaps official exploration block {obs[0]['block_id']} (proposal / surface evidence only)."})
         return r
+
+    @staticmethod
+    def next_evidence(t) -> list[str]:
+        if t.get("subsurface_status") == "REPORTED_BLOCK_LEVEL":
+            return ["Obtain the historical drill logs and assays for the overlapping official block (DGM / NMET / MECL)",
+                    "Verify reported intersections with twin or step-out holes and NABL-accredited assays",
+                    "Map the reef / horizon along strike across the target footprint",
+                    "Ground IP / magnetic traverse to trace the mineralised horizon beyond the block"]
+        return NEXT_EVIDENCE
 
     def why_now(self, t, strategic) -> list[dict]:
         if not strategic or not strategic.get("active"):
@@ -350,7 +403,8 @@ class ExplorationService:
         keep = ("target_id", "lat", "lon", "geometry", "bbox", "n_cells", "area_km2", "prospectivity_rank", "peak_prospectivity_rank",
                 "rank_sd", "uncertainty", "applicability", "evidence_level", "evidence_level_label", "target_context",
                 "contains_training_labels", "subsurface_status", "strategic_relevance", "strategic_relevance_score",
-                "development_readiness", "distance_to_demo_mine_km", "exploration_priority", "priority_rank", "status", "source_mode")
+                "development_readiness", "distance_to_demo_mine_km", "exploration_priority", "priority_rank", "status", "source_mode",
+                "observed_ground_evidence", "nmet_block_id")
         return {
             "targets": [{k: t.get(k) for k in keep} for t in ranked],
             "count": len(ranked),
@@ -389,7 +443,7 @@ class ExplorationService:
             "documented_occurrences": t["documented_occurrences"],
             "why_this_target": self.why_this_target(t),
             "why_this_target_now": self.why_now(t, strategic),
-            "next_evidence": NEXT_EVIDENCE,
+            "next_evidence": self.next_evidence(t),
             "provenance": self._prov(CACHED, False, effective_resolution="~1 km (0.01 degree cell)"),
         }
 

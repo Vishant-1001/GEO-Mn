@@ -1,0 +1,103 @@
+{
+  "_note": "REAL, CITED geological relationships used ONLY as constraints for the synthetic subsurface generator.",
+  "stratigraphy": {
+    "group": "Sausar Group (Mesoproterozoic), Central Indian manganese belt",
+    "formations_top_down": [
+      "Bichua",
+      "Junewani",
+      "Chorbaoli",
+      "Mansar",
+      "Lohangi",
+      "Sitasaongi"
+    ],
+    "mn_horizons": {
+      "H1": "contact of Mansar Formation with overlying Chorbaoli Formation",
+      "H2": "within the Mansar Formation",
+      "H3": "contact of Mansar Formation with underlying Lohangi/Sitasaongi Formation"
+    },
+    "host_lithologies": [
+      "muscovite / quartz-mica schist",
+      "gondite (Mn-silicate rock)",
+      "calc-silicate / calc-gneiss",
+      "marble",
+      "quartzite",
+      "biotite gneiss"
+    ],
+    "source": "NMET_KAWALEWADA (DGM Maharashtra), section 3"
+  },
+  "structure": {
+    "strike": "ENE-WSW (E-W in the central belt)",
+    "dip_direction": "S",
+    "dip_deg_ranges_reported": [
+      [
+        45,
+        70,
+        "KAWALEWADA_SAKKARDARA"
+      ],
+      [
+        55,
+        75,
+        "RONGHA"
+      ],
+      [
+        60,
+        80,
+        "LANJERA_FUTALA"
+      ]
+    ],
+    "source": "NMET_KAWALEWADA, NMET_RONGHA, NMET_LANJERA"
+  },
+  "ore_body": {
+    "reef_width_m_reported": [
+      1.5,
+      2.0
+    ],
+    "note": "reefs often intercalated with gondite; supergene oxide enrichment near surface (e.g. Dongri Buzurg)",
+    "source": "NMET_KAWALEWADA"
+  },
+  "grades_reported_pct_mn": [
+    [
+      "NAGARDHAN",
+      26.0,
+      38.0,
+      "reported_grade_range"
+    ],
+    [
+      "KAWALEWADA_SAKKARDARA",
+      NaN,
+      38.0,
+      "reported_grade"
+    ],
+    [
+      "KAWALEWADA_SAKKARDARA",
+      35.0,
+      45.0,
+      "megascopic_samples"
+    ],
+    [
+      "KATORI_JHIRIYA",
+      12.4,
+      26.8,
+      "surface_geochemistry"
+    ]
+  ],
+  "drilling_outcome_reported": {
+    "block": "NAGARDHAN",
+    "boreholes": 7,
+    "intersected": 4,
+    "source": "NMET_NAGARDHAN"
+  },
+  "proposed_borehole_depths_m": [
+    50,
+    70,
+    100
+  ],
+  "ibm_grade_classes_pct_mn": {
+    "high": ">= 46",
+    "medium": "35 to < 46",
+    "low": "25 to < 35",
+    "very_low": "< 25",
+    "source": "Indian Bureau of Mines, Indian Minerals Yearbook 2022 \u2014 Manganese Ore (grade-wise production classes)",
+    "official_url": "https://ibm.gov.in/writereaddata/files/17125770456613da1576db0Manganese_Ore_2022.pdf"
+  }
+}

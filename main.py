@@ -29,7 +29,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from services import contingency_service, decision_service, demo_service, recovery_service, trust_service
+from services import (contingency_service, decision_service, demo_service, real_production_service, recovery_service,
+                      subsurface_service, trust_service)
 from services.common import API_VERSION, ROOT, ApiError, load_manifest
 from services.exploration_service import get_service as exploration
 from services.health_service import health as health_status
@@ -291,6 +292,13 @@ def exploration_target(target_id: str, mine_id: str = Query("DEMO_MINE"), horizo
     return out
 
 
+@app.get("/api/exploration/targets/{target_id}/subsurface-scenarios")
+def exploration_subsurface(target_id: str, scenario: Optional[str] = Query(None), mine_id: str = Query("DEMO_MINE"),
+                           horizon: Optional[str] = Query(None)):
+    con = _contingency_default(mine_id, horizon)
+    return subsurface_service.scenarios(target_id, con["strategic_requirement"], scenario)
+
+
 @app.post("/api/exploration/predict")
 def exploration_predict(req: PredictRequest):
     return exploration().predict(req.lat, req.lon, req.mode)
@@ -312,6 +320,11 @@ def exploration_grid(stride: int = Query(5, ge=1, le=50)):
 def production_forecast(req: ForecastRequest):
     return production().forecast(req.mine_id, req.forecast_origin, req.horizon_days, req.target_tonnes,
                                  {**(req.base_state or {}), **(req.conditions or {})})
+
+
+@app.get("/api/production/real-quarterly")
+def production_real_quarterly(last_n: int = Query(24, ge=4, le=200)):
+    return real_production_service.quarterly(last_n)
 
 
 @app.get("/api/production/history")

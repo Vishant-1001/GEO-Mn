@@ -1,7 +1,7 @@
 """Production forecasting service: history, P10/P50/P90 forecast, risk, drivers, reconciliation.
 
 Forecast unit: total tonnes in the 7-day period starting at the forecast origin.
-Operations data are SYNTHETIC; weather is REAL_PUBLIC reanalysis (see provenance).
+Operations data are SYNTHETIC; weather is REAL_GOVERNMENT (IMD gridded rainfall / Tmax) with ERA5 soil moisture (see provenance).
 """
 
 from __future__ import annotations
@@ -275,6 +275,11 @@ class ProductionService:
         user_over = normalise_state(state_overrides)
         row.update(demo_over)
         row.update(user_over)
+        over = {**demo_over, **user_over}
+        if "equipment_availability" in over and not ({"equipment_downtime_h", "maintenance_hours"} & set(over)):
+            # keep the operating state self-consistent: lost hours follow the overridden availability
+            sched = float(sc["mine"]["scheduled_hours_per_day"])
+            row["equipment_downtime_h"] = max(0.0, sched * (1.0 - float(row["equipment_availability"])) - float(row["maintenance_hours"]))
         if target_tonnes is not None:
             try:
                 target = float(target_tonnes)
@@ -298,9 +303,9 @@ class ProductionService:
             file_timestamp(DATA_DIR / "production_history.csv"),
             fallback,
             operations_mode=SYNTHETIC,
-            weather_mode="REAL_PUBLIC",
-            note=("Operational records are SYNTHETIC demonstration data (seed 42), not MOIL data; weather is ERA5 "
-                  "reanalysis." + (" Operating-state inputs were overridden: SIMULATED SCENARIO." if simulated else "")),
+            weather_mode="REAL_GOVERNMENT",
+            note=("Operational records are SYNTHETIC demonstration data (seed 42), not MOIL data; rainfall and Tmax are "
+                  "IMD gridded observations (ERA5-Land soil moisture; ERA5 where IMD is not yet published)." + (" Operating-state inputs were overridden: SIMULATED SCENARIO." if simulated else "")),
         )
 
     def forecast(self, mine_id="DEMO_MINE", origin=None, horizon_days=PERIOD_DAYS, target_tonnes=None,

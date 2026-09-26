@@ -1,0 +1,78 @@
+{
+  "dataset_name": "Official manganese exploration-block records (NMET) + MOIL reported exploration",
+  "provider": "National Mineral Exploration Trust (Ministry of Mines) / DGM Maharashtra / MECL; MOIL Ltd.",
+  "documents": [
+    {
+      "doc_id": "NMET_KAWALEWADA",
+      "title": "Proposal for Manganese in Kawalewada \u2013 Sakkardara Block, Tumsar Tahsil, Bhandara (G3)",
+      "official_url": "https://nmet.gov.in/upload/project_registration/618.pdf",
+      "sha256": "1017c657af0da3fc05a7510f6bcf7a9e3c692fcf6f1f064af394c8387c9d7f2a",
+      "retrieved_utc": "2026-09-26",
+      "agency": "DGM Maharashtra",
+      "stage": "G3 proposal",
+      "commodity": "Mn",
+      "district": "Bhandara",
+      "state": "Maharashtra"
+    },
+    {
+      "doc_id": "NMET_RONGHA",
+      "title": "Proposal for Manganese in Rongha Block, Tumsar Tahsil, Bhandara, Reconnaissance Survey (G4) under NMET",
+      "official_url": "https://nmet.gov.in/upload/project_registration/63b561b8c36ff5%20Rongha%20Manganse%20Block_compressed.pdf",
+      "sha256": "6ac689d44a3cd9f3e811e393139fb626bdf6325ccce7b3b2a656a1f52a647ac3",
+      "retrieved_utc": "2026-09-26",
+      "agency": "DGM Maharashtra",
+      "stage": "G4 proposal",
+      "commodity": "Mn",
+      "district": "Bhandara",
+      "state": "Maharashtra"
+    },
+    {
+      "doc_id": "NMET_KATORI",
+      "title": "Proposal of Reconnaissance Survey (G-4) for Manganese, Katori-Jhiriya Block, Balaghat",
+      "official_url": "https://nmet.gov.in/upload/project_registration/643e41dfa076f19%20Proposal%20Katori-Jhiriya%20manganese%20block%20MP.pdf",
+      "sha256": "a9f7b3c7b7ab601f37f74dca230570482c2fca33196c02d29c1b9113e6ad451d",
+      "retrieved_utc": "2026-09-26",
+      "agency": "MECL / NMET",
+      "stage": "G4 proposal",
+      "commodity": "Mn",
+      "district": "Balaghat",
+      "state": "Madhya Pradesh"
+    },
+    {
+      "doc_id": "NMET_NAGARDHAN",
+      "title": "Proposal for Preliminary Exploration (G-3) for Manganese, Nagardhan Block, Ramtek, Nagpur",
+      "official_url": "https://nmet.gov.in/upload/project_registration/65fab3bfd3607Nag.pdf",
+      "sha256": "fc163d9ee7293c9896d1336f03206c4711e87b8a84115baa8b5a0dbc28c3d7bd",
+      "retrieved_utc": "2026-09-26",
+      "agency": "MECL / NMET",
+      "stage": "G3 proposal",
+      "commodity": "Mn",
+      "district": "Nagpur",
+      "state": "Maharashtra"
+    },
+    {
+      "doc_id": "NMET_LANJERA",
+      "title": "Regional Exploration Proposal for Manganese Ore, Lanjera-Futala Block, Bhandara (G-4)",
+      "official_url": "https://nmet.gov.in/upload/project_registration/5c358b4aae6b6Proposal-Lanjera-%20Futala_%20Block_Mn.pdf",
+      "sha256": "0d16c6416b29c139645b6a027659c0c18f85807134ea05190d9c5697944c60ba",
+      "retrieved_utc": "2026-09-26",
+      "agency": "NMET",
+      "stage": "G4 proposal",
+      "commodity": "Mn",
+      "district": "Bhandara",
+      "state": "Maharashtra"
+    }
+  ],
+  "blocks": 5,
+  "blocks_in_study_area": 5,
+  "surface_samples": 5,
+  "findings": 15,
+  "transcription": "values transcribed verbatim from the cited PDFs (quotes kept in nmet_reported_findings.csv)",
+  "provenance": "REAL_GOVERNMENT / REAL_MOIL_PUBLIC",
+  "limitations": [
+    "No borehole collar coordinates, depths, logs or assays are published in these documents.",
+    "Nagardhan drilling outcome is a reported block-level count; analytical data are stated as not available.",
+    "Katori-Jhiriya samples are hand-held XRF surface readings (screening quality).",
+    "Proposed boreholes are plans, never treated as observations."
+  ]
+}

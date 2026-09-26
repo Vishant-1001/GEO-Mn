@@ -1,6 +1,6 @@
 {
   "_note": "Deterministic demonstration scenarios. Inputs are SYNTHETIC / SIMULATED overrides on the synthetic DEMO_MINE history (not MOIL records). Each scenario lists INPUTS only; the decision is COMPUTED by the forecast, recovery and contingency engines. expected_state is used only by the automated tests to confirm the engines still produce it.",
-  "version": "demo-scenarios-1.1",
+  "version": "demo-scenarios-1.2",
   "scenarios": {
     "DEMO_MINE": {
       "label": "Current synthetic operating state (latest history, planned target)",
@@ -15,15 +15,15 @@
       "expected_state": "OPERATIONAL_RESPONSE",
       "horizon": "NEAR_TERM",
       "state_overrides": {
-        "equipment_availability": 0.9,
-        "truck_count": 20,
+        "equipment_availability": 0.93,
+        "truck_count": 15,
         "drilling_delay_h": 0.6,
         "blast_delay_h": 0.3,
-        "haulage_delay_h": 0.3,
+        "haulage_delay_h": 0.4,
         "rainfall_7d_mm": 2.0,
         "soil_moisture_m3m3": 0.3
       },
-      "target_multiplier": 0.9
+      "target_multiplier": 0.8
     },
     "DEMO_B": {
       "label": "Operationally recoverable \u2014 equipment dip and blast delays, near-term view",
@@ -32,11 +32,11 @@
       "horizon": "NEAR_TERM",
       "state_overrides": {
         "equipment_availability": 0.8,
-        "truck_count": 17,
+        "truck_count": 13,
         "blast_delay_h": 1.2,
         "drilling_delay_h": 1.2
       },
-      "target_multiplier": 1.0
+      "target_multiplier": 0.76
     },
     "DEMO_C": {
       "label": "Strategic contingency \u2014 planned ramp-up the mine cannot sustain under stress",
@@ -94,8 +94,8 @@
       "expected_flip": "OPERATIONAL_RESPONSE -> OPERATIONAL_AND_EXPLORATION_CONTINGENCY",
       "horizon": "STRATEGIC",
       "state_overrides": {
-        "equipment_availability": 0.85,
-        "truck_count": 17,
+        "equipment_availability": 0.88,
+        "truck_count": 13,
         "drilling_delay_h": 0.8,
         "blast_delay_h": 0.4,
         "haulage_delay_h": 0.4,
@@ -114,5 +114,6 @@
         }
       }
     }
-  }
+  },
+  "_recalibration": "1.2: demo INPUTS re-set after the equipment-level simulator (ops-sim-2.0, 18-dumper fleet) replaced the earlier generator, so every state lies inside the new training range (truck_count 10.9-16.9). Models were not tuned to the demos; only these documented inputs changed."
 }

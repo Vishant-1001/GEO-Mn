@@ -1,0 +1,56 @@
+# GEO-MN synthetic operations simulator — configuration (SYNTHETIC DEMONSTRATION MINE)
+# Every parameter below is a DOMAIN-CALIBRATED SYNTHETIC ASSUMPTION unless a real source is cited.
+# Changing a value and re-running scripts/synthetic/generate_all.py regenerates every dataset.
+generator_version: "ops-sim-2.0"
+schema_version: "2.0"
+seed: 42
+period: {start: "2021-01-01", end: "2026-09-24"}
+mine:
+  mine_id: SYN_MINE_01          # generic demonstration id — NOT a MOIL mine
+  lat: 21.70                    # location used only to pick REAL weather cells
+  lon: 79.95
+  scheduled_hours_per_day: 20.0 # 3 shifts (7 + 7 + 6 h) after changeovers
+  shifts: {A: 7.0, B: 7.0, C: 6.0}
+  sunday_crew_factor: 0.85      # reduced crew on Sundays lowers utilisation
+  capacity_trend_per_year: -0.012   # deepening workings / declining ore rate (assumption)
+fleet:
+  excavator: {n: 2, ore_rate_tph: 50.0, pm_interval_h: 250, pm_hours: [6, 10],
+              base_failures_per_100h: 0.55, repair_median_h: 9.0, repair_sigma: 0.8}
+  dumper:    {n: 18, payload_t: 8.0, base_cycle_min: 60.0, pm_interval_h: 300, pm_hours: [4, 8],
+              base_failures_per_100h: 0.55, repair_median_h: 6.0, repair_sigma: 0.7}
+  drill:     {n: 2, metres_per_h: 8.5, pm_interval_h: 200, pm_hours: [4, 6],
+              base_failures_per_100h: 0.9, repair_median_h: 5.0, repair_sigma: 0.7}
+fleet_changes:                  # truck redeployments to/from other operations (regime process)
+  mean_days_between: 100
+  step_choices: [-3, -2, -1, 1, 2, 3]
+  min_trucks: 13
+  max_trucks: 22
+ageing:
+  hazard_per_pm_interval: 1.0   # hazard multiplier grows 1 -> 2 over one PM interval; PM resets it
+weather:                        # weather INPUTS are REAL (IMD / ERA5); responses below are synthetic
+  heavy_rain_mm: 64.5           # REAL definition: IMD "heavy rain" category threshold (64.5 mm/day)
+  stoppage_logistic_mid_mm: 70.0
+  stoppage_logistic_scale_mm: 15.0
+  stoppage_hours: [3, 12]
+  haul_cycle_per_mm: 0.004      # haul cycle slows with rain ...
+  haul_cycle_per_sm_above: 2.5  # ... and with wet ground above the soil-moisture threshold
+  wet_soil_threshold: 0.38
+  wet_failure_multiplier: 1.6   # dumper / drill hazard on wet days
+  wet_hole_drill_loss: 0.25     # fraction of drill time lost to wet holes on rain > 20 mm days
+  heat_threshold_c: 42.0
+  heat_utilisation_loss_per_c: 0.01
+shared_shocks:
+  power_outage_rate_per_day: 0.022
+  power_outage_hours: [2, 6]
+blasting:
+  tonnes_per_drill_metre: 6.5
+  initial_inventory_days: 2.0
+  max_inventory_days: 3.0          # blasted muck is limited by available bench faces
+  explosive_supply_episode_rate_per_day: 0.009
+  explosive_supply_episode_days: [5, 21]
+  explosive_supply_blast_probability: 0.25   # chance a blast still happens during an episode
+utilisation:
+  base: 0.86
+  noise_sd: 0.05
+production:
+  residual_lognormal_sd: 0.04

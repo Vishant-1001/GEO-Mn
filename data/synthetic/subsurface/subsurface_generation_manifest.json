@@ -1,0 +1,42 @@
+{
+  "dataset_name": "Synthetic subsurface evidence scenarios",
+  "generator_name": "ml/synthetic_subsurface.py",
+  "generator_version": "subsurface-sim-1.0",
+  "schema_version": "1.0",
+  "seed": 42,
+  "generation_timestamp": "2026-09-26T09:40:23+00:00",
+  "source_constraints": "data/processed/subsurface/geological_constraints.json (NMET / DGM / MECL / IBM, cited)",
+  "assumptions": "values marked 'assumption' in subsurface_generation_config.yaml",
+  "scenarios": [
+    "NO_SUBSURFACE_EVIDENCE",
+    "POSITIVE_GEOPHYSICAL_SUPPORT",
+    "POSITIVE_GEOCHEMICAL_SUPPORT",
+    "POSITIVE_DRILLING_INTERSECTION",
+    "NEGATIVE_DRILLING_RESULT",
+    "AMBIGUOUS_DRILLING_RESULT"
+  ],
+  "files": {
+    "synthetic_boreholes.csv": {
+      "rows": 360,
+      "sha256": "55c8dfcbccd1d3c2a1188a94e3aec203d15b5b7e2d9b77f0685accd6f6e09b7c"
+    },
+    "synthetic_borehole_intervals.csv": {
+      "rows": 1316,
+      "sha256": "840465d82122871805737d4e863deaa0bb750ea41da1577bdbdfd896d2545593"
+    },
+    "synthetic_geochemistry.csv": {
+      "rows": 1636,
+      "sha256": "aa883c42282c81a5728049407a440653f5872f6c02fd5d222107c6198b5c7aef"
+    },
+    "synthetic_geophysics.csv": {
+      "rows": 160,
+      "sha256": "5eec83ec75d8c7c4a10af5e48677ff1e007808ff656fcdb481fda1d449139f79"
+    },
+    "synthetic_subsurface_targets.csv": {
+      "rows": 240,
+      "sha256": "1794a8cbe3817faef074df66706819070f0a66f9f055408b8693be304125d788"
+    }
+  },
+  "consumer": "services/subsurface_service.py -> /api/exploration/targets/{id}/subsurface-scenarios",
+  "provenance": "SIMULATED \u2014 not observed drilling, assay or geophysical data; no reserve or tonnage is derived"
+}

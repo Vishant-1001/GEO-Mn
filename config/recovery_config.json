@@ -1,71 +1,41 @@
 {
-  "_note": "PROJECT DEFAULT scenario and action definitions for simulation. Effects are applied to the model's operating-state inputs; the production response is a MODEL ESTIMATE, not a guaranteed recovery. Lost hours are always re-derived from availability (lost = scheduled_hours x (1 - availability)) and split between downtime and maintenance in their existing proportion, matching the operating records.",
-  "version": "recovery-1.1",
+  "_note": "Scenario and action EFFECTS are no longer hand-set constants: they are the median feature-space deltas from SIMULATED simulator counterfactuals in data/synthetic/recovery/recovery_scenario_matrix.csv (scripts/synthetic/generate_recovery.py). This file keeps labels, input floors and the intervention-burden policy weights. Lost hours are re-derived from availability.",
+  "version": "recovery-2.0",
   "disruptions": {
     "NORMAL": {
-      "description": "Current operating state, no additional disruption.",
-      "set_min": {},
-      "add": {}
+      "description": "Current operating state, no additional disruption."
     },
     "HEAVY_RAIN": {
-      "description": "Monsoon-type week: >=150 mm rain, wet ground, slower haulage.",
-      "set_min": {
-        "rainfall_7d_mm": 150.0,
-        "soil_moisture_m3m3": 0.46
-      },
-      "add": {
-        "haulage_delay_h": 1.0
-      }
+      "description": "Monsoon week at the REAL IMD 95th-percentile 7-day rainfall (mine cell, 2021-2025); wet ground, haul-road slowdown."
     },
     "EQUIPMENT_DEGRADATION": {
-      "description": "Fleet availability falls 12 points (unplanned downtime rises accordingly).",
-      "set_min": {},
-      "add": {
-        "equipment_availability": -0.12
-      }
+      "description": "Excavator / dumper failure hazard x3 (simulated)."
     },
     "BLAST_DELAY": {
-      "description": "Explosive supply / blast-clearance delays.",
-      "set_min": {},
-      "add": {
-        "blast_delay_h": 2.0,
-        "drilling_delay_h": 1.0
-      }
+      "description": "Explosive-supply disruption for the week (simulated)."
+    },
+    "DRILL_DELAY": {
+      "description": "Drill failure hazard x4 (simulated)."
+    },
+    "HAULAGE_DISRUPTION": {
+      "description": "Haul-road damage (+40 % cycle time) and 4 fewer trucks (simulated)."
     },
     "COMBINED_DISRUPTION": {
-      "description": "Heavy rain, equipment degradation and blast delay together.",
-      "combine": [
-        "HEAVY_RAIN",
-        "EQUIPMENT_DEGRADATION",
-        "BLAST_DELAY"
-      ]
+      "description": "Heavy rain + equipment degradation + blast delay together (simulated)."
     }
   },
   "actions": {
     "EQUIPMENT_RECOVERY": {
       "code": "A1",
-      "label": "Equipment recovery (corrective maintenance / standby units): +8 points availability",
-      "add": {
-        "equipment_availability": 0.08
-      }
+      "label": "Equipment recovery (standby crew / critical spares: repair time x0.4)"
     },
     "SCHEDULE_ADJUSTMENT": {
       "code": "A2",
-      "label": "Schedule adjustment (re-sequence benches, redeploy haul trucks)",
-      "add": {
-        "truck_count": 3.0
-      },
-      "scale": {
-        "haulage_delay_h": 0.7
-      }
+      "label": "Schedule adjustment (redeploy +3 trucks, re-sequence benches: haul cycle x0.9)"
     },
     "BLAST_DRILL_DELAY_REDUCTION": {
       "code": "A3",
-      "label": "Blast / drill delay reduction (pre-positioned explosives, drill scheduling)",
-      "scale": {
-        "blast_delay_h": 0.5,
-        "drilling_delay_h": 0.6
-      }
+      "label": "Blast / drill delay reduction (pre-positioned explosives, drill spares, wet-hole mitigation)"
     }
   },
   "floors": {

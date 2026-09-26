@@ -1,0 +1,6 @@
+sample_id,block_id,lat_dms,lon_dms,mn_pct,ca_pct,si_pct,p_pct,fe_pct,al_pct,method,source_doc,note
+BR-2,KATORI_JHIRIYA,21°34'44.7",79°51'46.1",26.8,7.07,6.5,3.4,1.6,1.1,hand-held XRF,NMET_KATORI,"Mn outcrop near Fulchur; reported table ""Hand held XRF Result in %"""
+BR-3,KATORI_JHIRIYA,21°34'43.5",79°51'43.5",19.6,4,14.5,2,4.9,1.6,hand-held XRF,NMET_KATORI,
+BR-4,KATORI_JHIRIYA,21°34'41.6",79°51'40.0",12.4,0.3,20.7,0.1,5.4,2.2,hand-held XRF,NMET_KATORI,
+BR-5,KATORI_JHIRIYA,21°34'39.0",79°51'42.2",18.7,0.47,12.7,,5.5,7.96,hand-held XRF,NMET_KATORI,P not reported (--)
+BR-6,KATORI_JHIRIYA,21°34'40.6",79°51'46.6",26,1.05,15.35,,5.02,0.61,hand-held XRF,NMET_KATORI,P not reported (--)

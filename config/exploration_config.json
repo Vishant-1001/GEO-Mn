@@ -13,7 +13,10 @@
   "live_query_timeout_s": 40,
   "positive_labels": {
     "source": "USGS Mineral Resources Data System (MRDS), commodity code MN",
-    "exclude_name_patterns": ["Area", "State"],
+    "exclude_name_patterns": [
+      "Area",
+      "State"
+    ],
     "dedupe_precision_deg": 0.005
   },
   "background": {
@@ -49,8 +52,8 @@
   "priority_weights": {
     "prospectivity": 0.45,
     "evidence_applicability": 0.25,
-    "strategic_relevance": 0.20,
-    "development_readiness": 0.10
+    "strategic_relevance": 0.2,
+    "development_readiness": 0.1
   },
   "strategic_relevance": {
     "distance_decay_km": 40.0,
@@ -61,5 +64,44 @@
   "development_readiness": {
     "proxy": "distance to nearest documented producing / past-producing Mn site (MRDS) as a proxy for existing access and infrastructure",
     "distance_decay_km": 15.0
+  },
+  "subsurface_fusion": {
+    "_note": "PROJECT-CONFIGURED rules for how SIMULATED subsurface evidence would change a target. Not an industry standard; simulated evidence never produces a reserve or tonnage.",
+    "POSITIVE_DRILLING_INTERSECTION": {
+      "min_level": 3,
+      "uncertainty_shift": -1,
+      "prospectivity_factor": 1.0,
+      "next": "Infill / step-out drilling with NABL-accredited assays to progress towards G2 (MEMC Rules 2015); still no reserve until a resource estimate exists."
+    },
+    "NEGATIVE_DRILLING_RESULT": {
+      "min_level": 3,
+      "uncertainty_shift": 0,
+      "prospectivity_factor": 0.4,
+      "next": "De-prioritise; review the geological model and structural interpretation before any further drilling."
+    },
+    "AMBIGUOUS_DRILLING_RESULT": {
+      "min_level": 3,
+      "uncertainty_shift": 2,
+      "prospectivity_factor": 0.85,
+      "next": "Assay core, log gondite vs oxide ore, and drill step-out holes along strike."
+    },
+    "POSITIVE_GEOPHYSICAL_SUPPORT": {
+      "min_level": 2,
+      "uncertainty_shift": -1,
+      "prospectivity_factor": 1.0,
+      "next": "Scout drilling (60-100 m) across the chargeability anomaly."
+    },
+    "POSITIVE_GEOCHEMICAL_SUPPORT": {
+      "min_level": 2,
+      "uncertainty_shift": -1,
+      "prospectivity_factor": 1.0,
+      "next": "Ground geophysics (IP / resistivity) and trenching, then scout drilling."
+    },
+    "NO_SUBSURFACE_EVIDENCE": {
+      "min_level": 0,
+      "uncertainty_shift": 0,
+      "prospectivity_factor": 1.0,
+      "next": "Geological mapping and soil / stream-sediment geochemistry over the footprint."
+    }
   }
 }

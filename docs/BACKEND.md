@@ -8,22 +8,27 @@ only when a residual gap persists over a **strategic** horizon — activates an 
 and ranks exploration targets by their relevance to that gap.
 
 ```
-forecast (P10/P50/P90) -> model contributions -> robust recovery (5 scenarios x 7 portfolios)
+forecast (P10/P50/P90) -> model contributions -> robust recovery (7 scenarios x 8 portfolios, simulator-defined)
  -> residual gap -> horizon gate -> [strategic] exploration target priority -> why this target now
  -> decision flip -> human review -> reconciliation
 ```
 
 ## What is real, what is synthetic
 
+Full audit: `docs/DATA_SOURCE_AUDIT.md`. Mode definitions: `docs/DATA_PROVENANCE.md`.
+
 | Component | Mode | Source |
 |---|---|---|
-| Exploration labels | REAL_PUBLIC | USGS MRDS manganese records (73 locations used) |
-| Spectral / thermal / terrain features | REAL_PUBLIC | Sentinel-2 L2A, MODIS MOD11A2, NASADEM (Microsoft Planetary Computer), fixed 2024 window |
+| Exploration labels | REAL_PUBLIC (+ REAL_GOVERNMENT in label set B) | USGS MRDS manganese records (73); NMET block / sample evidence |
+| Spectral / thermal / terrain features | REAL_DERIVED | Sentinel-2 L2A, MODIS MOD11A2, NASADEM (Microsoft Planetary Computer), fixed 2024 window |
+| Geomorphology / lineaments | REAL_GOVERNMENT | NRSC Bhuvan 1:50k (MP + MH layers) |
 | Geology context | REAL_PUBLIC | Macrostrat → GSC *Generalized geology of the world* (world scale, context only) |
-| Weather in production data | REAL_PUBLIC | ERA5 / ERA5-Land reanalysis via Open-Meteo, demo-mine coordinate |
-| Mine operations, production, targets | **SYNTHETIC** | `ml/generate_operations.py`, seed 42 — **not MOIL data** |
-| Disruptions, actions, demo states | SIMULATED | `config/recovery_config.json`, `data/demo_scenarios.json` |
-| Subsurface (drilling / assay / geophysics) | UNAVAILABLE | none legitimately available; schema only |
+| Observed subsurface | REAL_GOVERNMENT | NMET / DGM / MECL block records: REPORTED_BLOCK_LEVEL where a target overlaps a block |
+| Real production | REAL_MOIL_PUBLIC | MOIL quantitative-details disclosures → 54 company-total quarters |
+| Weather in production data | REAL_GOVERNMENT | IMD gridded rainfall / Tmax (2021–2025); ERA5-Land soil moisture; ERA5 for 2026 |
+| Demo-mine operations | **SYNTHETIC** | equipment-level simulator `ml/synthetic_ops.py`, seed 42 — **not MOIL data** |
+| Disruptions, actions, demo states | SIMULATED | simulator counterfactuals (`recovery_scenario_matrix.csv`), `data/demo_scenarios.json` |
+| What-if subsurface | SIMULATED | `data/synthetic/subsurface/*` — "SIMULATED — NOT OBSERVED" |
 | Reserve / resource tonnage | UNAVAILABLE | never produced or implied |
 
 Satellite composites use the **2024-01-01/2024-12-31** observation window. Nothing is real-time.
@@ -34,7 +39,9 @@ Satellite composites use the **2024-01-01/2024-12-31** observation window. Nothi
 main.py                     FastAPI routes only (thin)
 services/                   runtime logic
   production_service.py     history, P10/P50/P90 forecast, risk policy, SHAP contributions, reconciliation
-  recovery_service.py       scenario x portfolio simulation, feasibility, robust (min-max) selection
+  recovery_service.py       scenario x portfolio evaluation from the simulator matrix, feasibility, robust selection
+  subsurface_service.py     observed vs SIMULATED subsurface scenarios, evidence fusion, priority re-scoring
+  real_production_service.py  REAL MOIL quarterly series, validated forecast and baselines
   contingency_service.py    horizon gate, 3 decision states, target selection, decision flip
   exploration_service.py    live/cached point query, cache-distance guard, target priority, why-now
   trust_service.py          validation metrics (read from reports), provenance catalogue
@@ -43,9 +50,11 @@ services/                   runtime logic
 ml/                         offline pipeline (python -m ml.run_pipeline [--fetch])
   eo_features.py            the ONE feature recipe used for training, grid and live queries
   build_exploration_dataset.py, train_exploration.py, target_engine.py, ood.py, uncertainty.py
-  fetch_weather.py, generate_operations.py, production_features.py,
-  train_production.py, evaluate_production.py
-data/                       committed inputs/outputs (see data/data_dictionary.csv)
+  fetch_weather.py, generate_operations.py, synthetic_ops.py, synthetic_subsurface.py,
+  production_features.py, train_production.py, evaluate_production.py, train_real_production.py,
+  exploration_experiments.py
+scripts/                    data_acquisition/ (IMD, MOIL, Bhuvan), data_processing/, synthetic/ (generate_all.py)
+data/                       raw/ processed/ synthetic/ manifests/ + engine inputs (docs/DATA_DICTIONARY.md)
 models/                     models, model_manifest.json, reports/*.json, legacy/ (previous prototype)
 config/                     risk_policy.json, exploration_config.json, recovery_config.json, demo_config.json
 tests/                      pytest suite (network-free)
@@ -55,23 +64,38 @@ tests/                      pytest suite (network-free)
 
 * **Study area:** 20.75–22.75 N, 78.5–81.0 E (Balaghat – Nagpur – Bhandara Mn belt), 50,000 cells of
   0.01° (~1.1 km × 1.0 km). The effective resolution is ~1 km, not the 10 m Sentinel-2 pixel.
-* **Features (unchanged family from the prototype, rebuilt reproducibly):** NDVI, B4/B2 iron-oxide
-  ratio, B11/B12 clay/hydroxyl ratio (2024 SCL-masked median of the 12 least-cloudy scenes per tile,
-  offset-corrected), MODIS daytime LST in K (QC-filtered, ×0.02), NASADEM elevation and slope.
-  Cells missing any feature are `INSUFFICIENT_DATA`, never mean-filled.
-* **Labels:** positive-unlabelled design. Background cells are > 3 km from every MRDS record and are
+* **Features (18, selected by `ml/exploration_experiments.py`):** Sentinel-2 NDVI, B4/B2 iron oxide,
+  B11/B12 clay/hydroxyl, NDRE, B4/B3 ferric, B12/B8A ferrous silicate, B11/B4 gossan, SWIR albedo
+  (2024 SCL-masked median of the 12 least-cloudy scenes per tile, offset-corrected). MODIS daytime LST.
+  NASADEM elevation, slope and elevation SD. NRSC 1:50k geomorphology flags and dissection
+  (REAL_GOVERNMENT; NaN outside the MP/MH layers, handled natively). Cells missing EO features are
+  `INSUFFICIENT_DATA` (78 of 50,000), never mean-filled.
+* **Labels:** positive-unlabelled design. 72 MRDS cells + 3 NMET cells (Katori XRF samples,
+  Nagardhan and Kawalewada block centroids). Background cells are > 3 km from every positive and are
   treated as *unlabelled*, not barren.
-* **Model:** PU-bagging ensemble of 15 `HistGradientBoostingClassifier`s. The output is a **relative
-  percentile rank (0–100)** within the study area — never a deposit probability.
+* **Model:** PU-bagging ensemble of 15 `HistGradientBoostingClassifier`s (`exploration-pu-ensemble-2.0`).
+  The output is a **relative percentile rank (0–100)** within the study area, never a deposit
+  probability.
 * **Uncertainty:** SD of the member ranks (LOW < 5, HIGH > 10 rank points; project thresholds).
-* **Applicability:** geographic envelope + IsolationForest on the feature space (MODERATE below the
-  5 % and LOW below the 1 % training score quantile). High rank + LOW applicability → `REVIEW_REQUIRED`.
+* **Applicability:** geographic envelope + IsolationForest on the EO features (MODERATE below the
+  5 % and LOW below the 1 % training score quantile) + a hard training-range envelope (any EO feature
+  outside the study-area range → LOW). High rank + LOW applicability → `REVIEW_REQUIRED`.
 * **Targets:** cells with rank ≥ 95 → 8-connected clusters (≥ 4 cells; clusters > 50 cells split by
   seeded k-means) → 40 targets with footprint polygons, evidence and priority inputs.
-* **Evidence levels:** L0 remote sensing; L1 + Precambrian host domain on the world geology map (all
-  73 MRDS training records fall in Precambrian units vs 62 % of the area); L2 + documented MRDS record
-  within ~1 km; L3/L4 require drilling/resource data, which do not exist here, so no target exceeds L2.
-  Targets overlapping training labels are flagged `CAUTION_TRAINING_LABEL_OVERLAP` (in-sample rank).
+* **Evidence levels:**
+  * L0: remote sensing.
+  * L1: plus a Precambrian host domain, or official structural / geological context.
+  * L2: plus a documented MRDS record within ~1 km, or official mapping / grade / pit / surface
+    geochemistry.
+  * L3: an overlapping official block **reports** a drilling intersection. Only T07 (Nagardhan)
+    qualifies; its `subsurface_status` is `REPORTED_BLOCK_LEVEL`, with no public logs or assays.
+  * L4: never reached.
+
+  Targets overlapping any training label (MRDS or NMET) are flagged `CAUTION_TRAINING_LABEL_OVERLAP`
+  (in-sample rank).
+* **Subsurface what-if:** `/api/exploration/targets/{id}/subsurface-scenarios` applies six SIMULATED
+  scenarios to a copy of the target (`docs/SYNTHETIC_SUBSURFACE_METHOD.md`). Observed records are
+  never changed.
 * **Priority (project defaults):** 45 % prospectivity, 25 % evidence/applicability/certainty, 20 %
   strategic relevance (gap severity × distance decay to the supply point, **0 when no strategic gap**),
   10 % development-readiness proxy (distance to a documented producer). Missing components are dropped
@@ -88,19 +112,22 @@ tests/                      pytest suite (network-free)
 
 ### Exploration validation (held-out data only)
 
-| Check | ROC-AUC | PR-AUC (prevalence 0.0015) | Positives in top 10 % of area |
-|---|---|---|---|
-| Spatial block CV, 0.25° blocks, 5 folds — **selected** (HGB, all six features) | 0.688 | 0.0118 | 22 % |
-| Same, spectral features only | 0.557 | 0.0020 | 15 % |
-| Same, thermal + terrain only | 0.682 | 0.0069 | 24 % |
-| Same, random forest, all six | 0.661 | 0.0059 | 31 % |
-| East/west region holdout (pooled) | 0.676 | — | 29 % |
+Full details: `docs/MODEL_COMPARISON_REPORT.md`. Selection was made on the eastern development
+region only. The western region (15 MRDS cells) was scored once, as a confirmation gate.
 
-The signal is modest. Most of it comes from thermal/terrain context; the Sentinel-2 ratios add
-little on their own. The random forest captures more positives in the top 10 % but ranks worse
-overall; selection used ROC-AUC. The legacy classifier scores 0.722 ROC-AUC on the full area, but its
-training data have no coordinates, so this is **not** a clean holdout and is likely optimistic.
-Success-rate AUC (spatial CV): 0.654.
+| Model (final test, west; 4-seed mean) | ROC-AUC | PR-AUC (prevalence 0.0006) | Positives in top 10 % of area |
+|---|---|---|---|
+| A — MRDS labels, six baseline features | 0.697 | 0.0021 | 25 % |
+| B — + NMET labels | 0.701 | 0.0022 | 30 % |
+| **C — + S2 red-edge/SWIR, relief, geomorphology (deployed)** | **0.803** | **0.0128** | **43 %** |
+
+The deployed model on the full area (5-fold spatial CV) scores ROC 0.719, PR-AUC 0.0044 (prevalence
+0.0015), and captures 31 % of positives in the top 10 %. East/west holdout pooled ROC is 0.695.
+
+The evidence is **mixed**. Under the same protocol, the six-feature baseline has the higher
+full-area PR-AUC (0.021), and training on the west does not improve performance in the east. The
+gain comes from the features, not the three NMET labels. Model D (real + synthetic) was not run: the
+simulated subsurface is generated from model targets, so it would be circular.
 
 ## Production engine
 
@@ -137,36 +164,62 @@ backtest procedure, not the refit. All of this is recorded in `models/reports/pr
 the calibration periods end before the test window and that test forecasts equal
 raw + frozen offsets.
 
-### Production results (test window, synthetic operations)
+### Production results (test window 2024-07-05 → 2026-09-24, 116 periods, synthetic operations)
 
-| | MAE (t) | RMSE (t) | R² | MAPE |
+| | MAE (t) | RMSE (t) | R² | WAPE |
 |---|---|---|---|---|
-| GEO-MN P50 | **844** | 1145 | 0.563 | 9.8 % |
-| Previous period (naive) | 892 | 1201 | 0.520 | 10.4 % |
-| 4-period moving average | 953 | 1296 | 0.441 | 11.0 % |
-| *Diagnostic: true period conditions (not forecast skill)* | *418* | *516* | *0.911* | *4.9 %* |
+| GEO-MN P50 | **1144** | 1589 | 0.213 | 13.2 % |
+| Previous period (naive) | 1197 | 1698 | 0.101 | — |
+| 4-period moving average | 1150 | 1569 | 0.232 | — |
+| *Diagnostic: true period conditions (not forecast skill)* | *520* | *976* | *0.703* | — |
 
-* The P50 beats the best baseline by 5.4 %. In the selection window it also beat the baselines
-  (1029 vs 1130–1157 t).
-* Pinball loss P10 / P50 / P90: 234 / 422 / 230 t.
-* **P10–P90 observed coverage 0.78** vs nominal 0.80 (0.28 before calibration). Hit rates are
-  0.13 / **0.40** / 0.91. The P50 hit rate falls outside the ±0.08 rule, so
-  **`quantiles_validated = false`**.
+* The P50 is **0.5 % better** than the best baseline on the test window, which is effectively a tie.
+  In the selection window the raw P50 (1139 t) lost to the previous-period baseline (1118 t). The
+  equipment-level simulator produces bursty regimes (breakdown clusters, explosive-supply
+  stoppages, one zero-output week), so persistence is hard to beat. The trust panel says so, and
+  the model's value here is its conditional scenario response and calibrated interval.
+* MAPE is not reported because the zero-output week makes it undefined. WAPE is 13.2 %, and MAPE
+  excluding that one near-zero period is 14.9 %.
+* Pinball loss P10 / P50 / P90: 299 / 572 / 273 t.
+* **P10–P90 observed coverage 0.80** vs nominal 0.80 (0.36 before calibration). Hit rates are
+  0.12 / 0.48 / 0.92, all within ±0.08, so **`quantiles_validated = true`**.
 * The API returns `quantile_validation` {status, nominal_coverage, observed_coverage,
-  evaluation_window}. The UI shows "P10–P90 interval not validated — indicative only", with the
-  observed and nominal values. It never claims "80 % of outcomes fall inside".
-* Shortfall events (actual < 95 % of target): precision 0.82, recall 0.87, F1 0.84.
-* Reconciliation of the last 26 test periods: MAE ≈ 1.1 kt, 13 over- and 13 under-forecasts. This is
-  a historical diagnostic, not proof of future accuracy.
-* All figures come from synthetic operations and say nothing about real mine accuracy, which requires
-  mine-level operational data.
+  evaluation_window}. Interval wording in the UI is built from it.
+* Shortfall events (actual < 95 % of target): precision 0.86, recall 0.90, F1 0.88.
+* All figures come from synthetic operations and say nothing about real mine accuracy.
+
+### Real MOIL quarterly production (REAL_MOIL_PUBLIC)
+
+`ml/train_real_production.py` works at company level, quarterly, one step ahead. Candidates are
+chosen on FY2019-20..FY2022-23 and tested on FY2023-24..FY2025-26 (12 real quarters, untouched).
+
+| Method (test) | MAE (t) | MAPE |
+|---|---|---|
+| ridge, no weather (selected on the selection window) | 52,703 | 11.7 % |
+| ridge + IMD rainfall anomaly | 52,841 | 11.7 % |
+| GBM + weather | 61,478 | 14.2 % |
+| seasonal naive × YoY growth (baseline) | **38,837** | **8.6 %** |
+| last quarter (baseline) | 40,500 | 9.2 % |
+
+The selected model **does not beat** the baselines on the untouched test. The API
+(`/api/production/real-quarterly`) and the UI say this, and show the baseline forecasts next to the
+model forecast. Adding synthetic-operations features (model B) made real test error worse
+(60,486 vs 44,772 t MAE on the 8 common quarters), so synthetic augmentation is **not** used for
+real forecasting. Weather adds nothing at company-quarter level.
 
 ## Recovery and contingency
 
-* **Scenarios:** NORMAL, HEAVY_RAIN, EQUIPMENT_DEGRADATION, BLAST_DELAY, COMBINED_DISRUPTION.
-* **Actions:** A1 equipment recovery (+8 points availability; lost hours re-derived), A2 schedule
-  adjustment (+3 trucks, ×0.7 haulage delay), A3 blast/drill delay reduction (×0.5 blast, ×0.6 drill).
-  All 7 combinations are evaluated, plus no-action.
+* **Scenarios (7):** NORMAL, HEAVY_RAIN, EQUIPMENT_DEGRADATION, BLAST_DELAY, DRILL_DELAY,
+  HAULAGE_DISRUPTION, COMBINED_DISRUPTION.
+* **Actions:** A1 equipment recovery, A2 schedule adjustment, A3 blast/drill delay reduction. All 7
+  combinations are evaluated, plus no-action.
+* **Where the effects come from:** `data/synthetic/recovery/recovery_scenario_matrix.csv`. Every
+  scenario and portfolio is the median change in each model input, measured by re-running the
+  equipment-level simulator from 143 historical states with common random numbers
+  (`docs/SYNTHETIC_GENERATION_METHOD.md`). The heavy-rain intensity is the IMD 95th-percentile
+  7-day total (148 mm). The production model converts the changed state into tonnes. Deltas below
+  a materiality threshold (0.005 availability, 0.1 trucks, 0.05 h) count as "no material effect". A
+  portfolio whose material levers are all capped is NOT_FEASIBLE ("no headroom").
 * **Modelled feasibility (`modelled_feasibility`, alias `physical_feasibility`):** an input-constraint
   check only. It checks availability within [0, mine cap], trucks ≤ fleet, delays ≥ 0 and lost hours
   consistent with availability. Results are FEASIBLE, FEASIBLE_CONSTRAINED, NOT_FEASIBLE or
@@ -182,9 +235,10 @@ raw + frozen offsets.
   If nothing is eligible, `selection_status = REVIEW_REQUIRED`, `selected_portfolio = null` and the
   contingency engine returns `REVIEW_REQUIRED` (`NO_ELIGIBLE_OPERATIONAL_PORTFOLIO`). The one
   exception is a near-term case already on track, where no action is needed.
-  The gate matters in practice. In healthy states near the top of the training range (e.g. DEMO_A),
-  portfolios containing equipment recovery push availability past the highest value in training
-  (0.94), so they are blocked rather than optimised over.
+  The gate matters in practice. When the current state is already degraded (e.g. the latest
+  DEMO_MINE week, availability 0.73), stacking EQUIPMENT_DEGRADATION or HAULAGE_DISRUPTION pushes
+  inputs below anything seen in training. Only portfolios that restore availability or trucks stay
+  eligible.
 * **Selection among eligible portfolios** (a lightweight robust-recourse approximation, not a mine
   scheduler). Tolerance for "equivalent" is 0.5 % of target.
   1. Minimise the worst-case residual P50 gap over scenarios.
@@ -216,13 +270,18 @@ raw + frozen offsets.
 
 | mine_id | demo_state | computed decision |
 |---|---|---|
+Demo inputs were re-set in `demo-scenarios-1.2` after the simulator changed, so every state lies
+inside the new training range (truck count 10.9–16.9). No model was tuned to the demos.
+
+| mine_id | demo_state | computed decision |
+|---|---|---|
 | DEMO_A | ON_TRACK | OPERATIONAL_RESPONSE (no action required) |
-| DEMO_B | OPERATIONALLY_RECOVERABLE | OPERATIONAL_RESPONSE |
+| DEMO_B | OPERATIONALLY_RECOVERABLE | NEAR_TERM: OPERATIONAL_RESPONSE; the same state under STRATEGIC → contingency (horizon-gate test) |
 | DEMO_C | STRATEGIC_CONTINGENCY | OPERATIONAL_AND_EXPLORATION_CONTINGENCY |
 | DEMO_D | REVIEW_REQUIRED | REVIEW_REQUIRED (inputs out of distribution) |
 | DEMO_E | SATELLITE_FALLBACK | contingency, plus live failure → cached ≤ 2 km / unavailable > 2 km |
-| DEMO_F | DECISION_FLIP | OPERATIONAL_RESPONSE (portfolio A2+A3) → OPERATIONAL_AND_EXPLORATION_CONTINGENCY (A1+A3, target T14) when rainfall 5→140 mm, availability 0.85→0.74, blast delay 0.4→3 h/day |
-| DEMO_MINE | (current state) | STRATEGIC: contingency; NEAR_TERM: operational response |
+| DEMO_F | DECISION_FLIP | OPERATIONAL_RESPONSE → OPERATIONAL_AND_EXPLORATION_CONTINGENCY when rainfall 5→140 mm, availability 0.88→0.74, blast delay 0.4→3 h/day |
+| DEMO_MINE | (current state) | STRATEGIC: contingency; NEAR_TERM: REVIEW_REQUIRED (latest synthetic week is degraded, residual not closable) |
 
 ## API (all JSON; errors are `{"error": CODE, "message": ...}`)
 
@@ -232,10 +291,12 @@ raw + frozen offsets.
 | GET | `/api/supply-command?mine_id=&horizon=` | whole loop in one response; DEMO_E/F add fallback / flip blocks |
 | GET | `/api/exploration/targets?mine_id=&horizon=` | priority computed under that mine's strategic state |
 | GET | `/api/exploration/targets/{id}` | evidence, why-this-target, why-now, next evidence |
+| GET | `/api/exploration/targets/{id}/subsurface-scenarios?scenario=` | observed (REAL_GOVERNMENT) vs SIMULATED scenarios, priority before/after |
 | POST | `/api/exploration/predict` | `{lat, lon, mode?: AUTO\|LIVE_ONLY\|CACHED_ONLY\|SIMULATE_LIVE_FAILURE}` |
 | GET | `/api/exploration/grid?stride=` | sampled ~1 km `prospectivity_rank` grid for maps |
 | POST | `/api/production/forecast` | `{mine_id, forecast_origin?, horizon_days?=7, target_tonnes?, conditions?}` |
 | GET | `/api/production/history?mine_id=&days=` | daily rows + 7-day periods |
+| GET | `/api/production/real-quarterly?last_n=` | REAL MOIL company quarters, held-out validation, model vs baseline forecasts |
 | GET | `/api/production/reconciliation?mine_id=` | out-of-sample forecast vs actual, error = forecast − actual |
 | POST | `/api/recovery/evaluate` | contract form or frontend form `{scenario, actions, conditions}` |
 | POST | `/api/contingency/evaluate` | recomputes server-side; client forecast/recovery objects are not trusted |
@@ -276,16 +337,17 @@ Environment variables: `GEOMN_CORS_ORIGINS` (default: none, same-origin only), `
 
 ## Known limitations
 
-* Operational data are synthetic. Every production, recovery and decision number demonstrates the
-  method; none is a statement about a real MOIL mine.
-* P10/P90 did not pass the quantile validation rule on the untouched test window (P50 hit rate 0.40).
-  They are shown as indicative only.
+* Demo-mine operational data are synthetic. Every production, recovery and decision number
+  demonstrates the method; none is a statement about a real MOIL mine.
+* The weekly P50 is only marginally better than persistence baselines on synthetic data. The real
+  MOIL quarterly model does not beat seasonal naive on real held-out quarters.
 * The applicability gate can block useful actions when a state sits at the edge of the training
   range. This is deliberate: the model cannot speak for states it has not seen.
 * The decision review log is a local file (lost on ephemeral hosts).
-* Prospectivity is a weak-to-moderate relative signal (spatial ROC-AUC ≈ 0.69) trained on 73
-  clustered MRDS points of mixed location precision. Subsurface evidence is unavailable.
-* Intervention effects are learned associations through a monotonic model, not causal estimates.
+* Prospectivity is a weak-to-moderate relative signal trained on 73 clustered MRDS points of mixed
+  location precision. Observed subsurface evidence exists only at block level for one target.
+* Intervention effects are simulator counterfactuals scored by an associative model. They are not
+  historical MOIL interventions or causal estimates.
 * The strategic horizon is represented as persistence of the per-period residual gap (13 periods),
   not a multi-period mine plan.
 * Priority weights, risk bands and materiality thresholds are project defaults.

@@ -1,0 +1,78 @@
+{
+  "dataset_name": "IMD gridded daily rainfall (0.25 deg) and maximum temperature (1 deg)",
+  "provider": "India Meteorological Department (IMD), Pune, Government of India",
+  "official_url": "https://www.imdpune.gov.in/cmpg/Griddata/Rainfall_25_Bin.html",
+  "retrieval_timestamp": "2026-09-26T05:04:25+00:00",
+  "license": "IMD public gridded data (research use; cite Pai et al. 2014 / Srivastava et al. 2009)",
+  "years": [
+    2012,
+    2026
+  ],
+  "rows": 5114,
+  "unavailable": [
+    "IMD returned no data for rain 2026 (not published)"
+  ],
+  "belt": {
+    "lat_min": 21.25,
+    "lat_max": 22.25,
+    "lon_min": 79.0,
+    "lon_max": 80.75
+  },
+  "belt_cells": {
+    "rainfall": 40,
+    "tmax": 6
+  },
+  "demo_mine_cell": {
+    "rainfall": [
+      21.75,
+      80.0
+    ],
+    "tmax": [
+      21.5,
+      79.5
+    ]
+  },
+  "native_resolution": {
+    "rainfall": "0.25 deg daily",
+    "tmax": "1.0 deg daily"
+  },
+  "units": {
+    "rainfall": "mm/day",
+    "tmax": "deg C"
+  },
+  "missing_days": {
+    "belt_rainfall": 0,
+    "belt_tmax": 0
+  },
+  "provenance": "REAL_GOVERNMENT",
+  "sha256": {
+    "rain_2012.grd": "3f007292029a212edde5ee1ee618242c8f2a64062d80e196d20f9576e8f77381",
+    "maxtemp_2012.grd": "0f55a48c4ca1b6558e60bbb2047e0a7cfb5ff720c43c7cc39fca892b4754ef3c",
+    "rain_2013.grd": "81bbab9f686bcd0c487e52a4fb54e4623efea198e74a742df5159a0977a8a02b",
+    "maxtemp_2013.grd": "80c0e0162343cb6808db7bde56eab3222322a64d69bc493078fe05a9fb38af77",
+    "rain_2014.grd": "1e89531d9772acbdd2e83fa8bb8972ef09a52f0e4ec6adbeb408b1d98a167b22",
+    "maxtemp_2014.grd": "68f6b0b7a6e4ed4e12ac13fd3e0884244b5d6b330fedee1ac43a4bd419ec9fd7",
+    "rain_2015.grd": "72a9c97f58fb12d82d06ecdd821a9724865e48683c15a34d72f8804d244b9202",
+    "maxtemp_2015.grd": "1f59cb38f0412c31f00ed5b0283ce3c8d4aecb33f7c798037b23eda7a2da1fc9",
+    "rain_2016.grd": "7d47dd937eb68d3e64e77f20d40597eeebb4d5329704857f604c4c4618dbf838",
+    "maxtemp_2016.grd": "4cb547522de59e6af4a93b5a50810de406004b2553921337270f499db4e0c12e",
+    "rain_2017.grd": "dc9109fc3c4c2dbcf8eea97114fa53a814ce677a8e64b567389f7d3da076c23a",
+    "maxtemp_2017.grd": "ab6f1602d4bf3d2fb72af1c95123135715d03363ffcff2edba290460be348aa2",
+    "rain_2018.grd": "78ae74184b0ece2a9a03bb16cca6f7361abcae1e772ce3e6d685110b2af18c33",
+    "maxtemp_2018.grd": "d3177ec1a2f39235834a7ab5fa5120866bb9106f1fc2c06d8eba0d5bcdf7e555",
+    "rain_2019.grd": "dfb714184e16624cd43af8e932e3245c0d6cf1bacd9556e2cf44d962c9733f3f",
+    "maxtemp_2019.grd": "562086409f4db9ca32b6d554e2cb209926c4caf9892d7b5385195b254e0576ab",
+    "rain_2020.grd": "e19532760221e68711132c98f05cc3ceb7b399e55dbe9bd35b02589bbf2e46ff",
+    "maxtemp_2020.grd": "f77b8b50582c400eca0510a1738050ab10bf628b648f5a7a9e9d3c7842637ba8",
+    "rain_2021.grd": "7f5128e82aa6d362b165898f7f5902d5edd12cb8265c71e2304f89053d5a2678",
+    "maxtemp_2021.grd": "d869f0277dcc3b2038421f3a20a2ebf82cd7889dd553742577eda8f7603036dc",
+    "rain_2022.grd": "9cd1654631ed918f55fbe12e08ef7c0593019c4a3399e695f0b0398283fcbb3e",
+    "maxtemp_2022.grd": "b8340004e3c13e7b1b0a9ff14d03771bbfe048b64db92fb7e23260c2f52ca214",
+    "rain_2023.grd": "f308b916a4a2a57a66ce9d4987c60bb7756041434baed31f4342122dc3800ced",
+    "maxtemp_2023.grd": "3279af28be8f222970dc0a48cb9530228ca55ae136a26020291de59d618d982b",
+    "rain_2024.grd": "09d3c89a084f13f3ec534170ce9d98fafc6ff8c29b87d1c83cc2fcd82b495601",
+    "maxtemp_2024.grd": "de50b8732a3e0fd7dea29a9c5604ca78b5c02e78b8164fb20ad2f6e00ed4c017",
+    "rain_2025.grd": "b4fa5ffb389496c0fa7d5a468d1cb47e4db0bcabcd11be4f273c0e6cfa7d611d",
+    "maxtemp_2025.grd": "673775eafe685d180c5d7a19018287599697a3f6800332470ab27ca512bd4b88"
+  }
+}

@@ -110,7 +110,11 @@ def point_metrics(y, p):
         "mae": float(mean_absolute_error(y, p)),
         "rmse": float(np.sqrt(mean_squared_error(y, p))),
         "r2": float(r2_score(y, p)),
-        "mape_pct": float(np.mean(np.abs(y - p) / np.maximum(y, 1)) * 100),
+        # WAPE is robust to near-zero periods (e.g. a simulated explosive-supply stoppage week);
+        # MAPE is reported only over periods with actual >= 10 % of the mean, and says so.
+        "wape_pct": float(np.sum(np.abs(y - p)) / max(np.sum(np.abs(y)), 1e-9) * 100),
+        "mape_pct_excl_near_zero": float(np.mean((np.abs(y - p) / np.maximum(y, 1))[y >= 0.1 * np.mean(y)]) * 100),
+        "near_zero_periods_excluded_from_mape": int(np.sum(y < 0.1 * np.mean(y))),
     }
 
 

@@ -1431,3 +1431,33 @@ body {
     .demo-select-wrap { margin-left: 0; order: 3; width: 100%; }
     .demo-select { max-width: none; flex: 1; }
 }
+
+/* Government / MOIL / derived provenance */
+.badge-realgov { color: var(--prov-real); border-color: rgba(16,185,129,0.6); background: rgba(16,185,129,0.14); }
+.badge-realgov::before { content: '■'; }
+.badge-realmoil { color: var(--prov-real); border-color: rgba(16,185,129,0.45); background: rgba(16,185,129,0.08); }
+.badge-realmoil::before { content: '▲'; }
+.badge-derived { color: var(--prov-real); border-color: rgba(16,185,129,0.35); border-style: dashed; background: transparent; }
+.badge-derived::before { content: '○'; }
+
+/* Subsurface simulator */
+.panel-note { font-size: 0.82rem; color: var(--text-muted, #94a3b8); margin: 0.25rem 0 0.75rem; }
+.ss-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1rem; }
+.ss-observed, .ss-sim { border: 1px solid var(--border, rgba(148,163,184,0.25)); border-radius: 6px; padding: 0.75rem; min-width: 0; }
+.ss-sim { border-style: dashed; border-color: rgba(96,165,250,0.5); }
+.ss-title { font-size: 0.72rem; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 0.5rem; }
+.ss-records { list-style: none; padding: 0; margin: 0; font-size: 0.8rem; }
+.ss-records li { padding: 0.3rem 0; border-bottom: 1px solid var(--border, rgba(148,163,184,0.15)); }
+.ss-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.ss-table th, .ss-table td { text-align: left; padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--border, rgba(148,163,184,0.15)); vertical-align: top; }
+.ss-table tr.ss-active { background: rgba(96,165,250,0.08); }
+.ss-up { color: var(--prov-real); } .ss-down { color: #f87171; }
+.ss-scroll { overflow-x: auto; }
+.rq-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem; }
+.rq-verdict { font-size: 0.82rem; padding: 0.5rem 0.75rem; border-left: 3px solid #f59e0b; background: rgba(245,158,11,0.08); margin-bottom: 0.75rem; }
+.rq-verdict.ok { border-left-color: var(--prov-real); background: rgba(16,185,129,0.08); }
+.rq-bars { display: flex; align-items: flex-end; gap: 2px; height: 120px; margin: 0.5rem 0; }
+.rq-bar { flex: 1; background: rgba(16,185,129,0.55); min-width: 3px; position: relative; }
+.rq-bar.derived { background: rgba(16,185,129,0.3); }
+.rq-axis { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted, #94a3b8); }
+@media (max-width: 760px) { .ss-grid { grid-template-columns: 1fr; } }

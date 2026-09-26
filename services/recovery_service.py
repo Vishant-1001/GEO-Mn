@@ -27,11 +27,13 @@ model estimates.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from itertools import combinations
 
 import numpy as np
+import pandas as pd
 
-from services.common import SIMULATED, ApiError, load_config, provenance
+from services.common import DATA_DIR, SIMULATED, ApiError, load_config, provenance
 from services.production_service import get_service as production
 
 SCENARIO_ALIASES = {
@@ -39,6 +41,8 @@ SCENARIO_ALIASES = {
     "HEAVY_RAIN": "HEAVY_RAIN", "RAIN": "HEAVY_RAIN",
     "EQUIPMENT_DEGRADATION": "EQUIPMENT_DEGRADATION", "EQUIPMENT": "EQUIPMENT_DEGRADATION",
     "BLAST_DELAY": "BLAST_DELAY", "BLAST": "BLAST_DELAY",
+    "DRILL_DELAY": "DRILL_DELAY", "DRILL": "DRILL_DELAY",
+    "HAULAGE_DISRUPTION": "HAULAGE_DISRUPTION", "HAULAGE": "HAULAGE_DISRUPTION",
     "COMBINED_DISRUPTION": "COMBINED_DISRUPTION", "COMBINED": "COMBINED_DISRUPTION",
 }
 ACTION_ALIASES = {
@@ -48,7 +52,8 @@ ACTION_ALIASES = {
     "DRILL_BLAST_DELAY_REDUCTION": "BLAST_DRILL_DELAY_REDUCTION", "A3": "BLAST_DRILL_DELAY_REDUCTION",
 }
 ACTION_ORDER = ["EQUIPMENT_RECOVERY", "SCHEDULE_ADJUSTMENT", "BLAST_DRILL_DELAY_REDUCTION"]
-ALL_SCENARIOS = ["NORMAL", "HEAVY_RAIN", "EQUIPMENT_DEGRADATION", "BLAST_DELAY", "COMBINED_DISRUPTION"]
+ALL_SCENARIOS = ["NORMAL", "HEAVY_RAIN", "EQUIPMENT_DEGRADATION", "BLAST_DELAY", "DRILL_DELAY", "HAULAGE_DISRUPTION",
+                 "COMBINED_DISRUPTION"]
 
 FEASIBLE = "FEASIBLE"
 CONSTRAINED = "FEASIBLE_CONSTRAINED"
@@ -130,60 +135,88 @@ def derive_downtime(s: dict, sched: float) -> dict:
     return s
 
 
-def apply_disruption(state: dict, scenario: str, sched: float) -> dict:
-    d = load_config("recovery_config.json")["disruptions"][scenario]
-    s = dict(state)
-    for sub in d.get("combine", []):
-        s = apply_disruption(s, sub, sched)
-    for k, v in d.get("set_min", {}).items():
-        s[k] = max(s[k], v)
-    for k, v in d.get("add", {}).items():
-        s[k] = s[k] + v
+MATRIX_PATH = DATA_DIR / "synthetic" / "recovery" / "recovery_scenario_matrix.csv"
+MATRIX_FEATS = ["equipment_availability", "equipment_downtime_h", "maintenance_hours", "drilling_delay_h", "blast_delay_h",
+                "truck_count", "haulage_delay_h"]
+
+
+@lru_cache(maxsize=1)
+def scenario_matrix() -> pd.DataFrame:
+    """Scenario / action effects in model-feature space, derived from SIMULATED simulator counterfactuals
+    (scripts/synthetic/generate_recovery.py). Missing -> 503 rather than silently using constants."""
+    if not MATRIX_PATH.exists():
+        raise ApiError(503, "DATA_UNAVAILABLE", "Recovery scenario matrix not generated (run scripts/synthetic/generate_all.py).")
+    return pd.read_csv(MATRIX_PATH).set_index(["scenario", "action_portfolio"])
+
+
+def _row(scenario, pid_):
+    m = scenario_matrix()
+    if (scenario, pid_) not in m.index:
+        raise ApiError(400, "INVALID_INPUT", f"No simulated effects for {scenario} / {pid_}")
+    return m.loc[(scenario, pid_)]
+
+
+def _clean(s, sched):
     s["equipment_availability"] = min(max(s["equipment_availability"], 0.0), 1.0)
-    for k in ("blast_delay_h", "drilling_delay_h", "haulage_delay_h"):
+    for k in ("blast_delay_h", "drilling_delay_h", "haulage_delay_h", "truck_count", "equipment_downtime_h", "maintenance_hours"):
         s[k] = max(s[k], 0.0)
-    if "equipment_availability" in d.get("add", {}):
-        derive_downtime(s, sched)
-    return s
+    return derive_downtime(s, sched)
 
 
-def apply_actions(state: dict, actions, mine: dict):
-    """Apply actions with physical constraints. Returns (new_state, feasibility, notes)."""
+def apply_disruption(state: dict, scenario: str, sched: float) -> dict:
+    """Median simulated disruption effect (feature deltas) added to the operating state."""
+    r = _row(scenario, "NO_ACTION")
+    s = dict(state)
+    for k in MATRIX_FEATS:
+        s[k] = s[k] + float(r[f"scenario_delta_{k}"])
+    if pd.notna(r.get("scenario_rainfall_7d_mm_min")):
+        s["rainfall_7d_mm"] = max(s["rainfall_7d_mm"], float(r["scenario_rainfall_7d_mm_min"]))
+        s["soil_moisture_m3m3"] = max(s["soil_moisture_m3m3"], 0.46)
+    return _clean(s, sched)
+
+
+# Smallest simulated median change treated as a real effect (smaller values are common-random-number noise).
+MATERIAL_DELTA = {"equipment_availability": 0.005, "truck_count": 0.1}
+
+
+def apply_actions(state: dict, actions, mine: dict, scenario: str = "NORMAL"):
+    """Apply a portfolio's SIMULATED joint effect under the scenario, then input-constraint checks.
+
+    Returns (new_state, modelled_feasibility, notes)."""
     cfg = load_config("recovery_config.json")
     s = dict(state)
     notes = []
     status = FEASIBLE
     sched = mine["scheduled_hours_per_day"]
-    # baseline physical consistency: lost hours cannot exceed the scheduled day
     if s["equipment_downtime_h"] + s["maintenance_hours"] > sched + 1e-6:
         return s, UNKNOWN, ["Downtime + maintenance exceed scheduled hours in the input state; feasibility cannot be judged."]
-    for a in actions:
-        spec = cfg["actions"][a]
-        before = dict(s)
-        for k, v in spec.get("add", {}).items():
-            s[k] = s[k] + v
-        for k, v in spec.get("scale", {}).items():
-            s[k] = s[k] * v
-        for k, lo in cfg["floors"].items():
-            if s[k] < lo:
-                s[k] = lo
-        cap_a = mine["max_equipment_availability"]
-        if s["equipment_availability"] > cap_a:
-            s["equipment_availability"] = max(cap_a, before["equipment_availability"])
-            notes.append(f"{a}: availability capped at {cap_a:.2f} (mine maximum).")
-            status = CONSTRAINED
-        cap_t = mine["fleet_max_trucks"]
-        if s["truck_count"] > cap_t:
-            s["truck_count"] = max(float(cap_t), before["truck_count"])
-            notes.append(f"{a}: truck count capped at fleet size {cap_t}.")
-            status = CONSTRAINED
-        if "equipment_availability" in spec.get("add", {}):
-            derive_downtime(s, sched)
-        levers = set(spec.get("add", {})) | set(spec.get("scale", {}))
-        if all(abs(s[k] - before[k]) < 1e-9 for k in levers):
-            notes.append(f"{a}: no headroom — the action cannot change the operating state.")
-            status = NOT_FEASIBLE
-    # post-action physical validity
+    if not actions:
+        return s, status, notes
+    r = _row(scenario, portfolio_id(actions))
+    before = dict(s)
+    deltas = {k: float(r[f"action_delta_{k}"]) for k in MATRIX_FEATS}
+    for k, v in deltas.items():
+        s[k] = s[k] + v
+    for k, lo in cfg["floors"].items():
+        s[k] = max(s[k], lo)
+    cap_a, cap_t = mine["max_equipment_availability"], mine["fleet_max_trucks"]
+    if s["equipment_availability"] > cap_a:
+        s["equipment_availability"] = max(cap_a, before["equipment_availability"])
+        notes.append(f"availability capped at {cap_a:.2f} (mine maximum).")
+        status = CONSTRAINED
+    if s["truck_count"] > cap_t:
+        s["truck_count"] = max(float(cap_t), before["truck_count"])
+        notes.append(f"truck count capped at fleet size {cap_t}.")
+        status = CONSTRAINED
+    _clean(s, sched)
+    # downtime / maintenance hours are re-derived from availability by _clean, so they are not independent levers
+    material = {k: v for k, v in deltas.items()
+                if k not in ("equipment_downtime_h", "maintenance_hours") and abs(v) > MATERIAL_DELTA.get(k, 0.05)}
+    if not material:
+        notes.append("simulator shows no material effect of this portfolio under this scenario.")
+    elif all(abs(s[k] - before[k]) < 1e-9 for k in material):
+        notes.append("no headroom — caps prevent the portfolio from changing the operating state.")
+        status = NOT_FEASIBLE
     if not (0.0 <= s["equipment_availability"] <= 1.0) or s["truck_count"] < 0:
         status = NOT_FEASIBLE
         notes.append("Resulting state is physically invalid.")
@@ -210,7 +243,7 @@ def evaluate(mine_id="DEMO_MINE", target_tonnes=None, base_state=None, condition
     sched = mine["scheduled_hours_per_day"]
     for pi, acts in enumerate(portfolios):
         for s in scenarios:
-            st, feas, notes = apply_actions(apply_disruption(base, s, sched), acts, mine)
+            st, feas, notes = apply_actions(apply_disruption(base, s, sched), acts, mine, s)
             rows.append(st)
             meta.append((pi, s, feas, notes))
     P = prod.predict(rows)
@@ -341,7 +374,7 @@ def evaluate(mine_id="DEMO_MINE", target_tonnes=None, base_state=None, condition
             "truck_count", "haulage_delay_h", "rainfall_7d_mm", "soil_moisture_m3m3", "temperature_max_c")},
         "overrides_applied": ctx["overrides"],
         "provenance": provenance(SIMULATED, prod.model_version, f"{prod.daily.index[0].date()}/{prod.history_end().date()}",
-                                 None, False, operations_mode="SYNTHETIC", weather_mode="REAL_PUBLIC",
+                                 None, False, operations_mode="SYNTHETIC", weather_mode="REAL_GOVERNMENT",
                                  config_version=load_config("recovery_config.json")["version"]),
     }
     return out

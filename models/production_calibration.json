@@ -1,19 +1,19 @@
 {
   "model_version": "production-qgbm-1.0",
-  "configuration": "level_default",
-  "ratio_target": false,
-  "ratio_base_feature": null,
+  "configuration": "ratio_regularised",
+  "ratio_target": true,
+  "ratio_base_feature": "prod_roll_mean_4",
   "params": {
-    "max_iter": 400,
-    "learning_rate": 0.04,
-    "max_leaf_nodes": 15,
-    "min_samples_leaf": 25,
-    "l2_regularization": 1.0
+    "max_iter": 150,
+    "learning_rate": 0.05,
+    "max_leaf_nodes": 7,
+    "min_samples_leaf": 60,
+    "l2_regularization": 2.0
   },
   "offsets_relative_to_raw_p50": {
-    "p10": -0.13470073200522367,
-    "p50": -0.042261453609118226,
-    "p90": 0.07213279818127272
+    "p10": -0.11465505831033682,
+    "p50": -0.03504852929184346,
+    "p90": 0.09810605664905059
   },
   "offsets_estimated_from": "out-of-sample raw quantile errors of the selected configuration on 52 calibration periods",
   "calibration_window": [

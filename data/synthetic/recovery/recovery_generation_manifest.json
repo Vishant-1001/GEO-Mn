@@ -1,0 +1,45 @@
+{
+  "dataset_name": "Simulated disruption scenarios and action outcomes (simulator counterfactuals)",
+  "generator_name": "scripts/synthetic/generate_recovery.py (ml/synthetic_ops.py)",
+  "generator_version": "ops-sim-2.0",
+  "seed": 42,
+  "generation_timestamp": "2026-09-26T05:25:33+00:00",
+  "origins": 143,
+  "scenarios": [
+    "NORMAL",
+    "HEAVY_RAIN",
+    "EQUIPMENT_DEGRADATION",
+    "BLAST_DELAY",
+    "DRILL_DELAY",
+    "HAULAGE_DISRUPTION",
+    "COMBINED_DISRUPTION"
+  ],
+  "portfolios": [
+    "NO_ACTION",
+    "A1",
+    "A2",
+    "A3",
+    "A1+A2",
+    "A1+A3",
+    "A2+A3",
+    "A1+A2+A3"
+  ],
+  "heavy_rain_7d_mm": 148.0,
+  "heavy_rain_basis": "REAL: 95th percentile of 7-day IMD mine-cell rainfall (2021-2025)",
+  "files": {
+    "synthetic_disruption_scenarios.csv": {
+      "rows": 1001,
+      "sha256": "d0632694d49f9025c94cbed5ed4e8190417bb02990ad3a5e6d5ffbfb79ab7e13"
+    },
+    "synthetic_action_outcomes.csv": {
+      "rows": 8008,
+      "sha256": "0196289e99ad45aff71110cfda70f75759d3c632e8127b6517c34a5a00501a65"
+    },
+    "recovery_scenario_matrix.csv": {
+      "rows": 56,
+      "sha256": "31a624f7a68b560c456e973658dea6184b1e38ff833edb50a330610f4ac240bf"
+    }
+  },
+  "consumer": "services/recovery_service.py reads recovery_scenario_matrix.csv (scenario and action deltas); trust layer compares engine estimates with simulated recovery",
+  "provenance": "SIMULATED \u2014 not historical MOIL interventions; recovery is not guaranteed"
+}

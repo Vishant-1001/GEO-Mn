@@ -3,3 +3,8 @@
 shapely==2.1.2
 pytest==9.1.1
 httpx==0.28.1
+# Real-data acquisition and synthetic generators
+PyYAML==6.0.3          # synthetic generator configs (also read by tests)
+pdfplumber==0.11.10    # MOIL disclosure PDFs
+pyarrow==25.0.1        # parquet copy of the synthetic unit-shift history
+pillow==12.3.0         # Bhuvan lineament WMS tiles

@@ -1,0 +1,82 @@
+{
+  "dataset_name": "Real EO feature grid (Sentinel-2 L2A, MODIS MOD11A2, NASADEM)",
+  "provider": "ESA Copernicus / NASA / USGS via Microsoft Planetary Computer",
+  "official_url": "https://planetarycomputer.microsoft.com/api/stac/v1",
+  "retrieval_timestamp": "2026-09-26T09:26:51+00:00",
+  "cells": 50000,
+  "complete_cells": 49922,
+  "features": [
+    "NDVI",
+    "Iron_Oxide_Index",
+    "Clay_Hydroxyl_Index",
+    "LST_Day_K",
+    "elevation",
+    "slope",
+    "NDRE",
+    "Ferric_Iron_B4B3",
+    "Ferrous_Silicate_B12B8A",
+    "Gossan_B11B4",
+    "SWIR_Albedo",
+    "elevation_sd"
+  ],
+  "rationale": {
+    "NDVI": "(B08-B04)/(B08+B04); vegetation cover masks or reflects substrate",
+    "Iron_Oxide_Index": "B04/B02; ferric oxide staining of weathered surfaces",
+    "Clay_Hydroxyl_Index": "B11/B12; Al/Mg-OH clay & alteration minerals",
+    "LST_Day_K": "MODIS daytime LST; thermal inertia / exposed rock vs soil",
+    "elevation": "NASADEM mean elevation; landscape position",
+    "slope": "NASADEM mean slope; resistant ridges vs pediplains",
+    "NDRE": "(B8A-B05)/(B8A+B05); red-edge vegetation stress over mineralised ground",
+    "Ferric_Iron_B4B3": "B04/B03; hematite/goethite (ferric iron) absorption",
+    "Ferrous_Silicate_B12B8A": "B12/B8A; ferrous silicates / mafic minerals",
+    "Gossan_B11B4": "B11/B04; oxidised gossan-type cappings",
+    "SWIR_Albedo": "(B11+B12)/2; dark Mn oxides (pyrolusite/psilomelane) lower SWIR reflectance",
+    "elevation_sd": "SD of 1-arcsec NASADEM elevation inside the cell; local ruggedness"
+  },
+  "recipe": {
+    "grid_res_deg": 0.01,
+    "observation_window": "2024-01-01/2024-12-31",
+    "sentinel2": {
+      "collection": "sentinel-2-l2a",
+      "max_tile_cloud_pct": 20.0,
+      "scenes_per_tile": 12,
+      "read_resolution_m": 200.0,
+      "scl_valid_classes": [
+        4,
+        5,
+        7
+      ],
+      "min_valid_scenes_per_pixel": 3,
+      "offset_correction": "subtract 1000 DN for processing baseline >= 04.00",
+      "composite": "per-pixel temporal median, indices computed on the composite",
+      "indices": {
+        "NDVI": "(B08-B04)/(B08+B04)",
+        "Iron_Oxide_Index": "B04/B02",
+        "Clay_Hydroxyl_Index": "B11/B12",
+        "NDRE": "(B8A-B05)/(B8A+B05)",
+        "Ferric_Iron_B4B3": "B04/B03",
+        "Ferrous_Silicate_B12B8A": "B12/B8A",
+        "Gossan_B11B4": "B11/B04",
+        "SWIR_Albedo": "(B11+B12)/2 (reflectance)"
+      }
+    },
+    "modis_lst": {
+      "collection": "modis-11A2-061 (MOD11A2 Terra only)",
+      "band": "LST_Day_1km",
+      "scale": 0.02,
+      "unit": "K",
+      "qc_rule": "QC_Day bits0-1 == 0, or bits0-1 == 1 and bits6-7 <= 1 (error <= 2 K)",
+      "temporal_reduction": "mean of valid 8-day composites",
+      "spatial_sampling": "nearest MODIS pixel to the cell centre"
+    },
+    "dem": {
+      "collection": "nasadem",
+      "slope": "degrees, finite differences in metres",
+      "elevation_sd": "standard deviation of 1-arcsec elevation within the cell (m)"
+    },
+    "cell_aggregation": "Sentinel-2 and NASADEM: mean of pixels whose centre falls in the 0.01 degree cell; MODIS LST: nearest 1 km pixel to the cell centre"
+  },
+  "native_resolution": "S2 read at 200 m, NASADEM 30 m, MODIS 1 km; aggregated to 0.01 degree cells",
+  "provenance": "REAL_DERIVED",
+  "seconds": 728.4
+}

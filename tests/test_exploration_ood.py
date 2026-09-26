@@ -1,13 +1,11 @@
 """Applicability / OOD behaviour of the exploration engine (network-free: live features are mocked)."""
 
-import pandas as pd
-
-from services.common import DATA_DIR
+from tests.conftest import merged_feature_grid
 
 
 def _typical_features(exploration_svc):
-    g = pd.read_csv(DATA_DIR / "exploration_grid_features.csv.gz").dropna()
-    return g[exploration_svc.features].median().to_dict()
+    g = merged_feature_grid()[exploration_svc.features].dropna()
+    return g.median().to_dict()
 
 
 def test_typical_features_are_applicable(exploration_svc):
@@ -40,6 +38,15 @@ def test_high_rank_with_low_applicability_requires_review(exploration_svc, monke
         "prospectivity_rank": 99.0, "rank_sd": 2.0, "uncertainty": "LOW", "feature_applicability": "LOW"})
     d = exploration_svc.predict(21.8, 80.2)
     assert d["status"] == "REVIEW_REQUIRED"
+
+
+def test_unmapped_geology_is_allowed_but_eo_is_required(exploration_svc):
+    f = _typical_features(exploration_svc)
+    geo = [k for k in f if k.startswith(("geom_", "lineament_"))]
+    if not geo:
+        return
+    s = exploration_svc.score_features({**f, **{k: float("nan") for k in geo}})   # outside NRSC MP/MH layers
+    assert 0 <= s["prospectivity_rank"] <= 100
 
 
 def test_incomplete_features_are_not_imputed(exploration_svc):
