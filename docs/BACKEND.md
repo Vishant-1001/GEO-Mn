@@ -325,8 +325,9 @@ Accepted condition aliases: `rainfall_mm` → `rainfall_7d_mm` (7-day total),
 
 ## Frontend (index.html / app.js / style.css)
 
-* The five screens are Supply Command, Exploration, Production Risk, Recovery & Contingency and Model
-  Trust. No other top-level modules.
+* The six screens are Overview (`#supply-command`), Exploration (`#exploration`), Production Forecast
+  (`#production-risk`), Recovery Scenarios (`#recovery`), Target Priority (`#targets`) and Model Truth
+  (`#model-trust`). Route hashes are unchanged from earlier versions. No other top-level modules.
 * **Demo-state selector** (top bar): the list comes from `GET /api/demo/scenarios`. Choosing a state
   only changes `mine_id` and reloads backend results; there is no decision logic in JavaScript. It is
   labelled DEMO / SYNTHETIC.

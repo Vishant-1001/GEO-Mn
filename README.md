@@ -8,8 +8,9 @@ SIH 2026 · Problem Statement 26009. GEO-MN answers four questions:
    next, and why?
 4. How far should each of these answers be trusted?
 
-It has five screens: **Supply Command, Exploration, Production Risk, Recovery & Contingency, Model
-Trust**. Every number shown comes from the backend, with a provenance badge.
+It has six screens: **Overview**, the four workflow steps **1 Exploration, 2 Production Forecast,
+3 Recovery Scenarios, 4 Target Priority (Why This Target Now?)**, and **Model Truth**. Every number
+shown comes from the backend, with a provenance badge.
 
 ## What is real and what is not
 
