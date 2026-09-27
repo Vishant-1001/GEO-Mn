@@ -3,612 +3,539 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GEO-MN // Manganese Supply Command</title>
-    <meta name="description" content="Manganese supply-risk decision console: production forecasting, operational recovery, exploration contingency and model trust.">
+    <title>GEO-MN — Manganese Supply Decision Support</title>
+    <meta name="description" content="Manganese supply decision support: exploration prospectivity, production forecast, recovery scenarios, target priority and model truth.">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="style.css?v=6">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2'><polygon points='12 2 2 7 12 12 22 7 12 2'/><polyline points='2 17 12 22 22 17'/><polyline points='2 12 12 17 22 12'/></svg>">
+    <link rel="stylesheet" href="style.css?v=10">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232bb3c0' stroke-width='2'><polygon points='12 2 2 7 12 12 22 7 12 2'/><polyline points='2 17 12 22 22 17'/><polyline points='2 12 12 17 22 12'/></svg>">
 </head>
 <body>
 
 <a class="skip-link" href="#mainContent">Skip to content</a>
-
-<!-- Toast Notification Container -->
 <div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
 
-<!-- Mobile Drawer Toggle -->
 <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
 </button>
 
 <div class="app-layout">
 
-    <!-- ── Sidebar Navigation ────────────────────────────────── -->
+    <!-- ── Sidebar: the GEO-MN workflow ─────────────────────── -->
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="brand-badge">
-                <div class="brand-logo-icon" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-                        <polyline points="2 17 12 22 22 17"></polyline>
-                        <polyline points="2 12 12 17 22 12"></polyline>
-                    </svg>
-                </div>
-                <div class="brand-meta">
-                    <div class="brand-title">GEO-MN // INTEL</div>
-                    <div class="brand-tag">Manganese supply command</div>
-                </div>
+        <div class="brand">
+            <div class="brand-mark" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+            </div>
+            <div>
+                <div class="brand-title">GEO-MN</div>
+                <div class="brand-tag">Manganese supply decision support</div>
             </div>
         </div>
 
-        <div class="nav-section-title">DECISION LOOP</div>
-        <nav class="sidebar-nav" aria-label="Primary">
+        <nav class="nav" aria-label="Primary">
             <a href="#supply-command" class="nav-link active" data-section="supply-command">
-                <span class="nav-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
-                </span>
-                <span class="nav-label">SUPPLY COMMAND</span>
+                <span class="nav-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg></span>
+                <span class="nav-text"><span class="nav-label">Overview</span><span class="nav-state" data-nav-state="supply-command"></span></span>
             </a>
-            <a href="#exploration" class="nav-link" data-section="exploration">
-                <span class="nav-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line></svg>
-                </span>
-                <span class="nav-label">EXPLORATION</span>
-            </a>
-            <a href="#production-risk" class="nav-link" data-section="production-risk">
-                <span class="nav-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                </span>
-                <span class="nav-label">PRODUCTION RISK</span>
-            </a>
-            <a href="#recovery" class="nav-link" data-section="recovery">
-                <span class="nav-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-                </span>
-                <span class="nav-label">RECOVERY &amp; CONTINGENCY</span>
-            </a>
+
+            <div class="nav-group">Workflow</div>
+            <ol class="nav-steps">
+                <li><a href="#exploration" class="nav-link" data-section="exploration">
+                    <span class="nav-step" aria-hidden="true">1</span>
+                    <span class="nav-text"><span class="nav-label">Exploration</span><span class="nav-state" data-nav-state="exploration"></span></span>
+                </a></li>
+                <li><a href="#production-risk" class="nav-link" data-section="production-risk">
+                    <span class="nav-step" aria-hidden="true">2</span>
+                    <span class="nav-text"><span class="nav-label">Production Forecast</span><span class="nav-state" data-nav-state="production-risk"></span></span>
+                </a></li>
+                <li><a href="#recovery" class="nav-link" data-section="recovery">
+                    <span class="nav-step" aria-hidden="true">3</span>
+                    <span class="nav-text"><span class="nav-label">Recovery Scenarios</span><span class="nav-state" data-nav-state="recovery"></span></span>
+                </a></li>
+                <li><a href="#targets" class="nav-link" data-section="targets">
+                    <span class="nav-step" aria-hidden="true">4</span>
+                    <span class="nav-text"><span class="nav-label">Target Priority</span><span class="nav-state" data-nav-state="targets"></span></span>
+                </a></li>
+            </ol>
+
+            <div class="nav-group">Assurance</div>
             <a href="#model-trust" class="nav-link" data-section="model-trust">
-                <span class="nav-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>
-                </span>
-                <span class="nav-label">MODEL TRUST</span>
+                <span class="nav-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg></span>
+                <span class="nav-text"><span class="nav-label">Model Truth</span><span class="nav-state" data-nav-state="model-trust"></span></span>
             </a>
         </nav>
 
         <div class="sidebar-footer">
-            <div class="telemetry-card">
-                <div class="telemetry-header">
-                    <span class="status-indicator-dot" id="statusDot"></span>
-                    <span class="telemetry-text" id="statusText">CONNECTING…</span>
-                </div>
-                <div class="telemetry-details">
-                    <div class="tel-row"><span>Mine</span><span class="mono-badge" id="telMine">DEMO_MINE</span></div>
-                    <div class="tel-row"><span>API version</span><span class="mono-badge" id="telApiVersion">&mdash;</span></div>
-                    <div class="tel-row"><span>Live EO query</span><span class="mono-badge" id="telEarthEngine">&mdash;</span></div>
-                    <div class="tel-row"><span>Cached grid</span><span class="mono-badge" id="telCache">&mdash;</span></div>
-                </div>
-            </div>
+            <div class="sys-line"><span class="status-dot" id="statusDot"></span><span id="statusText">CONNECTING…</span></div>
+            <details class="sys-details">
+                <summary>System</summary>
+                <dl class="sys-list">
+                    <div><dt>Mine</dt><dd class="mono" id="telMine">DEMO_MINE</dd></div>
+                    <div><dt>API</dt><dd class="mono" id="telApiVersion">&mdash;</dd></div>
+                    <div><dt>Live EO query</dt><dd class="mono" id="telEarthEngine">&mdash;</dd></div>
+                    <div><dt>Cached grid</dt><dd class="mono" id="telCache">&mdash;</dd></div>
+                    <div><dt>Latency</dt><dd class="mono" id="latencyPill">&mdash;</dd></div>
+                </dl>
+            </details>
         </div>
     </aside>
 
-    <!-- ── Main Workspace ────────────────────────────────────── -->
-    <main class="main-content" id="mainContent">
-        <!-- Global Status Bar -->
-        <header class="top-command-bar">
-            <div class="breadcrumb-container">
-                <span class="breadcrumb-sector">GEO-MN</span>
-                <span class="breadcrumb-separator">/</span>
-                <span class="breadcrumb-active" id="pageTitle">SUPPLY COMMAND</span>
-            </div>
+    <!-- ── Main workspace ───────────────────────────────────── -->
+    <main class="main" id="mainContent">
+        <header class="topbar">
+            <div class="crumbs"><span class="crumb-root">GEO-MN</span><span class="crumb-sep">/</span><span class="crumb-page" id="pageTitle">Overview</span></div>
 
-            <div class="demo-select-wrap" title="Deterministic demonstration states on SYNTHETIC operations data">
-                <label for="demoSelect" class="demo-select-label">DEMO STATE</label>
-                <select id="demoSelect" class="demo-select" aria-describedby="demoSelectNote"><option value="DEMO_MINE">DEMO_MINE</option></select>
-                <span class="badge badge-synthetic" id="demoSelectNote">DEMO / SYNTHETIC</span>
-            </div>
-
-            <div class="top-telemetry-bar" aria-label="System status">
-                <div class="telemetry-pill" id="pillApi" data-state="pending">
-                    <span class="pill-dot" aria-hidden="true"></span><span class="pill-text">API: CHECKING</span>
+            <div class="topbar-right">
+                <div class="demo-select-wrap" title="Deterministic demonstration states on SYNTHETIC operations data">
+                    <label for="demoSelect" class="demo-select-label">DEMO STATE</label>
+                    <select id="demoSelect" class="demo-select"><option value="DEMO_MINE">DEMO_MINE</option></select>
                 </div>
-                <div class="telemetry-pill" id="pillModels" data-state="pending">
-                    <span class="pill-dot" aria-hidden="true"></span><span class="pill-text">MODELS: CHECKING</span>
-                </div>
-                <div class="telemetry-pill" id="pillData" data-state="pending">
-                    <span class="pill-text">DATA MODE: &mdash;</span>
-                </div>
-                <div class="telemetry-pill">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    <span id="latencyPill">Latency: &mdash;</span>
+                <div class="pills" aria-label="System status">
+                    <span class="pill" id="pillData" data-state="pending"><span class="pill-text">DATA: &mdash;</span></span>
+                    <span class="pill" id="pillApi" data-state="pending"><span class="pill-dot" aria-hidden="true"></span><span class="pill-text">API: CHECKING</span></span>
+                    <span class="pill" id="pillModels" data-state="pending"><span class="pill-dot" aria-hidden="true"></span><span class="pill-text">MODELS: CHECKING</span></span>
                 </div>
             </div>
         </header>
 
-        <!-- Backend unavailable banner -->
         <div class="backend-banner" id="backendBanner" role="alert" hidden>
-            <div>
-                <div class="backend-banner-title">BACKEND UNAVAILABLE</div>
-                <div class="backend-banner-text">Live model results cannot be loaded. Nothing on this page is live until the API responds.</div>
-            </div>
-            <button type="button" class="cmd-btn cmd-btn-outline" id="btnRetryBackend">Retry</button>
+            <span class="chip" data-tone="bad"><span class="chip-ico" aria-hidden="true">✕</span>BACKEND UNAVAILABLE</span>
+            <span class="muted">Live results cannot be loaded.</span>
+            <button type="button" class="btn btn-ghost" id="btnRetryBackend"><span>Retry Connection</span><span class="spinner"></span></button>
         </div>
 
-        <div class="content-view-container">
+        <div class="views">
 
-            <!-- ══════════════════════════════════════════════════════════
-                 SCREEN 1: SUPPLY COMMAND
-                 ══════════════════════════════════════════════════════════ -->
+            <!-- ═════════════ OVERVIEW ═════════════ -->
             <section class="section active" id="section-supply-command" aria-labelledby="h-supply">
                 <div class="screen-head">
                     <div>
-                        <h1 id="h-supply" class="screen-title">Supply Command</h1>
-                        <p class="screen-question">Are we going to miss future supply, and what should we do?</p>
+                        <div class="eyebrow">Overview</div>
+                        <h1 id="h-supply" class="screen-title">Supply Decision State</h1>
                     </div>
-                    <div class="screen-head-meta">
-                        <span class="meta-chip" id="scHorizon">HORIZON: &mdash;</span>
+                    <div class="screen-meta">
+                        <span class="meta-chip" id="scHorizon">&mdash;</span>
                         <div class="prov-row" id="scProvenance"></div>
-                        <button type="button" class="cmd-btn cmd-btn-outline" id="btnRefreshSupply">
-                            <span>Refresh</span><span class="spinner"></span>
-                        </button>
+                        <button type="button" class="btn btn-ghost" id="btnRefreshSupply"><span>Refresh</span><span class="spinner"></span></button>
                     </div>
                 </div>
 
-                <div id="scBody" class="stack">
-                    <div class="supply-status" id="scStatus">
-                        <span class="supply-status-label">SUPPLY STATUS</span>
-                        <span class="supply-status-text" id="scStatusText">Loading supply outlook…</span>
+                <div class="hero" id="scHero">
+                    <div class="hero-cell" id="scStatus" data-tone="neutral">
+                        <span class="label">Supply Status</span>
+                        <div class="hero-val" id="scStatusText">Loading…</div>
+                        <div class="hero-sub" id="scStatusSub"></div>
                     </div>
-
-                    <div class="kpi-strip kpi-strip-5" id="scKpis">
-                        <div class="kpi-tile"><span class="kpi-label">TARGET</span><div class="kpi-val mono-val" id="scTarget">&mdash;</div></div>
-                        <div class="kpi-tile"><span class="kpi-label">P50 FORECAST</span><div class="kpi-val mono-val" id="scP50">&mdash;</div><span class="kpi-sub">Model median (next 7 days)</span></div>
-                        <div class="kpi-tile"><span class="kpi-label">P10 &ndash; P90</span><div class="kpi-val mono-val kpi-val-sm" id="scP90">&mdash;</div><span class="kpi-sub" id="scIntervalNote">Prediction interval</span></div>
-                        <div class="kpi-tile kpi-tile-gap"><span class="kpi-label">SUPPLY GAP (P50)</span><div class="kpi-val mono-val" id="scGap">&mdash;</div><span class="kpi-sub">Target minus P50</span></div>
-                        <div class="kpi-tile"><span class="kpi-label">RISK</span><div class="kpi-val" id="scRisk">&mdash;</div><span class="kpi-sub" id="scRiskPolicy">Risk policy: configured policy</span></div>
+                    <div class="hero-cell hero-decision" id="scDecision" data-tone="neutral">
+                        <span class="label">Decision</span>
+                        <div class="hero-val">&mdash;</div>
                     </div>
-
-                    <div class="split-2">
-                        <div class="panel">
-                            <div class="panel-head">
-                                <h2 class="panel-title">PRIMARY MODEL DRIVERS</h2>
-                                <span class="panel-sub">Model contribution, not causal attribution.</span>
-                            </div>
-                            <div id="scDrivers" class="panel-body"></div>
-                        </div>
-                        <div class="panel">
-                            <div class="panel-head">
-                                <h2 class="panel-title">OPERATIONAL RECOVERY</h2>
-                                <span class="badge badge-simulated">SIMULATED SCENARIO</span>
-                            </div>
-                            <div class="recovery-grid">
-                                <div class="rec-cell rec-cell-wide"><span class="kpi-label">SELECTED ROBUST PORTFOLIO</span><div class="rec-action" id="scBestAction">&mdash;</div><div class="rec-why muted" id="scSelectionWhy"></div></div>
-                                <div class="rec-cell"><span class="kpi-label">EXPECTED RECOVERY</span><div class="kpi-val mono-val" id="scExpRecovery">&mdash;</div></div>
-                                <div class="rec-cell"><span class="kpi-label">EXPECTED RESIDUAL GAP</span><div class="kpi-val mono-val" id="scExpResidual">&mdash;</div></div>
-                                <div class="rec-cell"><span class="kpi-label">WORST TESTED RESIDUAL GAP</span><div class="kpi-val mono-val" id="scWorstResidual">&mdash;</div></div>
-                            </div>
-                        </div>
+                    <div class="hero-actions">
+                        <button type="button" class="btn btn-ghost" data-goto="recovery">Review Decision</button>
+                        <button type="button" class="btn btn-primary" id="btnViewTarget" disabled>Why This Target?</button>
                     </div>
+                </div>
 
-                    <div class="forecast-basis" id="scForecastBasis"></div>
+                <ol class="chain" id="scChain" aria-label="Decision chain"></ol>
 
-                    <div class="decision-block" id="scDecision"></div>
-
-                    <div class="panel" id="scFlipPanel" hidden>
-                        <div class="panel-head">
-                            <h2 class="panel-title">DECISION FLIP &mdash; DEMO SCENARIO</h2>
-                            <span class="badge badge-simulated">SIMULATED SCENARIO</span>
-                        </div>
-                        <div id="scFlip"></div>
+                <div class="grid grid-3-2">
+                    <div class="panel">
+                        <div class="panel-head"><h2 class="panel-title">Supply Bridge</h2><span class="panel-aside" id="scBridgeAside"></span></div>
+                        <div id="scBridge"></div>
                     </div>
-
-                    <div class="panel next-target-panel" id="scNextTargetPanel">
-                        <div class="next-target-left">
-                            <span class="kpi-label">NEXT TARGET</span>
-                            <div class="next-target-id mono-val" id="scNextTarget">&mdash;</div>
-                            <button type="button" class="cmd-btn cmd-btn-primary" id="btnViewTarget" disabled>
-                                <span>VIEW TARGET</span>
-                            </button>
-                        </div>
-                        <div class="next-target-right" id="scWhyNow"></div>
+                    <div class="panel" id="scNextTargetPanel">
+                        <div class="panel-head"><h2 class="panel-title">Exploration Contingency</h2><span class="panel-aside" id="scContingencyChip"></span></div>
+                        <div id="scNextTarget"></div>
                     </div>
+                </div>
+
+                <div class="grid grid-2">
+                    <div class="panel">
+                        <div class="panel-head"><h2 class="panel-title">Forecast Drivers</h2><span class="badge badge-neutral">MODEL CONTRIBUTION &middot; NOT CAUSAL</span></div>
+                        <div id="scDrivers"></div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h2 class="panel-title" id="scReasonsTitle">Decision Basis</h2></div>
+                        <div id="scReasons"></div>
+                        <details class="disclosure">
+                            <summary>Decision Details</summary>
+                            <div id="scDecisionDetail" class="disclosure-body"></div>
+                        </details>
+                    </div>
+                </div>
+
+                <div class="panel" id="scFlipPanel" hidden>
+                    <div class="panel-head"><h2 class="panel-title">Decision Flip &mdash; Demo Scenario</h2><span class="badge badge-simulated">SIMULATED SCENARIO</span></div>
+                    <div id="scFlip"></div>
                 </div>
             </section>
 
-            <!-- ══════════════════════════════════════════════════════════
-                 SCREEN 2: EXPLORATION
-                 ══════════════════════════════════════════════════════════ -->
+            <!-- ═════════════ 1 · EXPLORATION ═════════════ -->
             <section class="section" id="section-exploration" aria-labelledby="h-explore">
                 <div class="screen-head">
                     <div>
-                        <h1 id="h-explore" class="screen-title">Exploration</h1>
-                        <p class="screen-question">Where should exploration investigate next?</p>
+                        <div class="eyebrow">Step 1</div>
+                        <h1 id="h-explore" class="screen-title">Exploration &middot; Prospectivity</h1>
                     </div>
-                    <div class="screen-head-meta">
+                    <div class="screen-meta">
+                        <span class="badge badge-neutral">RELATIVE PROSPECTIVITY &middot; NOT RESERVES</span>
                         <div class="prov-row" id="exProvenance"></div>
+                        <button type="button" class="btn btn-ghost" data-truth="exploration">Model Truth</button>
                     </div>
                 </div>
 
-                <div class="target-control-bar">
-                    <form class="coord-input-cluster" id="coordQueryForm">
-                        <div class="input-field-wrapper">
-                            <label for="queryLat">LATITUDE (°N)</label>
-                            <input type="number" id="queryLat" step="0.0001" min="-90" max="90" value="21.81" required>
-                        </div>
-                        <div class="input-field-wrapper">
-                            <label for="queryLon">LONGITUDE (°E)</label>
-                            <input type="number" id="queryLon" step="0.0001" min="-180" max="180" value="80.23" required>
-                        </div>
-                        <button type="submit" class="cmd-btn cmd-btn-primary" id="btnQueryCoord">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                            <span>Query coordinate</span>
-                            <span class="spinner"></span>
-                        </button>
-                    </form>
-                    <p class="control-hint">Click the map or enter a coordinate to request a relative-prospectivity estimate for that point. Coordinate queries are not exploration targets.</p>
-                </div>
-
-                <div class="reserve-gis-layout">
-                    <div class="gis-map-card">
-                        <div class="floating-map-toolbar">
-                            <div class="segmented-control" role="group" aria-label="Base layer">
+                <div class="explore-layout">
+                    <div class="map-card">
+                        <div class="map-toolbar">
+                            <div class="segmented" role="group" aria-label="Base layer">
                                 <button type="button" class="seg-btn active" data-layer="satellite" aria-pressed="true">Satellite</button>
                                 <button type="button" class="seg-btn" data-layer="thermal" aria-pressed="false" title="NASA GIBS MODIS daytime LST tile for 2024-05-01. Visual context only — not the per-cell model feature.">MODIS LST &mdash; context layer</button>
                                 <button type="button" class="seg-btn" data-layer="street" aria-pressed="false">Streets</button>
                             </div>
-                            <div class="map-addon-controls">
-                                <label class="hud-toggle-label">
-                                    <input type="checkbox" id="toggleSurface" checked>
-                                    <span>Prospectivity surface</span>
-                                </label>
-                                <button type="button" class="hud-mini-btn" id="btnResetMap" title="Fit all targets">
-                                    <span>Fit targets</span>
-                                </button>
-                            </div>
+                            <label class="map-toggle"><input type="checkbox" id="toggleSurface" checked><span>Prospectivity surface</span></label>
+                            <button type="button" class="map-btn" id="btnResetMap">Fit Targets</button>
                         </div>
 
-                        <div class="cursor-coordinate-hud" aria-hidden="true">
-                            <span class="hud-dot"></span>
-                            <span id="cursorCoordReadout">Cursor: &mdash;</span>
-                        </div>
+                        <form class="map-query" id="coordQueryForm" aria-label="Query a coordinate">
+                            <label for="queryLat" class="sr-only">Latitude (°N)</label>
+                            <input type="number" id="queryLat" step="0.0001" min="-90" max="90" value="21.81" required title="Latitude (°N)">
+                            <label for="queryLon" class="sr-only">Longitude (°E)</label>
+                            <input type="number" id="queryLon" step="0.0001" min="-180" max="180" value="80.23" required title="Longitude (°E)">
+                            <button type="submit" class="map-btn map-btn-strong" id="btnQueryCoord"><span>Query Point</span><span class="spinner"></span></button>
+                        </form>
 
-                        <div id="explorationMap" class="enterprise-gis-map" role="region" aria-label="Exploration target map"></div>
+                        <div id="explorationMap" class="map" role="region" aria-label="Exploration target map"></div>
                         <div class="map-notice" id="mapNotice" role="status" hidden></div>
 
-                        <div class="floating-legend-hud" id="mapLegend">
-                            <div class="legend-hud-top">
-                                <span class="legend-hud-title">Relative prospectivity rank (0&ndash;100)</span>
-                                <span class="legend-hud-source" id="surfaceSourceLabel">Surface: loading…</span>
+                        <div class="map-legend" id="mapLegend">
+                            <div class="legend-title">Relative prospectivity rank <span class="muted">0&ndash;100</span></div>
+                            <div class="legend-bar"></div>
+                            <div class="legend-ends"><span>Lower</span><span>Higher</span></div>
+                            <div class="legend-keys">
+                                <span><span class="tmk tmk-priority" aria-hidden="true">T</span>Priority</span>
+                                <span><span class="tmk tmk-standard" aria-hidden="true">T</span>Target</span>
+                                <span><span class="tmk tmk-caution" aria-hidden="true">!</span>Low applicability</span>
+                                <span><span class="tmk tmk-standard tmk-uncertain" aria-hidden="true">T</span>High uncertainty</span>
                             </div>
-                            <div class="legend-bar-track legend-bar-prosp"></div>
-                            <div class="legend-labels-row"><span>Lower rank</span><span>Higher rank</span></div>
-                            <div class="legend-note">Rank within the study area &mdash; not a deposit probability. Satellite reference window: 2024 (not real-time).</div>
-                            <div class="legend-markers">
-                                <span class="lg-item"><span class="tmk tmk-priority" aria-hidden="true">T</span>Priority styling &mdash; high prospectivity, supported applicability</span>
-                                <span class="lg-item"><span class="tmk tmk-caution" aria-hidden="true">!</span>Caution &mdash; low applicability / outside domain</span>
-                                <span class="lg-item"><span class="tmk tmk-standard" aria-hidden="true">T</span>Other exploration target</span>
-                                <span class="lg-item"><span class="tmk tmk-standard tmk-uncertain" aria-hidden="true">T</span>Dashed ring &mdash; high uncertainty</span>
-                            </div>
+                            <div class="legend-src" id="surfaceSourceLabel">Surface: loading…</div>
                         </div>
+                        <div class="map-cursor" aria-hidden="true"><span id="cursorCoordReadout">&mdash;</span></div>
                     </div>
 
-                    <div class="gis-telemetry-sidebar">
-                        <div class="panel target-list-panel">
-                            <div class="panel-head">
-                                <h2 class="panel-title">EXPLORATION TARGETS</h2>
-                                <span class="panel-sub" id="targetCount">&mdash;</span>
-                            </div>
-                            <div class="target-list" id="targetList" role="listbox" aria-label="Exploration targets"></div>
+                    <aside class="explore-rail">
+                        <div class="panel rail-card" id="targetCard" aria-live="polite">
+                            <div class="empty-state">Select a target on the map or in the list.</div>
                         </div>
-                    </div>
+                        <div class="panel rail-list">
+                            <div class="panel-head"><h2 class="panel-title">Targets by Priority</h2><span class="panel-aside mono" id="targetCount">&mdash;</span></div>
+                            <div class="rank-table rank-compact" id="targetList" role="listbox" aria-label="Exploration targets"></div>
+                        </div>
+                    </aside>
                 </div>
 
-                <div class="panel target-card" id="targetCard" aria-live="polite">
-                    <div class="empty-state">Select an exploration target on the map or in the list.</div>
+                <div class="panel" id="evidencePanel" aria-live="polite">
+                    <div class="panel-head"><h2 class="panel-title">Evidence &middot; <span class="mono" id="evidenceTargetId">&mdash;</span></h2><span class="panel-aside" id="evidenceAside"></span></div>
+                    <div id="evidenceBody"><div class="empty-state">Select a target to inspect its evidence.</div></div>
                 </div>
 
-                <div class="panel subsurface-panel" id="subsurfacePanel" aria-live="polite">
-                    <div class="panel-head">
-                        <h2 class="panel-title">SUBSURFACE / GROUND EVIDENCE</h2>
-                        <span class="badge badge-simulated"><span class="badge-k">SENSITIVITY:</span> HYPOTHETICAL &mdash; NOT OBSERVED</span>
-                    </div>
-                    <p class="panel-note">Left: what official records actually report for this target. Right: how the investigation priority <em>would</em> change for each possible outcome of the next investigation (project rules). No boreholes, assays or geophysical values are generated, and nothing here confirms mineralisation or implies a reserve.</p>
-                    <div id="subsurfaceBody"><div class="empty-state">Select a target to see its observed evidence and next-evidence sensitivity.</div></div>
+                <div class="panel" id="fallbackPanel" hidden>
+                    <div class="panel-head"><h2 class="panel-title">Live Query Fallback &mdash; Demo</h2><span class="badge badge-simulated">SIMULATED OUTAGE</span></div>
+                    <div id="fallbackBody"></div>
+                </div>
+
+                <div class="next-step">
+                    <span class="next-label">Next</span>
+                    <button type="button" class="btn btn-primary" data-goto="production-risk">View Production Forecast <span aria-hidden="true">&rarr;</span></button>
                 </div>
             </section>
 
-            <!-- ══════════════════════════════════════════════════════════
-                 SCREEN 3: PRODUCTION RISK
-                 ══════════════════════════════════════════════════════════ -->
+            <!-- ═════════════ 2 · PRODUCTION FORECAST ═════════════ -->
             <section class="section" id="section-production-risk" aria-labelledby="h-prod">
                 <div class="screen-head">
                     <div>
-                        <h1 id="h-prod" class="screen-title">Production Risk</h1>
-                        <p class="screen-question">Are we likely to miss, and why?</p>
+                        <div class="eyebrow">Step 2</div>
+                        <h1 id="h-prod" class="screen-title">Production Forecast &middot; Supply Gap</h1>
                     </div>
-                    <div class="screen-head-meta">
-                        <span class="meta-chip" id="prHorizon">FORECAST HORIZON: &mdash;</span>
+                    <div class="screen-meta">
+                        <span class="meta-chip" id="prHorizon">&mdash;</span>
                         <div class="prov-row" id="prProvenance"></div>
-                        <button type="button" class="cmd-btn cmd-btn-outline" id="btnRefreshProduction">
-                            <span>Refresh</span><span class="spinner"></span>
-                        </button>
+                        <button type="button" class="btn btn-ghost" data-truth="production">Model Truth</button>
+                        <button type="button" class="btn btn-ghost" id="btnRefreshProduction"><span>Refresh</span><span class="spinner"></span></button>
                     </div>
                 </div>
+
+                <div class="tiles tiles-6" id="prTiles"></div>
 
                 <div class="panel">
-                    <div class="panel-head">
-                        <h2 class="panel-title">HISTORICAL PRODUCTION</h2>
-                        <span class="panel-sub">Last 90 days &middot; 7-day period totals &middot; actual vs target &middot; SYNTHETIC demo-mine operations (not MOIL telemetry)</span>
-                    </div>
-                    <div class="chart-legend" id="histLegend"></div>
-                    <div class="chart-wrap" id="histChart"></div>
+                    <div class="panel-head"><h2 class="panel-title">Forecast vs Required Supply</h2><span class="panel-aside" id="prGapAside"></span></div>
+                    <div class="range-chart" id="prRangeChart"></div>
                 </div>
 
-                <div class="split-2">
+                <div class="grid grid-3-2">
                     <div class="panel">
-                        <div class="panel-head">
-                            <h2 class="panel-title">7-DAY CONDITIONAL PRODUCTION FORECAST</h2>
-                            <span class="panel-sub" id="prForecastSub">P10 / P50 / P90</span>
-                        </div>
-                        <div class="kpi-strip kpi-strip-3">
-                            <div class="kpi-tile"><span class="kpi-label">P10</span><div class="kpi-val mono-val" id="prP10">&mdash;</div><span class="kpi-sub">Model 10th-percentile estimate</span></div>
-                            <div class="kpi-tile"><span class="kpi-label">P50</span><div class="kpi-val mono-val" id="prP50">&mdash;</div><span class="kpi-sub">Model median estimate</span></div>
-                            <div class="kpi-tile"><span class="kpi-label">P90</span><div class="kpi-val mono-val" id="prP90">&mdash;</div><span class="kpi-sub">Model 90th-percentile estimate</span></div>
-                        </div>
-                        <div class="range-chart" id="prRangeChart"></div>
-                        <div class="forecast-basis" id="prForecastBasis"></div>
+                        <div class="panel-head"><h2 class="panel-title">Production &middot; 7-Day Periods</h2><span class="badge badge-synthetic">SYNTHETIC DEMO MINE</span></div>
+                        <div class="chart-legend" id="histLegend"></div>
+                        <div class="chart-wrap" id="histChart"></div>
                     </div>
                     <div class="panel">
-                        <div class="panel-head">
-                            <h2 class="panel-title">TARGET &amp; GAP</h2>
-                        </div>
-                        <div class="kpi-strip kpi-strip-3">
-                            <div class="kpi-tile"><span class="kpi-label">TARGET</span><div class="kpi-val mono-val" id="prTarget">&mdash;</div></div>
-                            <div class="kpi-tile kpi-tile-gap"><span class="kpi-label">SUPPLY GAP</span><div class="kpi-val mono-val" id="prGap">&mdash;</div><span class="kpi-sub">Target minus P50</span></div>
-                            <div class="kpi-tile"><span class="kpi-label">RISK</span><div class="kpi-val" id="prRisk">&mdash;</div><span class="kpi-sub" id="prRiskPolicy">Risk policy: configured policy</span></div>
-                        </div>
+                        <div class="panel-head"><h2 class="panel-title">Forecast Drivers</h2><span class="badge badge-neutral">NOT CAUSAL</span></div>
+                        <div id="prContributions"></div>
                     </div>
                 </div>
+
+                <details class="disclosure disclosure-panel">
+                    <summary>Forecast Details <span class="muted">&middot; basis, interval validation, applicability</span></summary>
+                    <div class="disclosure-body" id="prForecastBasis"></div>
+                </details>
 
                 <div class="panel" id="realQuarterPanel">
-                    <div class="panel-head">
-                        <h2 class="panel-title">REAL MOIL PRODUCTION &middot; COMPANY TOTAL, QUARTERLY</h2>
-                        <span class="panel-sub">Public MOIL disclosures &middot; not the demo mine &middot; not weekly</span>
-                    </div>
-                    <div class="prov-row" id="rqProvenance"></div>
-                    <div id="rqBody" class="panel-body"><div class="empty-state">Loading real quarterly production…</div></div>
+                    <div class="panel-head"><h2 class="panel-title">MOIL Production &middot; Company Total, Quarterly</h2><div class="prov-row" id="rqProvenance"></div></div>
+                    <div id="rqBody"><div class="loading-state">Loading real quarterly production…</div></div>
                 </div>
 
-                <div class="panel">
-                    <div class="panel-head">
-                        <h2 class="panel-title">MODEL CONTRIBUTIONS</h2>
-                        <span class="panel-sub">Model contribution, not causal attribution.</span>
-                    </div>
-                    <div id="prContributions" class="panel-body"></div>
+                <div class="next-step">
+                    <span class="next-label">Next</span>
+                    <button type="button" class="btn btn-primary" data-goto="recovery">Compare Recovery Scenarios <span aria-hidden="true">&rarr;</span></button>
                 </div>
             </section>
 
-            <!-- ══════════════════════════════════════════════════════════
-                 SCREEN 4: RECOVERY & CONTINGENCY
-                 ══════════════════════════════════════════════════════════ -->
+            <!-- ═════════════ 3 · RECOVERY SCENARIOS ═════════════ -->
             <section class="section" id="section-recovery" aria-labelledby="h-rec">
                 <div class="screen-head">
                     <div>
-                        <h1 id="h-rec" class="screen-title">Recovery &amp; Contingency</h1>
-                        <p class="screen-question">Can operations close the gap &mdash; and if not, what is the contingency?</p>
+                        <div class="eyebrow">Step 3</div>
+                        <h1 id="h-rec" class="screen-title">Recovery Scenarios &middot; Residual Gap</h1>
                     </div>
-                    <div class="screen-head-meta">
-                        <span class="badge badge-simulated">SIMULATED SCENARIO</span>
+                    <div class="screen-meta">
+                        <span class="badge badge-simulated">MODELLED SCENARIO</span>
                         <div class="prov-row" id="rcProvenance"></div>
+                        <button type="button" class="btn btn-ghost" data-truth="recovery">Model Truth</button>
+                    </div>
+                </div>
+
+                <div class="rec-top">
+                    <form class="panel rec-controls" id="recControls" onsubmit="return false">
+                        <fieldset>
+                            <legend class="label">Nominal Scenario</legend>
+                            <div class="choice-row" id="scenarioChoices">
+                                <label class="choice"><input type="radio" name="scenario" value="normal" checked><span>Normal</span></label>
+                                <label class="choice"><input type="radio" name="scenario" value="heavy_rain"><span>Heavy Rain</span></label>
+                                <label class="choice"><input type="radio" name="scenario" value="equipment_degradation"><span>Equipment Degradation</span></label>
+                                <label class="choice"><input type="radio" name="scenario" value="blast_delay"><span>Blast Delay</span></label>
+                                <label class="choice"><input type="radio" name="scenario" value="drill_delay"><span>Drill Delay</span></label>
+                                <label class="choice"><input type="radio" name="scenario" value="haulage_disruption"><span>Haulage Disruption</span></label>
+                                <label class="choice"><input type="radio" name="scenario" value="combined"><span>Combined</span></label>
+                            </div>
+                        </fieldset>
+                        <fieldset>
+                            <legend class="label">Recovery Actions</legend>
+                            <div class="choice-row" id="actionChoices">
+                                <label class="choice"><input type="checkbox" name="action" value="equipment_recovery" checked><span>A1 &middot; Equipment Recovery</span></label>
+                                <label class="choice"><input type="checkbox" name="action" value="schedule_adjustment" checked><span>A2 &middot; Schedule Adjustment</span></label>
+                                <label class="choice"><input type="checkbox" name="action" value="blast_delay_reduction" checked><span>A3 &middot; Blast/Drill Delay Reduction</span></label>
+                            </div>
+                        </fieldset>
+                        <button type="button" class="btn btn-primary" id="btnEvaluate"><span>Test Recovery</span><span class="spinner"></span></button>
+                    </form>
+
+                    <div class="panel residual" id="residualHero">
+                        <div class="residual-flow">
+                            <div class="rf-cell">
+                                <span class="label">Supply Gap &middot; No Action</span>
+                                <div class="rf-val mono" id="rcGap">&mdash;</div>
+                                <span class="rf-sub" id="rcGapSub"></span>
+                            </div>
+                            <div class="rf-arrow" aria-hidden="true">
+                                <span id="rcRecovery">&mdash;</span>
+                                <svg width="60" height="14" viewBox="0 0 60 14"><path d="M0 7h52M46 1l8 6-8 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                                <span class="rf-port mono" id="rcSelected">&mdash;</span>
+                            </div>
+                            <div class="rf-cell rf-residual">
+                                <span class="label">Residual Supply Gap</span>
+                                <div class="rf-val mono" id="rcResidual">&mdash;</div>
+                                <span class="rf-sub" id="rcResidualSub"></span>
+                            </div>
+                        </div>
+                        <div class="residual-facts">
+                            <div><span class="label">Operations Close Gap?</span><div id="rcCanClose">&mdash;</div></div>
+                            <div><span class="label">Decision Horizon</span><div id="rcHorizon">&mdash;</div></div>
+                            <div><span class="label">Selection</span><div id="rcSelection">&mdash;</div></div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="panel">
                     <div class="panel-head">
-                        <h2 class="panel-title">CURRENT SUPPLY GAP</h2>
-                        <span class="panel-sub">Baseline from the Supply Command forecast</span>
+                        <h2 class="panel-title">Portfolio Comparison &middot; Residual Gap</h2>
+                        <div class="chart-legend" id="portfolioLegend"></div>
                     </div>
-                    <div class="kpi-strip kpi-strip-5">
-                        <div class="kpi-tile"><span class="kpi-label">TARGET</span><div class="kpi-val mono-val" id="rcTarget">&mdash;</div></div>
-                        <div class="kpi-tile"><span class="kpi-label">P10</span><div class="kpi-val mono-val" id="rcP10">&mdash;</div></div>
-                        <div class="kpi-tile"><span class="kpi-label">P50</span><div class="kpi-val mono-val" id="rcP50">&mdash;</div></div>
-                        <div class="kpi-tile"><span class="kpi-label">P90</span><div class="kpi-val mono-val" id="rcP90">&mdash;</div></div>
-                        <div class="kpi-tile kpi-tile-gap"><span class="kpi-label">GAP (P50)</span><div class="kpi-val mono-val" id="rcGap">&mdash;</div></div>
-                    </div>
-                </div>
-
-                <div class="split-2">
-                    <fieldset class="panel control-panel">
-                        <legend class="panel-title">DISRUPTION SCENARIOS</legend>
-                        <div class="choice-grid" id="scenarioChoices">
-                            <label class="choice"><input type="radio" name="scenario" value="normal" checked><span>Normal</span></label>
-                            <label class="choice"><input type="radio" name="scenario" value="heavy_rain"><span>Heavy Rain</span></label>
-                            <label class="choice"><input type="radio" name="scenario" value="equipment_degradation"><span>Equipment Degradation</span></label>
-                            <label class="choice"><input type="radio" name="scenario" value="blast_delay"><span>Blast Delay</span></label>
-                            <label class="choice"><input type="radio" name="scenario" value="drill_delay"><span>Drill Delay</span></label>
-                            <label class="choice"><input type="radio" name="scenario" value="haulage_disruption"><span>Haulage Disruption</span></label>
-                            <label class="choice"><input type="radio" name="scenario" value="combined"><span>Combined Disruption</span></label>
-                        </div>
-                    </fieldset>
-                    <fieldset class="panel control-panel">
-                        <legend class="panel-title">RECOVERY ACTIONS</legend>
-                        <div class="choice-grid" id="actionChoices">
-                            <label class="choice"><input type="checkbox" name="action" value="equipment_recovery" checked><span>Equipment Recovery</span></label>
-                            <label class="choice"><input type="checkbox" name="action" value="schedule_adjustment" checked><span>Schedule Adjustment</span></label>
-                            <label class="choice"><input type="checkbox" name="action" value="blast_delay_reduction" checked><span>Blast/Drill Delay Reduction</span></label>
-                        </div>
-                        <div class="control-foot">
-                            <button type="button" class="cmd-btn cmd-btn-primary" id="btnEvaluate">
-                                <span>Evaluate recovery</span><span class="spinner"></span>
-                            </button>
-                        </div>
-                    </fieldset>
+                    <div id="portfolioChart"><div class="loading-state">Loading…</div></div>
                 </div>
 
                 <div class="panel">
                     <div class="panel-head">
-                        <h2 class="panel-title">ACTION PORTFOLIOS</h2>
-                        <span class="panel-sub">Ranking, eligibility and selection come from the backend. Low-applicability portfolios are shown as diagnostics but cannot be auto-selected. Feasibility = modelled input-constraint check; planner/site confirmation required.</span>
+                        <h2 class="panel-title">Scenario Matrix &middot; Residual Gap by Disruption</h2>
+                        <div class="chart-legend" id="matrixLegend"></div>
                     </div>
-                    <div class="table-responsive" id="portfolioTable"></div>
+                    <div id="scenarioMatrix"></div>
                 </div>
 
-                <div class="residual-hero" id="residualHero">
-                    <div class="residual-main">
-                        <span class="kpi-label">RESIDUAL SUPPLY GAP</span>
-                        <div class="residual-val mono-val" id="rcResidual">&mdash;</div>
-                        <span class="kpi-sub" id="rcResidualSub">After backend-selected portfolio</span>
-                    </div>
-                    <div class="residual-q">
-                        <span class="kpi-label">CAN OPERATIONS CLOSE IT?</span>
-                        <div class="residual-answer" id="rcCanClose">&mdash;</div>
-                    </div>
-                    <div class="residual-q">
-                        <span class="kpi-label">DECISION HORIZON</span>
-                        <div class="residual-answer" id="rcHorizon">&mdash;</div>
-                        <span class="kpi-sub" id="rcHorizonNote"></span>
-                    </div>
-                </div>
+                <div class="decision-bar" id="rcDecision" data-tone="neutral"><div class="loading-state">Loading decision…</div></div>
 
-                <div class="decision-block" id="rcDecision"></div>
-                <div class="panel" id="rcWhyNowPanel" hidden>
-                    <div id="rcWhyNow"></div>
-                </div>
+                <details class="disclosure disclosure-panel">
+                    <summary>Portfolio Details <span class="muted">&middot; burden, modelled feasibility, eligibility, selection rule</span></summary>
+                    <div class="disclosure-body" id="portfolioTable"></div>
+                </details>
 
-                <!-- Decision Flip -->
-                <div class="panel flip-panel">
-                    <div class="panel-head">
-                        <h2 class="panel-title">DECISION FLIP &mdash; STRESS TEST</h2>
-                        <span class="panel-sub">Baseline = current mine state; perturbed = the conditions below. Both are recomputed end-to-end by the backend (/api/decision/flip).</span>
-                    </div>
+                <div class="panel">
+                    <div class="panel-head"><h2 class="panel-title">Stress Test &middot; Decision Flip</h2><span class="badge badge-simulated">SIMULATED</span></div>
                     <div class="flip-grid">
                         <div class="flip-controls">
-                            <div class="param-row">
-                                <div class="param-label-group">
-                                    <label for="flipRainfall">Rainfall, 7-day total (mm)</label>
-                                    <output class="param-value-pill" id="flipRainfallVal" for="flipRainfall">&mdash;</output>
-                                </div>
-                                <input type="range" class="custom-range" id="flipRainfall" min="0" max="450" step="1" value="35">
+                            <div class="param">
+                                <div class="param-head"><label for="flipRainfall">Rainfall, 7-day</label><output class="param-val mono" id="flipRainfallVal" for="flipRainfall">&mdash;</output></div>
+                                <input type="range" class="range" id="flipRainfall" min="0" max="450" step="1" value="35">
                             </div>
-                            <div class="param-row">
-                                <div class="param-label-group">
-                                    <label for="flipEquip">Equipment availability</label>
-                                    <output class="param-value-pill" id="flipEquipVal" for="flipEquip">85%</output>
-                                </div>
-                                <input type="range" class="custom-range" id="flipEquip" min="0.3" max="1" step="0.01" value="0.85">
+                            <div class="param">
+                                <div class="param-head"><label for="flipEquip">Equipment availability</label><output class="param-val mono" id="flipEquipVal" for="flipEquip">85%</output></div>
+                                <input type="range" class="range" id="flipEquip" min="0.3" max="1" step="0.01" value="0.85">
                             </div>
-                            <div class="param-row">
-                                <div class="param-label-group">
-                                    <label for="flipBlast">Blast delay (hours / day)</label>
-                                    <output class="param-value-pill" id="flipBlastVal" for="flipBlast">0.8 h</output>
-                                </div>
-                                <input type="range" class="custom-range" id="flipBlast" min="0" max="12" step="0.1" value="0.8">
+                            <div class="param">
+                                <div class="param-head"><label for="flipBlast">Blast delay</label><output class="param-val mono" id="flipBlastVal" for="flipBlast">0.8 h</output></div>
+                                <input type="range" class="range" id="flipBlast" min="0" max="12" step="0.1" value="0.8">
                             </div>
-                            <button type="button" class="cmd-btn cmd-btn-primary" id="btnFlip">
-                                <span>Run decision flip</span><span class="spinner"></span>
-                            </button>
+                            <button type="button" class="btn btn-primary" id="btnFlip"><span>Compare with Baseline</span><span class="spinner"></span></button>
                         </div>
                         <div class="flip-result" id="flipResult">
-                            <div class="empty-state">Adjust the conditions and run the flip to compare the baseline and perturbed decisions.</div>
+                            <div class="empty-state">Set conditions, then compare with the baseline decision.</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="panel">
                     <div class="panel-head">
-                        <h2 class="panel-title">LOCAL DEMO REVIEW LOG</h2>
-                        <button type="button" class="cmd-btn cmd-btn-outline" id="btnLogDecision" disabled>
-                            <span>Submit current decision for review</span><span class="spinner"></span>
-                        </button>
+                        <h2 class="panel-title">Review Log</h2>
+                        <div class="panel-actions">
+                            <span class="badge badge-neutral" title="Stored as a file on the API server. Not a durable audit trail.">LOCAL DEMO LOG</span>
+                            <button type="button" class="btn btn-ghost" id="btnLogDecision" disabled><span>Submit Decision for Review</span><span class="spinner"></span></button>
+                        </div>
                     </div>
-                    <div class="chart-note">Stored as a file on the API server for this demo. Not a durable audit trail &mdash; a production deployment needs managed persistent storage.</div>
-                    <div class="table-responsive" id="decisionHistory"></div>
+                    <div class="table-wrap" id="decisionHistory"></div>
+                </div>
+
+                <div class="next-step">
+                    <span class="next-label">Next</span>
+                    <button type="button" class="btn btn-primary" data-goto="targets">View Target Priority <span aria-hidden="true">&rarr;</span></button>
                 </div>
             </section>
 
-            <!-- ══════════════════════════════════════════════════════════
-                 SCREEN 5: MODEL TRUST
-                 ══════════════════════════════════════════════════════════ -->
+            <!-- ═════════════ 4 · TARGET PRIORITY ═════════════ -->
+            <section class="section" id="section-targets" aria-labelledby="h-targets">
+                <div class="screen-head">
+                    <div>
+                        <div class="eyebrow">Step 4</div>
+                        <h1 id="h-targets" class="screen-title">Target Priority &middot; Why This Target Now?</h1>
+                    </div>
+                    <div class="screen-meta">
+                        <span id="tpContext"></span>
+                        <span class="badge badge-neutral">RELATIVE PROSPECTIVITY &middot; RESERVE NOT CONFIRMED</span>
+                        <button type="button" class="btn btn-ghost" data-truth="exploration">Model Truth</button>
+                    </div>
+                </div>
+
+                <div class="targets-layout">
+                    <div class="panel">
+                        <div class="panel-head"><h2 class="panel-title">Priority Ranking</h2><span class="panel-aside mono" id="tpCount">&mdash;</span></div>
+                        <div class="rank-table rank-full" id="rankList" role="listbox" aria-label="Target priority ranking"></div>
+                    </div>
+                    <div class="panel why-panel" id="whyPanel" aria-live="polite">
+                        <div class="loading-state">Loading…</div>
+                    </div>
+                </div>
+
+                <details class="disclosure disclosure-panel">
+                    <summary>Priority Formula <span class="muted">&middot; weights, gates, method</span></summary>
+                    <div class="disclosure-body" id="tpFormula"></div>
+                </details>
+
+                <div class="next-step">
+                    <span class="next-label">Next</span>
+                    <button type="button" class="btn btn-primary" data-truth="exploration">Inspect Model Truth <span aria-hidden="true">&rarr;</span></button>
+                </div>
+            </section>
+
+            <!-- ═════════════ MODEL TRUTH ═════════════ -->
             <section class="section" id="section-model-trust" aria-labelledby="h-trust">
                 <div class="screen-head">
                     <div>
-                        <h1 id="h-trust" class="screen-title">Model Trust</h1>
-                        <p class="screen-question">How far should these results be trusted?</p>
+                        <div class="eyebrow">Assurance</div>
+                        <h1 id="h-trust" class="screen-title">Model Truth</h1>
                     </div>
-                    <div class="screen-head-meta">
-                        <button type="button" class="cmd-btn cmd-btn-outline" id="btnRefreshTrust">
-                            <span>Refresh</span><span class="spinner"></span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="split-2">
-                    <div class="panel">
-                        <div class="panel-head">
-                            <h2 class="panel-title">EXPLORATION VALIDATION</h2>
-                            <span class="panel-sub">Spatially held-out evaluation</span>
+                    <div class="screen-meta">
+                        <div class="segmented" role="tablist" aria-label="Model context" id="truthTabs">
+                            <button type="button" class="seg-btn active" role="tab" data-context="exploration" aria-selected="true">Exploration</button>
+                            <button type="button" class="seg-btn" role="tab" data-context="production" aria-selected="false">Production</button>
+                            <button type="button" class="seg-btn" role="tab" data-context="recovery" aria-selected="false">Recovery</button>
                         </div>
-                        <div id="trustExploration"></div>
+                        <button type="button" class="btn btn-ghost" id="btnRefreshTrust"><span>Refresh</span><span class="spinner"></span></button>
+                    </div>
+                </div>
+
+                <div class="tiles tiles-6" id="truthTiles"></div>
+
+                <div class="grid grid-3-2">
+                    <div class="panel">
+                        <div class="panel-head"><h2 class="panel-title" id="truthValTitle">Validation</h2><span class="panel-aside" id="truthValAside"></span></div>
+                        <div id="truthValidation"></div>
                     </div>
                     <div class="panel">
-                        <div class="panel-head">
-                            <h2 class="panel-title">PRODUCTION VALIDATION</h2>
-                            <span class="panel-sub">Rolling-origin backtest</span>
+                        <div class="panel-head"><h2 class="panel-title">Data Provenance</h2></div>
+                        <div id="truthSources"></div>
+                    </div>
+                </div>
+
+                <details class="disclosure disclosure-panel" id="truthTech">
+                    <summary>Technical Details <span class="muted">&middot; metrics, methods, assumptions, limitations</span></summary>
+                    <div class="disclosure-body">
+                        <div class="tech-block" data-context="exploration">
+                            <h3 class="sub-title">Exploration Validation</h3>
+                            <div id="trustExploration"></div>
                         </div>
-                        <div id="trustProduction"></div>
-                    </div>
-                </div>
-
-                <div class="panel">
-                    <div class="panel-head">
-                        <h2 class="panel-title">FORECAST VS ACTUAL</h2>
-                        <span class="panel-sub">Historical diagnostic: out-of-sample backtest forecasts vs synthetic actuals. Does not by itself prove future accuracy.</span>
-                    </div>
-                    <div id="trustReconciliation"></div>
-                </div>
-
-                <div class="panel">
-                    <div class="panel-head">
-                        <h2 class="panel-title">RECOVERY DIAGNOSTICS</h2>
-                        <span class="panel-sub">Current mine state &middot; applicability policy &middot; no recovery "accuracy" is claimed</span>
-                    </div>
-                    <div id="trustRecovery"></div>
-                </div>
-
-                <div class="split-2">
-                    <div class="panel">
-                        <div class="panel-head">
-                            <h2 class="panel-title">DATA PROVENANCE</h2>
+                        <div class="tech-block" data-context="production">
+                            <h3 class="sub-title">Production Validation</h3>
+                            <div id="trustProduction"></div>
+                            <h3 class="sub-title">Forecast vs Actual &middot; Backtest Reconciliation</h3>
+                            <div id="trustReconciliation"></div>
                         </div>
+                        <div class="tech-block" data-context="recovery">
+                            <h3 class="sub-title">Recovery Diagnostics</h3>
+                            <div id="trustRecovery"></div>
+                        </div>
+                        <h3 class="sub-title">All Data Sources</h3>
                         <div id="trustProvenance"></div>
-                    </div>
-                    <div class="panel limitations-panel">
-                        <div class="panel-head">
-                            <h2 class="panel-title">MODEL LIMITATIONS</h2>
-                        </div>
-                        <ul class="limitations-list">
+                        <h3 class="sub-title">Model Limitations</h3>
+                        <ul class="plain-list" id="trustLimitations">
                             <li>Remote sensing supports prospectivity targeting; it does not by itself confirm underground reserves.</li>
                             <li>Scenario effects are model estimates, not guaranteed causal outcomes.</li>
                             <li>Operational and production records are SYNTHETIC demonstration data; production metrics show pipeline behaviour, not real mine accuracy.</li>
-                            <li>Prospectivity is a relative rank within the study area, trained on public occurrence records with unlabelled (not barren) background; no subsurface evidence is available.</li>
+                            <li>Prospectivity is a relative rank within the study area, trained on public occurrence records with unlabelled (not barren) background.</li>
                             <li>Forecasts are conditional: trailing 7-day conditions are assumed to persist unless a scenario overrides them.</li>
                             <li>Predictions outside the model applicability envelope require independent validation.</li>
                         </ul>
                     </div>
-                </div>
+                </details>
             </section>
 
         </div>
     </main>
 </div>
 
-<!-- Scripts -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
