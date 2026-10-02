@@ -82,3 +82,23 @@ def test_flip_exposes_forecast_gap_and_priority_changes():
     assert all(r["prospectivity_rank"] == pros[r["target_id"]] for r in ch)
     assert p["next_target"] == ch[0]["target_id"] or p["next_target"] in {r["target_id"] for r in ch}
     assert any(w["code"] == "RESERVE_NOT_CONFIRMED" for w in p["why_target_now"])
+
+
+def test_prospectivity_invariant_holds_for_every_target():
+    """Decision Flip must never change geological prospectivity for ANY target, not just the
+    handful surfaced in exploration_priority_changes. Only investigation priority may move."""
+    from services.exploration_service import get_service
+    ex = get_service()
+    static = {t["target_id"]: t["prospectivity_rank"] for t in ex.targets}
+    assert static  # sanity: targets loaded
+
+    base = cs.evaluate("DEMO_F", conditions={})
+    pert = cs.evaluate("DEMO_F", conditions=STRESS)
+    rank_b = ex.prioritise(base["strategic_requirement"])
+    rank_p = ex.prioritise(pert["strategic_requirement"])
+
+    assert len(rank_b) == len(static) and len(rank_p) == len(static)
+    for t in rank_b:
+        assert t["prospectivity_rank"] == static[t["target_id"]]
+    for t in rank_p:
+        assert t["prospectivity_rank"] == static[t["target_id"]]
