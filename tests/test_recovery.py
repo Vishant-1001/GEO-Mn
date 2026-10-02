@@ -200,6 +200,25 @@ def test_blocked_portfolios_require_human_review():
             assert p["human_review_required"] is True
 
 
+def test_selection_matches_independent_brute_force_reference():
+    # Independent re-implementation of the documented selection rule (worst-case residual gap ->
+    # mean residual gap -> intervention burden -> fewer actions -> portfolio id), computed directly
+    # from the evaluated portfolios without calling rs.select_portfolio. Guards against a regression
+    # in the shipped tie-break logic diverging from the documented rule.
+    d = rs.evaluate("DEMO_MINE")
+    tol = load_config("risk_policy.json")["decision"]["tie_tolerance_pct_of_target"] / 100 * d["target_tonnes"]
+    eligible = [p for p in d["evaluated_portfolios"] if p["eligible"]]
+    assert eligible, "expected at least one eligible portfolio for DEMO_MINE"
+
+    best_worst = min(p["worst_case_residual_gap_tonnes"] for p in eligible)
+    tier1 = [p for p in eligible if p["worst_case_residual_gap_tonnes"] <= best_worst + tol]
+    best_mean = min(p["mean_residual_gap_tonnes"] for p in tier1)
+    tier2 = [p for p in tier1 if p["mean_residual_gap_tonnes"] <= best_mean + tol]
+    reference = min(tier2, key=lambda p: (p["intervention_burden"], p["n_actions"], p["id"]))
+
+    assert d["selected_portfolio"] == reference["id"]
+
+
 def test_trust_recovery_diagnostics(client):
     r = client.get("/api/trust/recovery?mine_id=DEMO_MINE").json()
     ev = rs.evaluate("DEMO_MINE")
